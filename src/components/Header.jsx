@@ -54,7 +54,7 @@ export default function Header({
                 lang === 'zh' ? 'left-0.5' : 'left-[calc(100%-1.125rem)]'
               }`}
             >
-              <span className="text-[7px] font-extrabold text-white leading-none">
+              <span className="text-[7px] font-extrabold text-ink leading-none">
                 {lang === 'zh' ? '中' : 'EN'}
               </span>
             </span>
