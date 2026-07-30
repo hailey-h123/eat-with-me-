@@ -46,18 +46,21 @@ export default function Header({
           <button
             type="button"
             onClick={toggleLang}
-            className="relative w-11 h-6 rounded-full border border-ink/20 bg-ink/5 transition-colors duration-300 overflow-hidden flex-shrink-0"
-            style={{ borderColor: 'var(--color-ink)' }}
+            className="relative w-12 h-6 rounded-full border-2 transition-colors duration-300 overflow-hidden flex-shrink-0"
+            style={{
+              borderColor: 'var(--color-ink)',
+              backgroundColor: lang === 'zh' ? 'var(--color-bg-soft)' : 'var(--color-bg-soft)',
+            }}
           >
-            <span
-              className={`absolute top-0.5 h-4 w-4 rounded-full bg-primary shadow-sm transition-all duration-300 ease-out flex items-center justify-center ${
-                lang === 'zh' ? 'left-0.5' : 'left-[calc(100%-1.125rem)]'
-              }`}
-            >
-              <span className="text-[7px] font-extrabold text-ink leading-none">
-                {lang === 'zh' ? '中' : 'EN'}
-              </span>
+            <span className="absolute inset-0 flex items-center justify-between px-1.5 pointer-events-none">
+              <span className="text-[9px] font-extrabold text-ink leading-none">中</span>
+              <span className="text-[9px] font-extrabold text-ink leading-none">EN</span>
             </span>
+            <span
+              className={`absolute top-0.5 h-4 w-5 rounded-full bg-primary shadow-md transition-all duration-300 ease-out ${
+                lang === 'zh' ? 'left-0.5' : 'left-[calc(100%-1.375rem)]'
+              }`}
+            />
           </button>
           <div className="w-2 h-2 bg-secondary rounded-full animate-pulse" />
           <span className="text-[10px] text-text-muted font-medium">AI 就绪</span>
