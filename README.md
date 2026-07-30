@@ -29,29 +29,9 @@
 - Node.js >= 18
 - npm >= 9
 
-### 方式一：演示模式（无需 API Key）
+### 方式一：开箱即用（推荐）
 
-直接克隆运行即可体验！项目内置了演示数据，无需配置任何 API Key。
-
-```bash
-# 克隆仓库
-git clone https://github.com/yourusername/eat-with-me.git
-
-# 进入项目目录
-cd eat-with-me
-
-# 安装依赖
-npm install
-
-# 启动开发服务器（自动进入演示模式）
-npm run dev
-```
-
-> 💡 演示模式下会显示黄色提示条，使用本地示例餐厅数据。功能完整，可以体验所有交互。
-
-### 方式二：完整模式（使用真实高德数据）
-
-配置 API Key 后即可使用真实的餐厅搜索和地图服务。
+项目已内置默认 API Key，克隆后直接运行即可使用真实数据！
 
 ```bash
 # 克隆仓库
@@ -62,14 +42,34 @@ cd eat-with-me
 
 # 安装依赖
 npm install
-
-# 配置环境变量
-cp .env.example .env
-# 编辑 .env 文件，填入你的 API Key
 
 # 启动开发服务器
 npm run dev
 ```
+
+> 💡 默认 Key 配置在 `public/config.js`，如需使用自己的 Key，可修改该文件或创建 `.env` 文件。
+
+### 方式二：使用自己的 API Key
+
+如果你想使用自己的 Key（避免共享 Key 的流量限制）：
+
+```bash
+# 配置环境变量
+cp .env.example .env
+# 编辑 .env 文件，填入你的 API Key
+```
+
+或直接修改 `public/config.js`：
+```javascript
+window.APP_CONFIG = {
+  AMAP_KEY: '你的JS API Key',
+  AMAP_WEB_KEY: '你的Web服务Key',
+};
+```
+
+### 方式三：演示模式（完全离线）
+
+如果没有配置任何 Key，项目会自动进入演示模式，使用本地示例数据。
 
 ### 其他命令
 

@@ -2,7 +2,8 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { defaultLocation } from '../data/mockRestaurants';
 import { regeocode, geocode, getIPLocation } from '../services/amapService';
 
-const AMAP_KEY = import.meta.env.VITE_AMAP_KEY || '';
+const appConfig = window.APP_CONFIG || {};
+const AMAP_KEY = import.meta.env.VITE_AMAP_KEY || appConfig.AMAP_KEY || '';
 const GLOBAL_TIMEOUT = 15000;
 
 const ERROR_MESSAGES = {
