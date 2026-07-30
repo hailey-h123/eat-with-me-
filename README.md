@@ -29,7 +29,9 @@
 - Node.js >= 18
 - npm >= 9
 
-### 安装运行
+### 方式一：演示模式（无需 API Key）
+
+直接克隆运行即可体验！项目内置了演示数据，无需配置任何 API Key。
 
 ```bash
 # 克隆仓库
@@ -41,14 +43,45 @@ cd eat-with-me
 # 安装依赖
 npm install
 
+# 启动开发服务器（自动进入演示模式）
+npm run dev
+```
+
+> 💡 演示模式下会显示黄色提示条，使用本地示例餐厅数据。功能完整，可以体验所有交互。
+
+### 方式二：完整模式（使用真实高德数据）
+
+配置 API Key 后即可使用真实的餐厅搜索和地图服务。
+
+```bash
+# 克隆仓库
+git clone https://github.com/yourusername/eat-with-me.git
+
+# 进入项目目录
+cd eat-with-me
+
+# 安装依赖
+npm install
+
+# 配置环境变量
+cp .env.example .env
+# 编辑 .env 文件，填入你的 API Key
+
 # 启动开发服务器
 npm run dev
+```
 
+### 其他命令
+
+```bash
 # 构建生产版本
 npm run build
 
 # 运行测试
 npm test
+
+# 预览构建产物
+npm run preview
 ```
 
 ### 配置环境变量

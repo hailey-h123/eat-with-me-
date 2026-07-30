@@ -10,7 +10,7 @@ import HistoryView from './components/HistoryView';
 import { useLocation } from './hooks/useLocation';
 import { parseMemberIntent, mergeMemberIntents, parseIntent } from './services/llmService';
 import { recommendRestaurants, randomExplore, recommendByMode, drawFortuneCard, analyzeEmptyResult } from './services/recommendationService';
-import { geocode } from './services/amapService';
+import { geocode, IS_MOCK_MODE } from './services/amapService';
 import { calculateSingleScore, calculateSoloFriendly } from './services/scoringService';
 import { addSearchHistory } from './services/historyService';
 import {
@@ -341,6 +341,23 @@ function App() {
   return (
     <div className="min-h-screen">
       <Header title={headerConfig.title} subtitle={headerConfig.subtitle} showBack={headerConfig.showBack} onBack={headerConfig.onBack} />
+      {IS_MOCK_MODE && (
+        <div className="bg-amber-50 border-b border-amber-200 px-4 py-2 text-center">
+          <p className="text-sm text-amber-800">
+            🎯 <strong>演示模式</strong> · 未配置高德 API Key，当前使用示例数据
+            <span className="ml-2 text-amber-600">
+              （
+              <button
+                onClick={() => alert('1. 访问 https://console.amap.com/dev/key/app\n2. 创建「Web端(JS API)」应用\n3. 创建「Web服务」应用\n4. 复制 .env.example 为 .env 并填入 Key')}
+                className="underline hover:text-amber-900"
+              >
+                如何配置真实 API
+              </button>
+              ）
+            </span>
+          </p>
+        </div>
+      )}
       <LocationBar location={location} isLocating={isLocating} error={error} debugInfo={debugInfo} onLocationChange={handleLocationChange} onRetry={retryLocate} />
       {currentView === 'home' && <main className="py-8"><HomeView onSelectSolo={handleSelectSolo} onSelectGroup={handleSelectGroup} onOpenHistory={() => setCurrentView('history')} location={location} onQuickPick={(restaurant) => {
         const { score, reasons } = calculateSingleScore(restaurant, { preferences: [], allergies: [] });

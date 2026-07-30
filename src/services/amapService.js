@@ -1,6 +1,50 @@
+import { mockRestaurants } from '../data/mockRestaurants';
+
 const WEB_KEY = import.meta.env.VITE_AMAP_WEB_KEY || '';
+export const IS_MOCK_MODE = !WEB_KEY;
 
 let jsonpCounter = 0;
+
+// Mock 搜索：在没有 API Key 时使用
+function mockSearch(keyword, location, radius = 3000) {
+  const keywordLower = keyword.toLowerCase();
+  const results = mockRestaurants.filter(r => {
+    const nameMatch = r.name.toLowerCase().includes(keywordLower);
+    const cuisineMatch = r.cuisine.toLowerCase().includes(keywordLower);
+    const tagMatch = r.tags?.some(t => t.toLowerCase().includes(keywordLower));
+    const featureMatch = r.features?.some(f => f.toLowerCase().includes(keywordLower));
+    return nameMatch || cuisineMatch || tagMatch || featureMatch;
+  });
+  
+  // 根据距离过滤
+  if (results.length === 0) {
+    // 如果没有匹配，返回所有餐厅
+    return mockRestaurants.map(r => ({
+      ...r,
+      distance: Math.floor(Math.random() * 80) + 5,
+      distanceMeters: Math.floor(Math.random() * 5000) + 500,
+      lng: location?.lng || 116.4706,
+      lat: location?.lat || 39.9997,
+    }));
+  }
+  
+  return results.map(r => ({
+    ...r,
+    distance: Math.floor(Math.random() * 40) + 2,
+    distanceMeters: Math.floor(Math.random() * 3000) + 200,
+    lng: location?.lng || 116.4706,
+    lat: location?.lat || 39.9997,
+  }));
+}
+
+// Mock 地理编码
+function mockGeocode(address) {
+  return {
+    lng: 116.4706,
+    lat: 39.9997,
+    name: address || 'Mock Location',
+  };
+}
 
 function jsonp(url, params) {
   return new Promise((resolve, reject) => {
@@ -39,10 +83,10 @@ function jsonp(url, params) {
 }
 
 export async function searchPOI(keyword, location, radius = 3000, minRadius = 0, maxRadius = 0, pageNum = 1, pageSize = 25) {
+  // Mock 模式：没有 API Key 时使用本地数据
   if (!WEB_KEY) {
-    return null;
+    return mockSearch(keyword, location, radius);
   }
-
 
   try {
     const data = await jsonp('https://restapi.amap.com/v5/place/around', {
@@ -94,10 +138,10 @@ export async function searchPOIByDistanceRanges(keyword, location, ranges) {
 }
 
 export async function geocode(address) {
+  // Mock 模式
   if (!WEB_KEY) {
-    return null;
+    return mockGeocode(address);
   }
-
 
   try {
     const data = await jsonp('https://restapi.amap.com/v3/geocode/geo', {
@@ -123,8 +167,9 @@ export async function geocode(address) {
 }
 
 export async function regeocode(lng, lat) {
+  // Mock 模式
   if (!WEB_KEY) {
-    return null;
+    return '北京市朝阳区望京SOHO';
   }
 
   try {
@@ -279,10 +324,14 @@ function convertPOIToRestaurant(poi) {
 }
 
 export async function getIPLocation() {
+  // Mock 模式
   if (!WEB_KEY) {
-    return null;
+    return {
+      city: '北京市',
+      province: '北京市',
+      source: 'mock',
+    };
   }
-
 
   try {
     const data = await jsonp('https://restapi.amap.com/v3/ip', {
