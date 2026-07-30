@@ -72,7 +72,8 @@ export function parseIntent(text) {
     peopleCount: 1,
     preferences: [],
     allergies: [],
-    budget: null,
+    budget: null,       // 预算上限（"80以内" → 80，"80左右" → 104）
+    minBudget: null,    // 预算下限（"100以上" → 100）
     atmosphere: '',
     shopType: '',
     cuisines: [],
@@ -84,9 +85,19 @@ export function parseIntent(text) {
 
   const trimmedText = text.trim();
 
-  const budgetMatch = trimmedText.match(/预算(?:人均)?(\d+)(?:以内|以下)?/);
-  if (budgetMatch) {
-    result.budget = parseInt(budgetMatch[1], 10);
+  // 预算识别：以上 / 以内 / 以下 / 左右 / 上下 / 及以上
+  const budgetAbove = trimmedText.match(/预算(?:人均)?(\d+)(?:以上|及以上)/);
+  const budgetAround = trimmedText.match(/预算(?:人均)?(\d+)(?:左右|上下|附近)/);
+  const budgetMax = trimmedText.match(/预算(?:人均)?(\d+)(?:以内|以下|之下)?/);
+  if (budgetAbove) {
+    result.minBudget = parseInt(budgetAbove[1], 10);
+    result.budget = 999; // 无上限，设一个高值兜底
+  } else if (budgetAround) {
+    const mid = parseInt(budgetAround[1], 10);
+    result.minBudget = Math.max(0, Math.round(mid * 0.7));
+    result.budget = Math.round(mid * 1.3);
+  } else if (budgetMax) {
+    result.budget = parseInt(budgetMax[1], 10);
   }
 
   const peopleMatch = trimmedText.match(/(我和)?(\d+)(?:个|位)?(?:朋友|同事|人)/);
@@ -274,6 +285,7 @@ export function parseMemberIntent(text, name = '成员') {
     allergies: intent.allergies,
     atmosphere: intent.atmosphere,
     budget: intent.budget,
+    minBudget: intent.minBudget,
     cuisines: intent.cuisines,
   };
 }
@@ -492,15 +504,27 @@ export function mergeMemberIntents(members) {
 
   const allPreferences = new Set();
   const allAllergies = new Set();
-  let minBudget = null;
+  let groupMaxBudget = null;
+  let groupMinBudget = null;
   const atmosphereCounts = { 安静: 0, 热闹: 0 };
 
   validMembers.forEach(member => {
     member.preferences.forEach(p => allPreferences.add(p));
     member.allergies.forEach(a => allAllergies.add(a));
+    // maxBudget：取所有成员中最严格的上限（跳过"以上"产生的高值占位符）
     if (member.budget) {
-      if (minBudget === null || member.budget < minBudget) {
-        minBudget = member.budget;
+      // 如果 budget === 999 且成员有明确的 minBudget，说明这是"以上"产生的占位符
+      const isSentinel = member.budget >= 900 && member.minBudget;
+      if (!isSentinel) {
+        if (groupMaxBudget === null || member.budget < groupMaxBudget) {
+          groupMaxBudget = member.budget;
+        }
+      }
+    }
+    // minBudget：取所有成员中最严格的下限（至少要花这么多）
+    if (member.minBudget) {
+      if (groupMinBudget === null || member.minBudget > groupMinBudget) {
+        groupMinBudget = member.minBudget;
       }
     }
     if (member.atmosphere) {
@@ -630,7 +654,8 @@ export function mergeMemberIntents(members) {
     preferences: Array.from(allPreferences),
     commonPreferences,
     allergies: groupAllergies,
-    budget: minBudget,
+    budget: groupMaxBudget,
+    minBudget: groupMinBudget,
     atmosphere: groupAtmosphere,
     shopType,
     cuisineVote,
