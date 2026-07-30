@@ -3,67 +3,69 @@ import Mascot, { FoodDecor } from './Mascot';
 import { IconSparkles, IconChevronRight, IconHistory, IconMapPin, IconClock } from './icons/FancyIcons';
 import { getTimeSlot } from '../services/recommendationService';
 import { searchPOI } from '../services/amapService';
+import { useTranslation } from '../i18n';
 
-const TIME_CONFIG = {
+const getTimeConfig = (t) => ({
   breakfast: {
-    greeting: '早啊！来份元气早餐',
+    greeting: t('greeting.morning'),
     mood: 'drool',
     bgClass: 'hero-gradient',
     heroStyle: { background: 'linear-gradient(135deg, #FFF5D6 0%, #FFFBF0 60%, #FFEAB3 100%)' },
-    bannerLabel: '附近早餐',
+    bannerLabel: t('banner.breakfast'),
     keywords: '早餐|粥|包子|豆浆|面馆',
-    bubble: '早！吃啥？',
+    bubble: t('bubble.morning'),
   },
   morning: {
-    greeting: '上午好，提前想想中午吃啥',
+    greeting: t('greeting.lateMorning'),
     mood: 'expect',
     bgClass: 'hero-gradient',
     heroStyle: undefined,
-    bannerLabel: '午市前瞻',
+    bannerLabel: t('banner.lunch'),
     keywords: '简餐|快餐|便当|面馆|套餐',
-    bubble: '想想吃啥？',
+    bubble: t('bubble.lunch'),
   },
   lunch: {
-    greeting: '午饭时间到！让我来帮你选',
+    greeting: t('greeting.noon'),
     mood: 'drool',
     bgClass: 'hero-gradient',
     heroStyle: { background: 'linear-gradient(135deg, #FFE8DD 0%, #FFFBF0 50%, #FFF4DE 100%)' },
-    bannerLabel: '午市热门',
+    bannerLabel: t('banner.noonHot'),
     keywords: '快餐|面馆|套餐|简餐|便当',
-    bubble: '饿了！吃啥？',
+    bubble: t('bubble.noon'),
   },
   afternoon: {
-    greeting: '下午茶时间，来杯咖啡配甜点',
+    greeting: t('greeting.afternoon'),
     mood: 'sleepy',
     bgClass: 'hero-gradient',
     heroStyle: { background: 'linear-gradient(135deg, #FFE8F0 0%, #FFFBF0 50%, #FFF0E8 100%)' },
-    bannerLabel: '下午茶推荐',
+    bannerLabel: t('banner.tea'),
     keywords: '咖啡|奶茶|甜品|蛋糕|下午茶',
-    bubble: '困了...来杯啥？',
+    bubble: t('bubble.afternoon'),
   },
   dinner: {
-    greeting: '晚饭吃点什么好的呢？',
+    greeting: t('greeting.evening'),
     mood: 'expect',
     bgClass: 'hero-gradient',
     heroStyle: { background: 'linear-gradient(135deg, #FFF0DF 0%, #FFFBF0 50%, #FFE8CC 100%)' },
-    bannerLabel: '晚餐精选',
+    bannerLabel: t('banner.dinner'),
     keywords: '餐厅|火锅|烧烤|日料|牛排',
-    bubble: '晚上吃点好的！',
+    bubble: t('bubble.evening'),
   },
   late_night: {
-    greeting: '深夜觅食模式启动',
+    greeting: t('greeting.night'),
     mood: 'think',
     bgClass: 'hero-gradient',
     heroStyle: { background: 'linear-gradient(135deg, #EAE4F0 0%, #F5F0FA 50%, #E8DCF0 100%)' },
-    bannerLabel: '深夜还在营业',
+    bannerLabel: t('banner.nightOpen'),
     keywords: '夜宵|烧烤|火锅|粥|面馆',
-    bubble: '夜深了...还吃吗？',
+    bubble: t('bubble.night'),
   },
-};
+});
 
 export default function HomeView({ onSelectSolo, onSelectGroup, onOpenHistory, location, onQuickPick }) {
+  const { t } = useTranslation();
   const timeSlot = getTimeSlot();
-  const config = TIME_CONFIG[timeSlot] || TIME_CONFIG.lunch;
+  const config = getTimeConfig(t)[timeSlot] || getTimeConfig(t).lunch;
 
   // 时间彩蛋横幅
   const [quickPicks, setQuickPicks] = useState([]);
@@ -123,7 +125,7 @@ export default function HomeView({ onSelectSolo, onSelectGroup, onOpenHistory, l
           </div>
 
           <h2 className="text-3xl sm:text-5xl font-extrabold mb-2" style={{ fontFamily: 'var(--font-display)' }}>
-            <span className="gradient-text">今天怎么吃？</span>
+            <span className="gradient-text">{t('home.title')}</span>
           </h2>
 
           <p className="text-sm sm:text-lg text-text-secondary mb-5 max-w-md mx-auto leading-relaxed font-bold" style={{ fontFamily: 'var(--font-display)' }}>
@@ -132,7 +134,7 @@ export default function HomeView({ onSelectSolo, onSelectGroup, onOpenHistory, l
 
           <div className="flex items-center justify-center gap-2 text-[10px] sm:text-xs font-bold text-primary bg-white border-2 rounded-full px-3 sm:px-4 py-1.5 sm:py-2 shadow-[3px_3px_0_var(--color-ink)] whitespace-nowrap" style={{ borderColor: 'var(--color-ink)', fontFamily: 'var(--font-display)' }}>
             <IconSparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-            <span>智能推荐 · 精准匹配 · 快速决策</span>
+            <span>{t('home.subtitle')}</span>
           </div>
         </div>
       </div>
@@ -145,7 +147,7 @@ export default function HomeView({ onSelectSolo, onSelectGroup, onOpenHistory, l
             <span className="text-sm font-extrabold text-text" style={{ fontFamily: 'var(--font-display)' }}>
               {config.bannerLabel}
             </span>
-            <span className="text-xs text-text-muted hidden sm:inline">— 点击直接去看看</span>
+            <span className="text-xs text-text-muted hidden sm:inline">{t('home.tapToExplore')}</span>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {quickPicks.map((r, i) => (
@@ -159,9 +161,9 @@ export default function HomeView({ onSelectSolo, onSelectGroup, onOpenHistory, l
                 <div className="flex items-center gap-2 text-xs text-text-muted">
                   <span className="flex items-center gap-1">
                     <IconMapPin className="w-3 h-3" />
-                    步行{r.distance}分钟
+                    {t('home.walkMinutes', { minutes: r.distance })}
                   </span>
-                  {r.price && <span>人均¥{r.price}</span>}
+                  {r.price && <span>{t('home.perPerson', { price: r.price })}</span>}
                 </div>
               </button>
             ))}
@@ -200,12 +202,12 @@ export default function HomeView({ onSelectSolo, onSelectGroup, onOpenHistory, l
                   <Mascot mood="drool" size={56} float={false} />
                 </div>
               </div>
-              <h3 className="text-2xl font-extrabold text-text mb-2" style={{ fontFamily: 'var(--font-display)' }}>一个人吃</h3>
+              <h3 className="text-2xl font-extrabold text-text mb-2" style={{ fontFamily: 'var(--font-display)' }}>{t('home.solo')}</h3>
               <p className="text-text-secondary text-sm leading-relaxed mb-5">
-                快速决定今天吃什么，支持随机探索、美食占卜等趣味模式
+                {t('home.soloDesc')}
               </p>
               <div className="flex items-center gap-2 text-primary font-bold text-sm group-hover:gap-3 transition-all" style={{ fontFamily: 'var(--font-display)' }}>
-                <span>开始选择</span>
+                <span>{t('home.soloBtn')}</span>
                 <span className="w-7 h-7 bg-primary/15 rounded-full flex items-center justify-center border-2 border-ink shadow-[2px_2px_0_var(--color-ink)]" style={{ borderColor: 'var(--color-ink)' }}>
                   <IconChevronRight className="w-4 h-4" />
                 </span>
@@ -226,12 +228,12 @@ export default function HomeView({ onSelectSolo, onSelectGroup, onOpenHistory, l
                   <Mascot mood="expect" size={40} float={false} />
                 </div>
               </div>
-              <h3 className="text-2xl font-extrabold text-text mb-2" style={{ fontFamily: 'var(--font-display)' }}>一起聚餐</h3>
+              <h3 className="text-2xl font-extrabold text-text mb-2" style={{ fontFamily: 'var(--font-display)' }}>{t('home.group')}</h3>
               <p className="text-text-secondary text-sm leading-relaxed mb-5">
-                综合所有人的需求，找到最优选，支持投票决策
+                {t('home.groupDesc')}
               </p>
               <div className="flex items-center gap-2 text-secondary font-bold text-sm group-hover:gap-3 transition-all" style={{ fontFamily: 'var(--font-display)' }}>
-                <span>发起聚餐</span>
+                <span>{t('home.groupBtn')}</span>
                 <span className="w-7 h-7 bg-secondary/15 rounded-full flex items-center justify-center border-2 border-ink shadow-[2px_2px_0_var(--color-ink)]" style={{ borderColor: 'var(--color-ink)' }}>
                   <IconChevronRight className="w-4 h-4" />
                 </span>
@@ -249,7 +251,7 @@ export default function HomeView({ onSelectSolo, onSelectGroup, onOpenHistory, l
           style={{ borderColor: 'var(--color-ink)', fontFamily: 'var(--font-display)' }}
         >
           <IconHistory className="w-4 h-4" />
-          <span>我的收藏</span>
+          <span>{t('home.favorites')}</span>
         </button>
       </div>
 

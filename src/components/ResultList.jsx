@@ -4,6 +4,7 @@ import MapView from './MapView';
 import Mascot from './Mascot';
 import { FoodDecor } from './Mascot';
 import LoadingOverlay from './LoadingOverlay';
+import { useTranslation } from '../i18n';
 import { 
   IconArrowLeft, IconRefreshCw, IconMapPin, IconVote, IconDice, 
   IconThinking, IconBan, IconWarning, IconSparkle, IconSparkles,
@@ -27,6 +28,7 @@ export default function ResultList({
   onApplySuggestion,
   onFeedback
 }) {
+  const { t } = useTranslation();
   const [showMap, setShowMap] = useState(false);
 
   const getSuggestionIcon = (type) => {
@@ -52,8 +54,8 @@ export default function ResultList({
           <FoodDecor type="star" size={14} className="pointer-events-none absolute -top-2 -left-3 float-animation opacity-60" style={{ animationDelay: '0.5s' }} />
           <FoodDecor type="sparkle" size={12} className="pointer-events-none absolute top-2 -right-3 float-animation opacity-60" style={{ animationDelay: '1.1s' }} />
         </div>
-        <h3 className="text-xl font-bold text-text mb-2">附近没找到合适的餐厅</h3>
-        <p className="text-text-secondary text-sm mb-6">试试调整一下条件？</p>
+        <h3 className="text-xl font-bold text-text mb-2">{t('resultList.empty')}</h3>
+        <p className="text-text-secondary text-sm mb-6">{t('resultList.emptyHint')}</p>
         
         {emptySuggestions && emptySuggestions.length > 0 && (
           <div className="mb-6 space-y-2">
@@ -68,7 +70,7 @@ export default function ResultList({
                   {getSuggestionIcon(suggestion.type)}
                 </div>
                 <span className="text-sm text-text flex-1">{suggestion.text}</span>
-                <span className="text-primary text-sm font-medium">试试→</span>
+                <span className="text-primary text-sm font-medium">{t('resultList.tryAdjust')}</span>
               </button>
             ))}
           </div>
@@ -76,7 +78,7 @@ export default function ResultList({
         
         <button onClick={onBack}
           className="btn-primary px-5 py-2.5 text-sm">
-          修改偏好
+          {t('resultList.editPrefs')}
         </button>
       </div>
     );
@@ -86,18 +88,18 @@ export default function ResultList({
     <div className="max-w-lg mx-auto px-6">
       <div className="flex items-center justify-between mb-5 fade-in">
         <button onClick={onBack} className="text-primary text-sm font-medium flex items-center gap-1">
-          <IconArrowLeft className="w-4 h-4" /> 返回修改
+          <IconArrowLeft className="w-4 h-4" /> {t('resultList.backEdit')}
         </button>
         {!isExploreMode && (
           <button onClick={onRefresh} className="text-primary text-sm font-medium flex items-center gap-1">
-            <IconRefreshCw className="w-4 h-4" /> 换一批
+            <IconRefreshCw className="w-4 h-4" /> {t('resultList.refresh')}
           </button>
         )}
       </div>
 
       {!isExploreMode && conflicts && conflicts.length > 0 && (
         <div className="mb-4 conflict-warning animate-slide-up">
-          <p className="text-error font-medium mb-1.5">检测到偏好冲突</p>
+          <p className="text-error font-medium mb-1.5">{t('resultList.conflict')}</p>
           {conflicts.map((c, i) => (
             <p key={i} className="text-error/70 text-xs mt-1 leading-relaxed">
               <span className="inline-flex align-middle mr-1">
@@ -115,12 +117,12 @@ export default function ResultList({
           <button onClick={() => setShowMap(!showMap)}
             className={`${showVote ? 'flex-1' : 'w-full'} btn-secondary py-2.5 text-sm font-medium flex items-center justify-center gap-2 ${showMap ? 'text-text' : ''}`}>
             <IconMapPin className="w-4 h-4" />
-            {showMap ? '收起地图' : '在地图上查看'}
+            {showMap ? t('resultList.collapseMap') : t('resultList.showMap')}
           </button>
           {showVote && (
             <button onClick={onVote}
               className="btn-primary flex-1 py-2.5 text-sm font-medium flex items-center justify-center gap-2">
-              <IconVote className="w-4 h-4" /> 发起投票
+              <IconVote className="w-4 h-4" /> {t('resultList.startVote')}
             </button>
           )}
         </div>
@@ -136,7 +138,7 @@ export default function ResultList({
         <div className="text-center mb-6">
           <div className="inline-flex items-center gap-2 bg-primary/10 text-primary rounded-full px-4 py-1.5 text-sm font-medium mb-5 fade-in">
             {results[0]?.exploreMode === 'fresh' && <IconSparkle size={18} />}
-            <span>{results[0]?.timeContext || ''}探索</span>
+            <span>{t('resultList.explore', { time: results[0]?.timeContext || '' })}</span>
           </div>
           <div className="slide-up">
             <ResultCard restaurant={results[0]} showExploreMessage={true} isSolo={isSolo} onFeedback={onFeedback} />
@@ -145,7 +147,7 @@ export default function ResultList({
             <button onClick={onRefresh}
               className="btn-explore flex flex-col items-center justify-center gap-1 leading-none"
               style={{ width: '88px', height: '88px', borderRadius: '50%', padding: 0 }}>
-              <span className="font-extrabold text-sm">再来一个</span>
+              <span className="font-extrabold text-sm">{t('resultList.oneMore')}</span>
               <span className="w-7 h-7 flex items-center justify-center">
                 <IconDice className="w-full h-full" />
               </span>
@@ -157,17 +159,17 @@ export default function ResultList({
           {cuisineVote && cuisineVote.consensusLevel !== 'none' && (
             <div className="bg-primary/10 text-primary p-3.5 rounded-xl text-sm mb-4 fade-in">
               {cuisineVote.consensusLevel === 'strong' && (
-                <span>{memberCount} 人中有 {cuisineVote.topCount} 人想吃{cuisineVote.topCuisine} → 优先推荐{cuisineVote.topCuisine}店</span>
+                <span>{t('resultList.voteTop', { count: memberCount, topCount: cuisineVote.topCount, cuisine: cuisineVote.topCuisine })}</span>
               )}
               {cuisineVote.consensusLevel === 'split' && cuisineVote.tieCuisines && cuisineVote.tieCuisines.length >= 2 && (
-                <span>{cuisineVote.tieCuisines[0]} {cuisineVote.topCount}票 : {cuisineVote.topCount}票 {cuisineVote.tieCuisines[1]} → 为你混合推荐两种选择</span>
+                <span>{t('resultList.voteTie', { a: cuisineVote.tieCuisines[0], topCount: cuisineVote.topCount, b: cuisineVote.tieCuisines[1] })}</span>
               )}
               {cuisineVote.consensusLevel === 'diverse' && (
-                <span>大家口味各不相同 → 为你综合推荐</span>
+                <span>{t('resultList.voteMixed')}</span>
               )}
             </div>
           )}
-          <p className="text-xs text-text-muted mb-4">为你找到 {results.length} 家匹配的餐厅</p>
+          <p className="text-xs text-text-muted mb-4">{t('resultList.found', { count: results.length })}</p>
           {results.map((restaurant, i) => (
             <div key={restaurant.id} className="slide-up" style={{ animationDelay: `${i * 80}ms`, animationFillMode: 'both' }}>
               <ResultCard restaurant={restaurant} isSolo={isSolo} onFeedback={onFeedback} />
