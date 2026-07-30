@@ -438,10 +438,10 @@ export default function ResultCard({ restaurant, showExploreMessage = false, isS
           <IconChevronRight className={`w-4 h-4 ml-1 transition-all duration-300 ${expanded ? 'rotate-90 text-primary' : ''}`} />
         </div>
 
-        <div className="mt-3 flex items-center justify-center gap-3 flex-wrap">
+        <div className="mt-3 flex items-center justify-center gap-1.5 sm:gap-3 flex-wrap">
           <button
             onClick={handleFavorite}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-all text-xs font-medium"
+            className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 rounded-full transition-all text-xs font-medium"
             style={favorited ? {
               background: 'rgba(255,201,60,0.15)',
               color: '#F0A818',
@@ -450,12 +450,12 @@ export default function ResultCard({ restaurant, showExploreMessage = false, isS
             }}
           >
             <IconBookmark className="w-4 h-4" filled={favorited} />
-            <span>{favorited ? '已收藏' : '收藏'}</span>
+            <span className="hidden sm:inline">{favorited ? '已收藏' : '收藏'}</span>
           </button>
-          <div className="w-px h-4" style={{ background: '#FDE6C8' }} />
+          <div className="w-px h-4 hidden sm:block" style={{ background: '#FDE6C8' }} />
           <button
             onClick={handleVisit}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-all text-xs font-medium"
+            className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 rounded-full transition-all text-xs font-medium"
             style={visited ? {
               background: 'rgba(107,203,119,0.15)',
               color: '#6BCB77',
@@ -464,12 +464,12 @@ export default function ResultCard({ restaurant, showExploreMessage = false, isS
             }}
           >
             <IconCheckCircle className="w-4 h-4" filled={visited} />
-            <span>{visited ? '去过' : '标记去过'}</span>
+            <span className="hidden sm:inline">{visited ? '去过' : '标记去过'}</span>
           </button>
-          <div className="w-px h-4" style={{ background: '#FDE6C8' }} />
+          <div className="w-px h-4 hidden sm:block" style={{ background: '#FDE6C8' }} />
           <button
             onClick={handleLike}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-all text-xs font-medium whitespace-nowrap"
+            className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 rounded-full transition-all text-xs font-medium whitespace-nowrap"
             style={liked ? {
               background: '#2D9CDB',
               color: '#fff',
@@ -483,10 +483,10 @@ export default function ResultCard({ restaurant, showExploreMessage = false, isS
             <IconThumbsUp className="w-4 h-4" filled={liked} />
             <span>{liked ? '已喜欢' : '喜欢'}</span>
           </button>
-          <div className="w-px h-4" style={{ background: '#FDE6C8' }} />
+          <div className="w-px h-4 hidden sm:block" style={{ background: '#FDE6C8' }} />
           <button
             onClick={handleDislike}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-all text-xs font-medium whitespace-nowrap"
+            className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 rounded-full transition-all text-xs font-medium whitespace-nowrap"
             style={disliked ? {
               background: '#E8552A',
               color: '#fff',

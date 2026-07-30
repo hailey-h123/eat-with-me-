@@ -53,7 +53,7 @@ function FoodBanner() {
   return (
     <div className="flex items-center justify-center gap-5 py-6 slide-up overflow-hidden" style={{ animationDelay: '500ms', animationFillMode: 'both' }}>
       {items.map((item, i) => (
-        <div key={i} className="float-animation opacity-50" style={{ animationDelay: item.delay }}>
+        <div key={i} className={`float-animation opacity-50 ${i >= 5 ? 'hidden sm:block' : ''}`} style={{ animationDelay: item.delay }}>
           <FoodDecor type={item.type} size={item.size} />
         </div>
       ))}
@@ -345,7 +345,7 @@ export default function SoloInput({ onSearch, onFortune, isLoading }) {
       <div className="relative mb-4">
         {!selectedCategory ? (
           <div>
-            <div className="grid grid-cols-3 gap-4 fade-in">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 fade-in">
               {categories.map((cat, i) => (
                 <button key={cat.key} type="button" onClick={() => handleSelectCategory(cat)}
                   className="outline-card p-6 text-center flex flex-col items-center gap-3 slide-up"
@@ -379,7 +379,7 @@ export default function SoloInput({ onSearch, onFortune, isLoading }) {
             <button type="button" onClick={handleBackToCategories} className="text-primary text-sm font-bold flex items-center gap-1.5 transition-all hover:gap-2.5 mb-6" style={{ fontFamily: 'var(--font-display)' }}>
               <IconChevronLeft className="w-4 h-4" /> 返回分类
             </button>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {getModesByCategory(selectedCategory).map(([key, mode]) => (
                 <button key={key} type="button" onClick={() => handleSelectMode(key)} disabled={isLoading}
                   className="outline-card p-5 flex items-center gap-4 text-left disabled:opacity-50">

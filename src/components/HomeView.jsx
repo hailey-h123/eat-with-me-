@@ -104,7 +104,7 @@ export default function HomeView({ onSelectSolo, onSelectGroup, onOpenHistory, l
       </div>
 
       {/* Hero 区：吉祥物 + 标题（动态） */}
-      <div className={`relative overflow-hidden mb-6 p-8 ${config.bgClass}`} style={config.heroStyle}>
+      <div className={`relative overflow-hidden mb-6 p-6 sm:p-8 ${config.bgClass}`} style={config.heroStyle}>
         {/* Hero 内部角落小涂鸦 */}
         <FoodDecor type="sparkle" size={16} className="pointer-events-none absolute top-3 left-4 opacity-60 float-animation" style={{ animationDelay: '0.5s' }} />
         <FoodDecor type="heart" size={14} className="pointer-events-none absolute top-5 right-6 opacity-50 float-animation" style={{ animationDelay: '1.1s' }} />
@@ -122,16 +122,16 @@ export default function HomeView({ onSelectSolo, onSelectGroup, onOpenHistory, l
             </div>
           </div>
 
-          <h2 className="text-5xl sm:text-6xl font-extrabold mb-2" style={{ fontFamily: 'var(--font-display)' }}>
+          <h2 className="text-3xl sm:text-5xl font-extrabold mb-2" style={{ fontFamily: 'var(--font-display)' }}>
             <span className="gradient-text">今天怎么吃？</span>
           </h2>
 
-          <p className="text-lg text-text-secondary mb-5 max-w-md mx-auto leading-relaxed font-bold" style={{ fontFamily: 'var(--font-display)' }}>
+          <p className="text-sm sm:text-lg text-text-secondary mb-5 max-w-md mx-auto leading-relaxed font-bold" style={{ fontFamily: 'var(--font-display)' }}>
             {config.greeting}
           </p>
 
-          <div className="flex items-center justify-center gap-2 text-xs font-bold text-primary bg-white border-2 rounded-full px-4 py-2 shadow-[3px_3px_0_var(--color-ink)]" style={{ borderColor: 'var(--color-ink)', fontFamily: 'var(--font-display)' }}>
-            <IconSparkles className="w-4 h-4" />
+          <div className="flex items-center justify-center gap-2 text-[10px] sm:text-xs font-bold text-primary bg-white border-2 rounded-full px-3 sm:px-4 py-1.5 sm:py-2 shadow-[3px_3px_0_var(--color-ink)] whitespace-nowrap" style={{ borderColor: 'var(--color-ink)', fontFamily: 'var(--font-display)' }}>
+            <IconSparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             <span>智能推荐 · 精准匹配 · 快速决策</span>
           </div>
         </div>
@@ -145,9 +145,9 @@ export default function HomeView({ onSelectSolo, onSelectGroup, onOpenHistory, l
             <span className="text-sm font-extrabold text-text" style={{ fontFamily: 'var(--font-display)' }}>
               {config.bannerLabel}
             </span>
-            <span className="text-xs text-text-muted">— 点击直接去看看</span>
+            <span className="text-xs text-text-muted hidden sm:inline">— 点击直接去看看</span>
           </div>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {quickPicks.map((r, i) => (
               <button
                 key={r.id}
@@ -176,7 +176,7 @@ export default function HomeView({ onSelectSolo, onSelectGroup, onOpenHistory, l
             <div className="w-4 h-4 rounded-full bg-bg-soft animate-pulse" />
             <div className="w-24 h-4 rounded-full bg-bg-soft animate-pulse" />
           </div>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {[1, 2, 3].map(i => (
               <div key={i} className="bg-bg-soft rounded-2xl p-3.5 animate-pulse">
                 <div className="w-3/4 h-4 rounded-full bg-white mb-2" />

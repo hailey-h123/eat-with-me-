@@ -331,6 +331,13 @@ export async function recommendRestaurants(intent, location, excludeIds = []) {
     });
   }
 
+  // 将个人 budget 和 minBudget 转为 priceRange，确保硬过滤生效
+  if (!intent.priceRange && (intent.budget || intent.minBudget)) {
+    const minP = intent.minBudget || 0;
+    const maxP = intent.budget || 999;
+    intent.priceRange = [minP, maxP];
+  }
+
   // 价格范围过滤（在评分前过滤）
   if (intent.priceRange) {
     const [minP, maxP] = intent.priceRange;
