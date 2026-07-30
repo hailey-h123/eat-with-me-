@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 
-const AMAP_KEY = import.meta.env.VITE_AMAP_KEY || '';
+const appConfig = window.APP_CONFIG || {};
+const AMAP_KEY = import.meta.env.VITE_AMAP_KEY || appConfig.AMAP_KEY || '';
 
 export default function MapView({ restaurants, center }) {
   const mapRef = useRef(null);

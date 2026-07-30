@@ -1,6 +1,9 @@
 import { mockRestaurants } from '../data/mockRestaurants';
 
-const WEB_KEY = import.meta.env.VITE_AMAP_WEB_KEY || '';
+// 优先读取环境变量，其次读取 public/config.js 中的默认配置
+const appConfig = window.APP_CONFIG || {};
+const WEB_KEY = import.meta.env.VITE_AMAP_WEB_KEY || appConfig.AMAP_WEB_KEY || '';
+const JS_KEY = import.meta.env.VITE_AMAP_KEY || appConfig.AMAP_KEY || '';
 export const IS_MOCK_MODE = !WEB_KEY;
 
 let jsonpCounter = 0;
