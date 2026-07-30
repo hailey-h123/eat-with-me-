@@ -7,10 +7,10 @@ import {
   subscribeRoomMembers
 } from '../services/roomService';
 import LoadingOverlay from './LoadingOverlay';
-
-const DEFAULT_MEMBER_PLACEHOLDER = '例如：不吃辣、想吃火锅、预算80以内';
+import { useTranslation } from '../i18n';
 
 export default function GroupInput({ onSearch, onRandomExplore, isLoading }) {
+  const { t } = useTranslation();
   const [members, setMembers] = useState([
     { id: 1, name: '成员1', text: '' },
     { id: 2, name: '成员2', text: '' },
@@ -157,8 +157,8 @@ export default function GroupInput({ onSearch, onRandomExplore, isLoading }) {
             <IconUsers className="w-5 h-5" />
           </div>
           <div className="flex-1">
-            <p className="text-sm font-semibold text-text">你被邀请一起选餐厅</p>
-            <p className="text-xs text-text-secondary mt-1">填写你的口味和忌口，房主会收到并帮你综合推荐</p>
+            <p className="text-sm font-semibold text-text">{t('group.invited')}</p>
+            <p className="text-xs text-text-secondary mt-1">{t('group.invitedDesc')}</p>
           </div>
         </div>
 
@@ -167,11 +167,11 @@ export default function GroupInput({ onSearch, onRandomExplore, isLoading }) {
             <div className="w-14 h-14 rounded-full bg-secondary/10 text-secondary flex items-center justify-center mx-auto mb-4">
               <IconCheck className="w-7 h-7" />
             </div>
-            <p className="text-lg font-bold text-text mb-2">已提交，等房主汇总</p>
-            <p className="text-sm text-text-secondary mb-5">你的偏好已同步给房主，稍等片刻就能看到推荐结果</p>
+            <p className="text-lg font-bold text-text mb-2">{t('group.submitted')}</p>
+            <p className="text-sm text-text-secondary mb-5">{t('group.synced')}</p>
             <button type="button" onClick={handleEditJoin}
               className="btn-secondary px-5 py-2.5 text-sm flex items-center gap-2 mx-auto">
-              <IconRefreshCw className="w-4 h-4" /> 修改我的填写
+              <IconRefreshCw className="w-4 h-4" /> {t('group.editMy')}
             </button>
           </div>
         ) : (
@@ -189,12 +189,12 @@ export default function GroupInput({ onSearch, onRandomExplore, isLoading }) {
                         value={member.text}
                         onChange={(e) => handleMemberChange(member.id, 'text', e.target.value)}
                         className="w-full h-[64px] bg-bg-soft text-sm text-text placeholder:text-text-muted resize-none focus:outline-none leading-relaxed rounded-xl px-3 py-2 border border-border/50 focus:border-primary/30 focus:ring-2 focus:ring-primary/10 transition-all"
-                        placeholder={DEFAULT_MEMBER_PLACEHOLDER}
+                        placeholder={t('group.placeholder')}
                       />
                     </div>
                     {members.length > 1 && (
                       <button type="button" onClick={() => handleRemoveMember(member.id)}
-                        className="p-1.5 text-text-muted hover:text-error rounded-xl transition-all duration-200 flex-shrink-0 mt-0.5" title="删除该成员">
+                        className="p-1.5 text-text-muted hover:text-error rounded-xl transition-all duration-200 flex-shrink-0 mt-0.5" title={t('group.deleteMember')}>
                         <IconTrash2 className="w-4 h-4" />
                       </button>
                     )}
@@ -207,15 +207,15 @@ export default function GroupInput({ onSearch, onRandomExplore, isLoading }) {
               disabled={isLoading || members.length >= 8}
               className="btn-secondary w-full mt-3 py-3 text-text-secondary disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2">
               <IconPlus className="w-4 h-4" />
-              添加成员 {members.length >= 8 && '（最多 8 人）'}
+              {t('group.addMember')} {members.length >= 8 && t('group.maxMembers')}
             </button>
 
             <button type="submit" disabled={isLoading || !hasAnyInput}
               className="btn-primary w-full mt-6 py-3.5 text-base disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
               {isLoading ? (
-                <span className="flex items-center gap-2"><IconLoader2 className="w-5 h-5 animate-spin" /> 提交中...</span>
+                <span className="flex items-center gap-2"><IconLoader2 className="w-5 h-5 animate-spin" /> {t('group.submitting')}</span>
               ) : (
-                <span className="flex items-center gap-2"><IconCheck className="w-5 h-5" /> 提交我的偏好</span>
+                <span className="flex items-center gap-2"><IconCheck className="w-5 h-5" /> {t('group.submit')}</span>
               )}
             </button>
           </form>
@@ -232,7 +232,7 @@ export default function GroupInput({ onSearch, onRandomExplore, isLoading }) {
         <div className="fancy-card p-5 mb-4 slide-up">
           <div className="flex items-center gap-2 mb-3">
             <IconShare2 className="w-4 h-4 text-primary" />
-            <span className="text-sm font-semibold text-text">把链接发给朋友，各自填写</span>
+            <span className="text-sm font-semibold text-text">{t('group.shareLink')}</span>
           </div>
           <div className="flex gap-2">
             <div className="flex-1 bg-bg-soft rounded-xl px-3 py-2.5 border border-border/50 flex items-center min-w-0">
@@ -242,17 +242,17 @@ export default function GroupInput({ onSearch, onRandomExplore, isLoading }) {
             </div>
             <button type="button" onClick={handleCopyLink}
               className="btn-primary px-4 py-2.5 text-sm flex items-center gap-1.5 flex-shrink-0">
-              {copied ? <><IconCheck className="w-4 h-4" /> 已复制</> : '复制'}
+              {copied ? <><IconCheck className="w-4 h-4" /> {t('group.copied')}</> : t('group.copy')}
             </button>
           </div>
-          <p className="text-xs text-text-muted mt-2">朋友打开链接各自填写，提交后你这里会自动同步</p>
+          <p className="text-xs text-text-muted mt-2">{t('group.shareHint')}</p>
         </div>
 
         {/* 已加入的成员 */}
         {joinMembers.length > 0 && (
           <div className="mb-4 slide-up">
             <p className="text-xs text-text-secondary mb-2 font-medium flex items-center gap-1.5">
-              <IconUsers className="w-3.5 h-3.5" /> 已收到填写（{joinMembers.length} 人）
+              <IconUsers className="w-3.5 h-3.5" /> {t('group.received', { count: joinMembers.length })}
             </p>
             <div className="space-y-2">
               {joinMembers.map((m, i) => (
@@ -271,7 +271,7 @@ export default function GroupInput({ onSearch, onRandomExplore, isLoading }) {
 
         {/* 房主自己填写 */}
         <form onSubmit={handleHostSearch}>
-          <p className="text-xs text-text-secondary mb-2 font-medium">我的填写</p>
+          <p className="text-xs text-text-secondary mb-2 font-medium">{t('group.myEntry')}</p>
           <div className="space-y-3">
             {members.map((member, index) => (
               <div key={member.id} className="slide-up" style={{ animationDelay: `${index * 60}ms`, animationFillMode: 'both' }}>
@@ -285,12 +285,12 @@ export default function GroupInput({ onSearch, onRandomExplore, isLoading }) {
                       value={member.text}
                       onChange={(e) => handleMemberChange(member.id, 'text', e.target.value)}
                       className="w-full h-[64px] bg-bg-soft text-sm text-text placeholder:text-text-muted resize-none focus:outline-none leading-relaxed rounded-xl px-3 py-2 border border-border/50 focus:border-primary/30 focus:ring-2 focus:ring-primary/10 transition-all"
-                      placeholder={DEFAULT_MEMBER_PLACEHOLDER}
+                      placeholder={t('group.placeholder')}
                     />
                   </div>
                   {members.length > 1 && (
                     <button type="button" onClick={() => handleRemoveMember(member.id)}
-                      className="p-1.5 text-text-muted hover:text-error rounded-xl transition-all duration-200 flex-shrink-0 mt-0.5" title="删除该成员">
+                      className="p-1.5 text-text-muted hover:text-error rounded-xl transition-all duration-200 flex-shrink-0 mt-0.5" title={t('group.deleteMember')}>
                       <IconTrash2 className="w-4 h-4" />
                     </button>
                   )}
@@ -303,22 +303,22 @@ export default function GroupInput({ onSearch, onRandomExplore, isLoading }) {
             disabled={isLoading || members.length >= 8}
             className="btn-secondary w-full mt-3 py-3 text-text-secondary disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2">
             <IconPlus className="w-4 h-4" />
-            添加成员 {members.length >= 8 && '（最多 8 人）'}
+            {t('group.addMember')} {members.length >= 8 && t('group.maxMembers')}
           </button>
 
           <div className="flex gap-3 mt-6">
             <button type="submit" disabled={isLoading || !hasAnyInput}
               className="btn-primary flex-1 py-3.5 text-base disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
               {isLoading ? (
-                <span className="flex items-center gap-2"><IconLoader2 className="w-5 h-5 animate-spin" /> 思考中...</span>
+                <span className="flex items-center gap-2"><IconLoader2 className="w-5 h-5 animate-spin" /> {t('group.thinking')}</span>
               ) : (
-                <span className="flex items-center gap-2"><IconSearch className="w-5 h-5" /> 帮我们选!</span>
+                <span className="flex items-center gap-2"><IconSearch className="w-5 h-5" /> {t('group.helpUs')}</span>
               )}
             </button>
             <button type="button" onClick={handleRandomExplore} disabled={isLoading || !hasAnyInput}
               className="btn-secondary px-6 py-3.5 text-primary text-base disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
               <IconSparkle className="w-5 h-5" />
-              尝鲜体验
+              {t('group.tryNew')}
             </button>
           </div>
         </form>
@@ -343,56 +343,56 @@ export default function GroupInput({ onSearch, onRandomExplore, isLoading }) {
                     value={member.text}
                     onChange={(e) => handleMemberChange(member.id, 'text', e.target.value)}
                     className="w-full h-[64px] bg-bg-soft text-sm text-text placeholder:text-text-muted resize-none focus:outline-none leading-relaxed rounded-xl px-3 py-2 border border-border/50 focus:border-primary/30 focus:ring-2 focus:ring-primary/10 transition-all"
-                    placeholder={DEFAULT_MEMBER_PLACEHOLDER}
-                  />
+                    placeholder={t('group.placeholder')}
+                    />
+                  </div>
+                  {members.length > 1 && (
+                    <button type="button" onClick={() => handleRemoveMember(member.id)}
+                      className="p-1.5 text-text-muted hover:text-error rounded-xl transition-all duration-200 flex-shrink-0 mt-0.5" title={t('group.deleteMember')}>
+                      <IconTrash2 className="w-4 h-4" />
+                    </button>
+                  )}
                 </div>
-                {members.length > 1 && (
-                  <button type="button" onClick={() => handleRemoveMember(member.id)}
-                    className="p-1.5 text-text-muted hover:text-error rounded-xl transition-all duration-200 flex-shrink-0 mt-0.5" title="删除该成员">
-                    <IconTrash2 className="w-4 h-4" />
-                  </button>
-                )}
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
 
-        <button type="button" onClick={handleAddMember}
-          disabled={isLoading || members.length >= 8}
-          className="btn-secondary w-full mt-3 py-3 text-text-secondary disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2">
-          <IconPlus className="w-4 h-4" />
-          添加成员 {members.length >= 8 && '（最多 8 人）'}
-        </button>
+          <button type="button" onClick={handleAddMember}
+            disabled={isLoading || members.length >= 8}
+            className="btn-secondary w-full mt-3 py-3 text-text-secondary disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+            <IconPlus className="w-4 h-4" />
+            {t('group.addMember')} {members.length >= 8 && t('group.maxMembers')}
+          </button>
 
-        {/* 邀请好友入口 */}
-        <button type="button" onClick={handleCreateRoom} disabled={isCreatingRoom}
-          className="btn-secondary w-full mt-3 py-3 text-primary flex items-center justify-center gap-2 disabled:opacity-50">
-          {isCreatingRoom ? (
-            <><IconLoader2 className="w-4 h-4 animate-spin" /> 创建房间中...</>
-          ) : (
-            <><IconShare2 className="w-4 h-4" /> 邀请朋友一起填</>
-          )}
-        </button>
-
-        <div className="flex gap-3 mt-6">
-          <button type="submit" disabled={isLoading || !hasAnyInput}
-            className="btn-primary flex-1 py-3.5 text-base disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
-            {isLoading ? (
-              <span className="flex items-center gap-2"><IconLoader2 className="w-5 h-5 animate-spin" /> 思考中...</span>
+          {/* 邀请好友入口 */}
+          <button type="button" onClick={handleCreateRoom} disabled={isCreatingRoom}
+            className="btn-secondary w-full mt-3 py-3 text-primary flex items-center justify-center gap-2 disabled:opacity-50">
+            {isCreatingRoom ? (
+              <><IconLoader2 className="w-4 h-4 animate-spin" /> {t('group.creating')}</>
             ) : (
-              <span className="flex items-center gap-2"><IconSearch className="w-5 h-5" /> 帮我们选!</span>
+              <><IconShare2 className="w-4 h-4" /> {t('group.invite')}</>
             )}
           </button>
-          <button type="button" onClick={handleRandomExplore} disabled={isLoading || !hasAnyInput}
-            className="btn-secondary px-6 py-3.5 text-primary text-base disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
-            <IconSparkle className="w-5 h-5" />
-            尝鲜体验
-          </button>
-        </div>
 
-        <p className="text-xs text-text-muted text-center mt-5">
-          AI 将综合所有成员的偏好，为你推荐最合适的餐厅
-        </p>
+          <div className="flex gap-3 mt-6">
+            <button type="submit" disabled={isLoading || !hasAnyInput}
+              className="btn-primary flex-1 py-3.5 text-base disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+              {isLoading ? (
+                <span className="flex items-center gap-2"><IconLoader2 className="w-5 h-5 animate-spin" /> {t('group.thinking')}</span>
+              ) : (
+                <span className="flex items-center gap-2"><IconSearch className="w-5 h-5" /> {t('group.helpUs')}</span>
+              )}
+            </button>
+            <button type="button" onClick={handleRandomExplore} disabled={isLoading || !hasAnyInput}
+              className="btn-secondary px-6 py-3.5 text-primary text-base disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+              <IconSparkle className="w-5 h-5" />
+              {t('group.tryNew')}
+            </button>
+          </div>
+
+          <p className="text-xs text-text-muted text-center mt-5">
+            {t('group.aiHint')}
+          </p>
       </form>
 
       {isLoading && <LoadingOverlay />}

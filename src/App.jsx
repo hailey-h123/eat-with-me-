@@ -17,10 +17,12 @@ import {
   trackPageView, trackSearch,
   trackResultsShown, trackReroll, trackFeedback
 } from './services/analyticsService';
+import { useTranslation } from './i18n';
 
 const LAST_MODE_KEY = 'eatwithme_last_mode';
 
 function App() {
+  const { t } = useTranslation();
   const { location, isLocating, error, debugInfo, retryLocate, updateLocation } = useLocation();
   const [currentView, setCurrentView] = useState('home');
   const [results, setResults] = useState([]);
@@ -325,13 +327,13 @@ function App() {
 
   const getHeaderConfig = () => {
     switch (currentView) {
-      case 'home': return { title: '吃什么', subtitle: 'AI 用餐决策助手', showBack: false };
-      case 'solo-input': return { title: '一人食', subtitle: '快速决定今天吃什么', showBack: true, onBack: handleBackToHome };
-      case 'group-input': return { title: '多人聚餐', subtitle: '综合所有人的需求', showBack: true, onBack: handleBackToHome };
-      case 'solo-results': case 'group-results': return { title: '推荐结果', subtitle: '', showBack: true, onBack: handleBack };
-      case 'vote': return { title: '投票', subtitle: '', showBack: true, onBack: () => setCurrentView('group-results') };
-      case 'history': return { title: '我的收藏', subtitle: '', showBack: true, onBack: handleBackToHome };
-      default: return { title: '吃什么', subtitle: 'AI 用餐决策助手', showBack: false };
+      case 'home': return { title: t('app.title'), subtitle: t('app.subtitle'), showBack: false };
+      case 'solo-input': return { title: t('header.solo'), subtitle: t('header.soloSub'), showBack: true, onBack: handleBackToHome };
+      case 'group-input': return { title: t('header.group'), subtitle: t('header.groupSub'), showBack: true, onBack: handleBackToHome };
+      case 'solo-results': case 'group-results': return { title: t('header.recommendResult'), subtitle: '', showBack: true, onBack: handleBack };
+      case 'vote': return { title: t('header.vote'), subtitle: '', showBack: true, onBack: () => setCurrentView('group-results') };
+      case 'history': return { title: t('header.favorites'), subtitle: '', showBack: true, onBack: handleBackToHome };
+      default: return { title: t('app.title'), subtitle: t('app.subtitle'), showBack: false };
     }
   };
 
@@ -344,14 +346,14 @@ function App() {
       {IS_MOCK_MODE && (
         <div className="bg-amber-50 border-b border-amber-200 px-4 py-2 text-center">
           <p className="text-sm text-amber-800">
-            🎯 <strong>演示模式</strong> · 未配置高德 API Key，当前使用示例数据
+            🎯 <strong>{t('demo.badge')}</strong> · {t('demo.hint')}
             <span className="ml-2 text-amber-600">
               （
               <button
                 onClick={() => alert('1. 访问 https://console.amap.com/dev/key/app\n2. 创建「Web端(JS API)」应用\n3. 创建「Web服务」应用\n4. 复制 .env.example 为 .env 并填入 Key')}
                 className="underline hover:text-amber-900"
               >
-                如何配置真实 API
+                {t('demo.howTo')}
               </button>
               ）
             </span>
@@ -378,7 +380,7 @@ function App() {
       {currentView === 'vote' && <main className="py-8"><VoteView restaurants={results} members={lastMembers} onBack={() => setCurrentView('group-results')} onSelect={handleVoteSelect} /></main>}
       {currentView === 'history' && <main className="py-8"><HistoryView onBack={handleBackToHome} onReselect={handleHistoryReselect} /></main>}
       <footer className="text-center py-10 mt-auto">
-        <p className="text-xs text-ink-tertiary">AI 用餐决策助手</p>
+        <p className="text-xs text-ink-tertiary">{t('app.footer')}</p>
       </footer>
     </div>
   );

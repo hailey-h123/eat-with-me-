@@ -1,4 +1,5 @@
 import { IconLogo, IconArrowLeft } from './icons/FancyIcons';
+import { useTranslation } from '../i18n';
 
 export default function Header({
   title = '吃什么',
@@ -6,6 +7,8 @@ export default function Header({
   showBack = false,
   onBack
 }) {
+  const { lang, toggleLang } = useTranslation();
+
   return (
     <header className="glass-header py-4">
       <div className="max-w-2xl mx-auto px-6 flex items-center gap-4">
@@ -40,6 +43,13 @@ export default function Header({
           </div>
         </div>
         <div className="ml-auto flex items-center gap-2">
+          <button
+            type="button"
+            onClick={toggleLang}
+            className="px-2 py-1 text-[10px] font-bold rounded-md border border-ink/15 hover:bg-ink/5 transition-colors text-text-muted"
+          >
+            {lang === 'zh' ? 'EN' : '中'}
+          </button>
           <div className="w-2 h-2 bg-secondary rounded-full animate-pulse" />
           <span className="text-[10px] text-text-muted font-medium">AI 就绪</span>
         </div>

@@ -10,6 +10,7 @@ import Lightbox from './Lightbox';
 import { hasLiked, hasDisliked, addLike, addDislike, removeLike, removeDislike } from '../services/feedbackService';
 import { isFavorited, toggleFavorite, isVisited, toggleVisited } from '../services/historyService';
 import { trackFavorite, trackNavigate } from '../services/analyticsService';
+import { useTranslation } from '../i18n';
 
 const GENERIC_TAGS = new Set([
   '餐饮服务', '餐饮相关场所', '餐饮相关', '餐饮', '餐饮服务场所',
@@ -27,6 +28,7 @@ function filterTags(tags, restaurantName = '') {
 }
 
 export default function ResultCard({ restaurant, showExploreMessage = false, isSolo = false, onFeedback }) {
+  const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [liked, setLiked] = useState(false);
@@ -224,7 +226,7 @@ export default function ResultCard({ restaurant, showExploreMessage = false, isS
           {!isSolo && (
           <span className={`absolute top-3 right-3 px-3 py-1 rounded-full text-xs font-extrabold bg-white border-2.5 border-ink shadow-[3px_3px_0_var(--color-ink)] ${getScoreStyle(displayScore)}`}
             style={{ borderColor: 'var(--color-ink)', fontFamily: 'var(--font-display)' }}>
-            {displayScore}分
+            {displayScore}
           </span>
           )}
 
@@ -269,20 +271,20 @@ export default function ResultCard({ restaurant, showExploreMessage = false, isS
             <div className="flex items-center gap-2 mt-1">
               <span className="text-sm text-text-secondary">{restaurant.cuisine}</span>
               <span className="text-text-muted">·</span>
-              <span className="text-sm text-text-secondary">人均{restaurant.price}元</span>
+              <span className="text-sm text-text-secondary">{t('result.perPerson', { price: restaurant.price })}</span>
             </div>
           </div>
           {!currentUrl && !isSolo && (
             <span className={`px-4 py-1.5 rounded-full text-xs font-extrabold flex-shrink-0 border-2.5 border-ink shadow-[3px_3px_0_var(--color-ink)] ${getScoreStyle(displayScore)}`}
               style={{ borderColor: 'var(--color-ink)', fontFamily: 'var(--font-display)' }}>
-              {displayScore}分
+              {displayScore}
             </span>
           )}
         </div>
 
         <div className="flex items-center gap-3 text-xs text-text-secondary flex-wrap mb-4">
           <span className="flex items-center gap-1.5 tag-pill">
-            <IconMapPin className="w-3 h-3" /> 步行{restaurant.distance}分钟
+            <IconMapPin className="w-3 h-3" /> {t('result.walkMinutes', { minutes: restaurant.distance })}
           </span>
           <span className="flex items-center gap-1.5 tag-pill" style={{ background: 'rgba(255,201,60,0.15)', color: 'var(--color-accent-dark)' }}>
             <IconStar className="w-3 h-3" />
@@ -306,7 +308,7 @@ export default function ResultCard({ restaurant, showExploreMessage = false, isS
           {restaurant.soloFriendly >= 70 && (
             <span className="px-3 py-1 rounded-full text-xs font-bold text-white border-2 border-ink shadow-[2px_2px_0_var(--color-ink)]"
               style={{ background: 'var(--color-grass)', borderColor: 'var(--color-ink)', fontFamily: 'var(--font-display)' }}>
-              一人食友好
+              {t('result.soloFriendly')}
             </span>
           )}
         </div>
@@ -434,7 +436,7 @@ export default function ResultCard({ restaurant, showExploreMessage = false, isS
         )}
 
         <div className="mt-4 flex items-center justify-center text-text-muted text-xs font-bold" style={{ fontFamily: 'var(--font-display)' }}>
-          <span className="hover:text-primary transition-colors">{expanded ? '收起详情' : '点击查看详情'}</span>
+          <span className="hover:text-primary transition-colors">{expanded ? t('result.collapse') : t('result.expand')}</span>
           <IconChevronRight className={`w-4 h-4 ml-1 transition-all duration-300 ${expanded ? 'rotate-90 text-primary' : ''}`} />
         </div>
 
@@ -450,7 +452,7 @@ export default function ResultCard({ restaurant, showExploreMessage = false, isS
             }}
           >
             <IconBookmark className="w-4 h-4" filled={favorited} />
-            <span className="hidden sm:inline">{favorited ? '已收藏' : '收藏'}</span>
+            <span className="hidden sm:inline">{favorited ? t('result.favorited') : t('result.favorite')}</span>
           </button>
           <div className="w-px h-4 hidden sm:block" style={{ background: '#FDE6C8' }} />
           <button
@@ -464,7 +466,7 @@ export default function ResultCard({ restaurant, showExploreMessage = false, isS
             }}
           >
             <IconCheckCircle className="w-4 h-4" filled={visited} />
-            <span className="hidden sm:inline">{visited ? '去过' : '标记去过'}</span>
+            <span className="hidden sm:inline">{visited ? t('result.been') : t('result.beenMarked')}</span>
           </button>
           <div className="w-px h-4 hidden sm:block" style={{ background: '#FDE6C8' }} />
           <button
@@ -481,7 +483,7 @@ export default function ResultCard({ restaurant, showExploreMessage = false, isS
             }}
           >
             <IconThumbsUp className="w-4 h-4" filled={liked} />
-            <span>{liked ? '已喜欢' : '喜欢'}</span>
+            <span>{liked ? t('result.liked') : t('result.like')}</span>
           </button>
           <div className="w-px h-4 hidden sm:block" style={{ background: '#FDE6C8' }} />
           <button
@@ -498,7 +500,7 @@ export default function ResultCard({ restaurant, showExploreMessage = false, isS
             }}
           >
             <IconThumbsDown className="w-4 h-4" filled={disliked} />
-            <span>{disliked ? '已不喜欢' : '不喜欢'}</span>
+            <span>{disliked ? t('result.disliked') : t('result.dislike')}</span>
           </button>
         </div>
 
@@ -522,7 +524,7 @@ export default function ResultCard({ restaurant, showExploreMessage = false, isS
             </div>
             <button onClick={handleNavigate}
               className="btn-primary w-full py-3 text-sm mt-4 flex items-center justify-center gap-2">
-              <IconNavigation className="w-4 h-4" /> 导航过去
+              <IconNavigation className="w-4 h-4" /> {t('result.navigate')}
             </button>
           </div>
         )}
