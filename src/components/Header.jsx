@@ -46,9 +46,18 @@ export default function Header({
           <button
             type="button"
             onClick={toggleLang}
-            className="px-2 py-1 text-[10px] font-bold rounded-md border border-ink/15 hover:bg-ink/5 transition-colors text-text-muted"
+            className="relative w-11 h-6 rounded-full border border-ink/20 bg-ink/5 transition-colors duration-300 overflow-hidden flex-shrink-0"
+            style={{ borderColor: 'var(--color-ink)' }}
           >
-            {lang === 'zh' ? 'EN' : '中'}
+            <span
+              className={`absolute top-0.5 h-4 w-4 rounded-full bg-primary shadow-sm transition-all duration-300 ease-out flex items-center justify-center ${
+                lang === 'zh' ? 'left-0.5' : 'left-[calc(100%-1.125rem)]'
+              }`}
+            >
+              <span className="text-[7px] font-extrabold text-white leading-none">
+                {lang === 'zh' ? '中' : 'EN'}
+              </span>
+            </span>
           </button>
           <div className="w-2 h-2 bg-secondary rounded-full animate-pulse" />
           <span className="text-[10px] text-text-muted font-medium">AI 就绪</span>
