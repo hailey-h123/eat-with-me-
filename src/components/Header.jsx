@@ -57,7 +57,8 @@ export default function Header({
               <span className="text-[9px] font-extrabold text-ink leading-none">EN</span>
             </span>
             <span
-              className={`absolute top-0.5 h-4 w-5 rounded-full bg-primary shadow-md transition-all duration-300 ease-out ${
+              style={{ background: 'linear-gradient(135deg, #FF6B3D 0%, #E8552A 100%)' }}
+              className={`absolute top-0.5 h-4 w-5 rounded-full shadow-md transition-all duration-300 ease-out ${
                 lang === 'zh' ? 'left-0.5' : 'left-[calc(100%-1.375rem)]'
               }`}
             />
