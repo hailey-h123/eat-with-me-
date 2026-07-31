@@ -928,6 +928,7 @@ export function calculateMemberScore(restaurant, member) {
   }
   let score = 0;
   const reasons = [];
+  let penalty = 0;
 
   const allFeatures = [...(restaurant.tags || []), ...(restaurant.features || []), restaurant.cuisine || '', restaurant.name || ''];
   const cuisineFeatures = [...(restaurant.tags || []), ...(restaurant.features || []), restaurant.cuisine || '', restaurant.name || ''];
