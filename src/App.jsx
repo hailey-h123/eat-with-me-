@@ -11,7 +11,7 @@ import { useLocation } from './hooks/useLocation';
 import { parseMemberIntent, mergeMemberIntents, parseIntent } from './services/llmService';
 import { recommendRestaurants, randomExplore, recommendByMode, drawFortuneCard, analyzeEmptyResult } from './services/recommendationService';
 import { geocode, IS_MOCK_MODE } from './services/amapService';
-import { calculateSingleScore, calculateSoloFriendly } from './services/scoringService';
+import { calculateSingleScore, calculateSoloFriendly, setScoringTranslator } from './services/scoringService';
 import { addSearchHistory } from './services/historyService';
 import {
   trackPageView, trackSearch,
@@ -46,6 +46,9 @@ function App() {
       else if (lastMode === 'group') setCurrentView('group-input');
     } catch {}
   }, []);
+
+  // 将 i18n 翻译函数注入评分服务，使推荐理由支持多语言
+  useEffect(() => { setScoringTranslator(t); }, [t]);
 
   // 页面浏览埋点：currentView 变化时上报
   useEffect(() => {
