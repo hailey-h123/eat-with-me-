@@ -5,6 +5,71 @@
 import { applyFeedbackToScore } from './feedbackService';
 import { parseIntent } from './llmService';
 
+// 翻译函数注入（由 App.jsx 在初始化时设置）
+let _t = (key, params) => {
+  // 默认：直接用中文翻译
+  const zh = {
+    'reason.cravePerfect': '{name}：想吃{cuisines}，完美契合',
+    'reason.cravePartial': '{name}：想吃{cuisines}，部分契合',
+    'reason.craveMismatch': '{name}：想吃{cuisines}，做法差异较大',
+    'reason.noPrefs': '{name}：无特殊偏好，餐厅适合',
+    'reason.allergy': '{name}：含{allergy}相关，扣分',
+    'reason.allergyVegPartial': '{name}：有素菜可选，扣分较少',
+    'reason.allergyVegMismatch': '{name}：以肉食为主，扣分',
+    'reason.allergyPass': '{name}：避开{allergies}，餐厅适合',
+    'reason.budgetOk': '{name}：预算内',
+    'reason.budgetSlightlyOver': '{name}：略超预算',
+    'reason.budgetOver': '{name}：超预算',
+    'reason.budgetRange': '人均{price}元 — 在预算范围内',
+    'reason.budgetRangeOver': '人均{price}元 — 超出预算范围',
+    'reason.distanceNear': '{name}：步行{mins}分钟 — 很近',
+    'reason.distanceModerate': '{name}：步行{mins}分钟 — 距离适中',
+    'reason.distanceFar': '{name}：步行{mins}分钟 — 稍远',
+    'reason.reviewsMany': '{count}+评价 — 口碑验证',
+    'reason.reviewsSome': '{count}+评价 — 有一定人气',
+    'reason.groupAllSatisfied': '全员满意！{suffix}',
+    'reason.groupSatisfied': '满足 {satisfied}/{total} 位成员',
+    'reason.groupNoneSatisfied': '暂未匹配到合适的选择',
+    'reason.groupUnmatched': '{count}位未匹配',
+    'reason.groupVerySatisfied': '（{n}位非常满意）',
+    'reason.groupSpread': '成员满意度差异大（{low} vs {high}）',
+    'reason.groupUnhappy': '{count}位成员不太满意',
+    'reason.fusionPerfect': '完美融合！同时满足两人的口味偏好',
+    'reason.fusionFlavor': '口味融合',
+    'reason.fusionStyle': '形式融合',
+    'reason.fusionPerfectCuisine': '{a}×{b}的完美融合',
+    'reason.fusionFlavorShared': '主打{el}风味，可满足{a}或{b}的口味期待',
+    'reason.fusionFlavorGeneric': '口味上有共通之处，可融合',
+    'reason.fusionStyleShared': '做法上有共通之处，可融合',
+    'reason.fusionElemFlavor': '带有{el}风味，满足{cuisine}的口味期待',
+    'reason.fusionElemStyle': '采用{el}做法，与{cuisine}形式相近',
+    'reason.fusionElemPerfect': '主打{el}，完美契合{cuisine}需求',
+    'reason.fusionNearFlavor': '风味接近{cuisine}',
+    'reason.fusionNearSpicy': '风味接近{cuisine}的辣系',
+    'reason.fusionMethod': '做法与{cuisine}相近',
+    'reason.fusionFits': '契合{cuisine}需求',
+    'reason.conflictResolved': '冲突化解：{resolution}',
+    'reason.conflictAllResolved': '完美解决所有冲突！',
+    'reason.budgetSlightlyOverRange': '人均{price}元 — 略超预算',
+    'reason.budgetOverRange': '人均{price}元 — 超出预算较多',
+    'reason.priceMissing': '价格信息缺失',
+    'reason.distanceNearSolo': '步行{mins}分钟 — 很近',
+    'reason.distanceModerateSolo': '步行{mins}分钟 — 距离适中',
+    'reason.distanceFarSolo': '步行{mins}分钟 — 稍远',
+  };
+  return zh[key] || key;
+};
+export function setScoringTranslator(fn) { _t = fn; }
+function t(key, params) {
+  let text = _t(key, params);
+  if (params) {
+    Object.entries(params).forEach(([k, v]) => {
+      text = text.replace(new RegExp(`\\{${k}\\}`, 'g'), String(v ?? ''));
+    });
+  }
+  return text;
+}
+
 // ============ 口味元素分类（用于跨菜系融合匹配） ============
 
 /**
@@ -969,8 +1034,8 @@ export function calculateMemberScore(restaurant, member) {
       reasons.push({
         type: (exactMatches > 0 || hasSubstring) ? 'match' : 'partial',
         text: (exactMatches > 0 || hasSubstring)
-          ? `${member.name}：想吃${matched.join('、')}，完美契合`
-          : `${member.name}：想吃${matched.join('、')}，部分契合`
+          ? t('reason.cravePerfect', { name: member.name, cuisines: matched.join('、') })
+          : t('reason.cravePartial', { name: member.name, cuisines: matched.join('、') })
       });
     }
   } else {
@@ -991,9 +1056,9 @@ export function calculateMemberScore(restaurant, member) {
           let penaltyAmount = ALLERGY_PENALTY['素食'] || 25;
           if (hasVegFriendly) {
             penaltyAmount = Math.floor(penaltyAmount * 0.4);
-            reasons.push({ type: 'partial', text: `${member.name}：有素菜可选，扣分较少` });
+            reasons.push({ type: 'partial', text: t('reason.allergyVegPartial', { name: member.name }) });
           } else {
-            reasons.push({ type: 'mismatch', text: `${member.name}：以肉食为主，扣分` });
+            reasons.push({ type: 'mismatch', text: t('reason.allergyVegMismatch', { name: member.name }) });
           }
           penalty += penaltyAmount;
         }
@@ -1004,7 +1069,7 @@ export function calculateMemberScore(restaurant, member) {
         if (restaurantHasTrait(restaurant, trait)) {
           const penaltyAmount = ALLERGY_PENALTY[allergy] || 10;
           penalty += penaltyAmount;
-          reasons.push({ type: 'mismatch', text: `${member.name}：含${allergy}相关，扣分` });
+          reasons.push({ type: 'mismatch', text: t('reason.allergy', { name: member.name, allergy }) });
         }
       }
     });
@@ -1016,13 +1081,13 @@ export function calculateMemberScore(restaurant, member) {
     let budgetScore;
     if (ratio <= 1) {
       budgetScore = 85 + (1 - (1 - ratio) * 0.3) * 15;
-      reasons.push({ type: 'match', text: `${member.name}：预算内` });
+      reasons.push({ type: 'match', text: t('reason.budgetOk', { name: member.name }) });
     } else if (ratio <= 1.2) {
       budgetScore = 70 - (ratio - 1) * 100;
-      reasons.push({ type: 'partial', text: `${member.name}：略超预算` });
+      reasons.push({ type: 'partial', text: t('reason.budgetSlightlyOver', { name: member.name }) });
     } else {
       budgetScore = Math.max(40, 60 - (ratio - 1.2) * 30);
-      reasons.push({ type: 'mismatch', text: `${member.name}：超预算` });
+      reasons.push({ type: 'mismatch', text: t('reason.budgetOver', { name: member.name }) });
     }
     score += budgetScore * WEIGHTS.budget;
   } else {
@@ -1095,11 +1160,11 @@ export function calculateMemberScore(restaurant, member) {
     const hasPrefs = preferences && preferences.length > 0;
     const hasAllergies = allergies && allergies.length > 0;
     if (hasPrefs) {
-      reasons.push({ type: 'mismatch', text: `${member.name}：想吃${preferences.join('、')}，做法差异较大` });
+      reasons.push({ type: 'mismatch', text: t('reason.craveMismatch', { name: member.name, cuisines: preferences.join('、') }) });
     } else if (hasAllergies) {
-      reasons.push({ type: 'match', text: `${member.name}：避开${allergies.join('、')}，餐厅适合` });
+      reasons.push({ type: 'match', text: t('reason.allergyPass', { name: member.name, allergies: allergies.join('、') }) });
     } else {
-      reasons.push({ type: 'match', text: `${member.name}：无特殊偏好，餐厅适合` });
+      reasons.push({ type: 'match', text: t('reason.noPrefs', { name: member.name }) });
     }
   }
 
@@ -1231,7 +1296,7 @@ export function calculateGroupScore(restaurant, intent) {
     if (perfectFusions.length > 0) {
       groupScore += perfectFusions.length * 8;
       const fusion = perfectFusions[0];
-      fusionHeader = { type: 'fusion', fusionType: 'perfect', text: `完美融合！同时满足两人的偏好` };
+      fusionHeader = { type: 'fusion', fusionType: 'perfect', text: t('reason.fusionPerfect') };
       fusionDetails = [
         { type: 'fusion-detail', fusionType: 'perfect', memberName: fusion.member1, text: fusion.member1Reason },
         { type: 'fusion-detail', fusionType: 'perfect', memberName: fusion.member2, text: fusion.member2Reason },
@@ -1239,7 +1304,7 @@ export function calculateGroupScore(restaurant, intent) {
     } else if (flavorFusions.length > 0) {
       groupScore += flavorFusions.length * 4;
       const fusion = flavorFusions[0];
-      fusionHeader = { type: 'fusion', fusionType: 'flavor', text: `口味融合` };
+      fusionHeader = { type: 'fusion', fusionType: 'flavor', text: t('reason.fusionFlavor') };
       fusionDetails = [
         { type: 'fusion-detail', fusionType: 'flavor', memberName: fusion.member1, text: fusion.member1Reason },
         { type: 'fusion-detail', fusionType: 'flavor', memberName: fusion.member2, text: fusion.member2Reason },
@@ -1247,7 +1312,7 @@ export function calculateGroupScore(restaurant, intent) {
     } else if (styleFusions.length > 0) {
       groupScore += styleFusions.length * 2;
       const fusion = styleFusions[0];
-      fusionHeader = { type: 'fusion', fusionType: 'style', text: `形式融合` };
+      fusionHeader = { type: 'fusion', fusionType: 'style', text: t('reason.fusionStyle') };
       fusionDetails = [
         { type: 'fusion-detail', fusionType: 'style', memberName: fusion.member1, text: fusion.member1Reason },
         { type: 'fusion-detail', fusionType: 'style', memberName: fusion.member2, text: fusion.member2Reason },
@@ -1284,7 +1349,7 @@ export function calculateGroupScore(restaurant, intent) {
         resolvedCount++;
         allReasons.push({
           type: 'match',
-          text: `冲突化解：${conflict.resolution}`
+          text: t('reason.conflictResolved', { resolution: conflict.resolution })
         });
       }
     });
@@ -1293,7 +1358,7 @@ export function calculateGroupScore(restaurant, intent) {
 
     if (resolvedCount === totalConflicts && totalConflicts > 0) {
       groupScore += 10;
-      allReasons.push({ type: 'match', text: '完美解决所有冲突！' });
+      allReasons.push({ type: 'match', text: t('reason.conflictAllResolved') });
     }
   }
 
@@ -1309,16 +1374,17 @@ export function calculateGroupScore(restaurant, intent) {
     const unsatisfiedCount = intent.members.length - satisfiedMembers;
     let summaryText;
     if (satisfiedMembers === intent.members.length) {
-      summaryText = `全部满足！${verySatisfiedMembers > 0 ? `（${verySatisfiedMembers}位非常满意）` : ''}`;
+      const suffix = verySatisfiedMembers > 0 ? t('reason.groupVerySatisfied', { n: verySatisfiedMembers }) : '';
+      summaryText = t('reason.groupAllSatisfied', { suffix });
     } else if (satisfiedMembers === 0) {
-      summaryText = `暂未匹配到合适的选择`;
+      summaryText = t('reason.groupNoneSatisfied');
     } else {
-      summaryText = `满足 ${satisfiedMembers}/${intent.members.length} 位成员`;
+      summaryText = t('reason.groupSatisfied', { satisfied: satisfiedMembers, total: intent.members.length });
       if (unsatisfiedCount > 0) {
-        summaryText += `，${unsatisfiedCount}位未匹配`;
+        summaryText += '，' + t('reason.groupUnmatched', { count: unsatisfiedCount });
       }
       if (verySatisfiedMembers > 0) {
-        summaryText += `（${verySatisfiedMembers}位非常满意）`;
+        summaryText += t('reason.groupVerySatisfied', { n: verySatisfiedMembers });
       }
     }
     allReasons.unshift({
@@ -1331,14 +1397,14 @@ export function calculateGroupScore(restaurant, intent) {
     if (scoreSpread > 35) {
       allReasons.push({
         type: 'mismatch',
-        text: `成员满意度差异大（${Math.round(minScore)} vs ${Math.round(maxScore)}）`
+        text: t('reason.groupSpread', { low: Math.round(minScore), high: Math.round(maxScore) })
       });
     }
 
     if (unhappyMembers > 0) {
       allReasons.push({
         type: 'mismatch',
-        text: `${unhappyMembers}位成员不太满意`
+        text: t('reason.groupUnhappy', { count: unhappyMembers })
       });
     }
   }
@@ -1402,15 +1468,15 @@ export function calculateSingleScore(restaurant, intent) {
     if (ratio <= 1) {
       const budgetScore = 100 - (1 - ratio) * 15;
       score += budgetScore * WEIGHTS.budget;
-      reasons.push({ type: 'match', text: `人均${restaurant.price}元 — 在预算内` });
+      reasons.push({ type: 'match', text: t('reason.budgetRange', { price: restaurant.price }) });
     } else if (ratio <= 1.1) {
       const overScore = 80 - (ratio - 1) * 100;
       score += overScore * WEIGHTS.budget;
-      reasons.push({ type: 'partial', text: `人均${restaurant.price}元 — 略超预算` });
+      reasons.push({ type: 'partial', text: t('reason.budgetSlightlyOverRange', { price: restaurant.price }) });
     } else {
       const overScore = Math.max(25, 70 - (ratio - 1.1) * 25);
       score += overScore * WEIGHTS.budget;
-      reasons.push({ type: 'mismatch', text: `人均${restaurant.price}元 — 超出预算较多` });
+      reasons.push({ type: 'mismatch', text: t('reason.budgetOverRange', { price: restaurant.price }) });
     }
   } else if (intent.priceRange) {
     const [minP, maxP] = intent.priceRange;
@@ -1418,14 +1484,14 @@ export function calculateSingleScore(restaurant, intent) {
       const inRange = maxP >= 200 ? restaurant.price >= minP : (restaurant.price >= minP && restaurant.price <= maxP);
       if (inRange) {
         score += WEIGHTS.budget * 85;
-        reasons.push({ type: 'match', text: `人均${restaurant.price}元 — 在预算范围内` });
+        reasons.push({ type: 'match', text: t('reason.budgetRange', { price: restaurant.price }) });
       } else {
         score += WEIGHTS.budget * 30;
-        reasons.push({ type: 'mismatch', text: `人均${restaurant.price}元 — 超出预算范围` });
+        reasons.push({ type: 'mismatch', text: t('reason.budgetRangeOver', { price: restaurant.price }) });
       }
     } else {
       score += WEIGHTS.budget * 40;
-      reasons.push({ type: 'partial', text: '价格信息缺失' });
+      reasons.push({ type: 'partial', text: t('reason.priceMissing') });
     }
   } else {
     score += WEIGHTS.budget * 75;
@@ -1437,11 +1503,11 @@ export function calculateSingleScore(restaurant, intent) {
   score += distanceScore * WEIGHTS.distance;
 
   if (distance <= 5) {
-    reasons.push({ type: 'match', text: `步行${distance}分钟 — 很近` });
+    reasons.push({ type: 'match', text: t('reason.distanceNearSolo', { mins: distance }) });
   } else if (distance <= 15) {
-    reasons.push({ type: 'match', text: `步行${distance}分钟 — 距离适中` });
+    reasons.push({ type: 'match', text: t('reason.distanceModerateSolo', { mins: distance }) });
   } else {
-    reasons.push({ type: 'partial', text: `步行${distance}分钟 — 稍远` });
+    reasons.push({ type: 'partial', text: t('reason.distanceFarSolo', { mins: distance }) });
   }
 
   // 4. 评分
@@ -1455,9 +1521,9 @@ export function calculateSingleScore(restaurant, intent) {
   score += popularityScore * WEIGHTS.popularity;
 
   if (reviewCount >= 1000) {
-    reasons.push({ type: 'match', text: `${reviewCount}+评价 — 口碑验证` });
+    reasons.push({ type: 'match', text: t('reason.reviewsMany', { count: reviewCount }) });
   } else if (reviewCount >= 500) {
-    reasons.push({ type: 'partial', text: `${reviewCount}+评价 — 有一定人气` });
+    reasons.push({ type: 'partial', text: t('reason.reviewsSome', { count: reviewCount }) });
   }
 
   // 6. 价格合理性

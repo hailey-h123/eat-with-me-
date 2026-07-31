@@ -301,6 +301,70 @@ const en = {
 
   // Language toggle
   'lang.switch': '中',
+
+  // ===== Scoring / Recommendation Reasons =====
+  // Preference matching
+  'reason.cravePerfect': '{name}: In the mood for {cuisines} — perfect match',
+  'reason.cravePartial': '{name}: In the mood for {cuisines} — partial match',
+  'reason.craveMismatch': '{name}: Wanted {cuisines} — styles differ',
+  'reason.noPrefs': '{name}: Open to anything, this spot fits',
+
+  // Allergies
+  'reason.allergy': '{name}: Contains {allergy} — penalty',
+  'reason.allergyVegPartial': '{name}: Has vegetarian options — reduced penalty',
+  'reason.allergyVegMismatch': '{name}: Primarily meat — penalty',
+  'reason.allergyPass': '{name}: Avoids {allergies} — safe choice',
+
+  // Budget
+  'reason.budgetOk': '{name}: Within budget',
+  'reason.budgetSlightlyOver': '{name}: Slightly over budget',
+  'reason.budgetOver': '{name}: Over budget',
+  'reason.budgetRange': '¥{price}/person — within budget range',
+  'reason.budgetRangeOver': '¥{price}/person — exceeds budget range',
+
+  // Distance
+  'reason.distanceNear': '{name}: {mins} min walk — very close',
+  'reason.distanceModerate': '{name}: {mins} min walk — reasonable distance',
+  'reason.distanceFar': '{name}: {mins} min walk — a bit far',
+
+  // Ratings & Popularity
+  'reason.reviewsMany': '{count}+ reviews — crowd-validated',
+  'reason.reviewsSome': '{count}+ reviews — decent popularity',
+
+  // Group summary
+  'reason.groupAllSatisfied': 'Everyone\'s happy! {suffix}',
+  'reason.groupSatisfied': '{satisfied}/{total} members satisfied',
+  'reason.groupNoneSatisfied': 'No good match found yet',
+  'reason.groupUnmatched': '{count} member(s) unmatched',
+  'reason.groupVerySatisfied': ' ({n} very satisfied)',
+  'reason.groupSpread': 'Satisfaction gap is wide ({low} vs {high})',
+  'reason.groupUnhappy': '{count} member(s) not satisfied',
+
+  // Fusion
+  'reason.fusionPerfect': 'Perfect fusion! Satisfies everyone\'s preferences',
+  'reason.fusionFlavor': 'Flavor fusion',
+  'reason.fusionStyle': 'Style fusion',
+  'reason.fusionPerfectCuisine': 'Perfect {a}×{b} fusion',
+  'reason.fusionFlavorShared': 'Shared {elements} flavors — can please {a} or {b}',
+  'reason.fusionFlavorGeneric': 'Shared flavor profile — compatible',
+  'reason.fusionStyleShared': 'Cooking methods overlap — compatible',
+  'reason.fusionElemFlavor': 'Has {elements} flavors, satisfying {cuisine} cravings',
+  'reason.fusionElemStyle': 'Uses {elements} method, similar to {cuisine}',
+  'reason.fusionElemPerfect': 'Features {elements}, a perfect fit for {cuisine}',
+  'reason.fusionNearFlavor': 'Close to {cuisine} flavors',
+  'reason.fusionNearSpicy': 'Close to the spicy character of {cuisine}',
+  'reason.fusionMethod': 'Cooking style similar to {cuisine}',
+  'reason.fusionFits': 'Fits {cuisine} needs',
+
+  // Conflict
+  'reason.conflictResolved': 'Conflict resolved: {resolution}',
+  'reason.conflictAllResolved': 'All conflicts perfectly resolved!',
+  'reason.budgetSlightlyOverRange': '¥{price}/person — slightly over budget',
+  'reason.budgetOverRange': '¥{price}/person — way over budget',
+  'reason.priceMissing': 'Price info unavailable',
+  'reason.distanceNearSolo': '{mins} min walk — very close',
+  'reason.distanceModerateSolo': '{mins} min walk — reasonable distance',
+  'reason.distanceFarSolo': '{mins} min walk — a bit far',
 }
 
 export { en }

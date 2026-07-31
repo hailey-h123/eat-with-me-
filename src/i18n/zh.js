@@ -299,6 +299,62 @@ const zh = {
 
   // Language toggle
   'lang.switch': 'EN',
+
+  // ===== 评分 / 推荐理由 =====
+  'reason.cravePerfect': '{name}：想吃{cuisines}，完美契合',
+  'reason.cravePartial': '{name}：想吃{cuisines}，部分契合',
+  'reason.craveMismatch': '{name}：想吃{cuisines}，做法差异较大',
+  'reason.noPrefs': '{name}：无特殊偏好，餐厅适合',
+
+  'reason.allergy': '{name}：含{allergy}相关，扣分',
+  'reason.allergyVegPartial': '{name}：有素菜可选，扣分较少',
+  'reason.allergyVegMismatch': '{name}：以肉食为主，扣分',
+  'reason.allergyPass': '{name}：避开{allergies}，餐厅适合',
+
+  'reason.budgetOk': '{name}：预算内',
+  'reason.budgetSlightlyOver': '{name}：略超预算',
+  'reason.budgetOver': '{name}：超预算',
+  'reason.budgetRange': '人均{price}元 — 在预算范围内',
+  'reason.budgetRangeOver': '人均{price}元 — 超出预算范围',
+
+  'reason.distanceNear': '{name}：步行{mins}分钟 — 很近',
+  'reason.distanceModerate': '{name}：步行{mins}分钟 — 距离适中',
+  'reason.distanceFar': '{name}：步行{mins}分钟 — 稍远',
+
+  'reason.reviewsMany': '{count}+评价 — 口碑验证',
+  'reason.reviewsSome': '{count}+评价 — 有一定人气',
+
+  'reason.groupAllSatisfied': '全员满意！{suffix}',
+  'reason.groupSatisfied': '满足 {satisfied}/{total} 位成员',
+  'reason.groupNoneSatisfied': '暂未匹配到合适的选择',
+  'reason.groupUnmatched': '{count}位未匹配',
+  'reason.groupVerySatisfied': '（{n}位非常满意）',
+  'reason.groupSpread': '成员满意度差异大（{low} vs {high}）',
+  'reason.groupUnhappy': '{count}位成员不太满意',
+
+  'reason.fusionPerfect': '完美融合！同时满足两人的口味偏好',
+  'reason.fusionFlavor': '口味融合',
+  'reason.fusionStyle': '形式融合',
+  'reason.fusionPerfectCuisine': '{a}×{b}的完美融合',
+  'reason.fusionFlavorShared': '主打{el}风味，可满足{a}或{b}的口味期待',
+  'reason.fusionFlavorGeneric': '口味上有共通之处，可融合',
+  'reason.fusionStyleShared': '做法上有共通之处，可融合',
+  'reason.fusionElemFlavor': '带有{el}风味，满足{cuisine}的口味期待',
+  'reason.fusionElemStyle': '采用{el}做法，与{cuisine}形式相近',
+  'reason.fusionElemPerfect': '主打{el}，完美契合{cuisine}需求',
+  'reason.fusionNearFlavor': '风味接近{cuisine}',
+  'reason.fusionNearSpicy': '风味接近{cuisine}的辣系',
+  'reason.fusionMethod': '做法与{cuisine}相近',
+  'reason.fusionFits': '契合{cuisine}需求',
+
+  'reason.conflictResolved': '冲突化解：{resolution}',
+  'reason.conflictAllResolved': '完美解决所有冲突！',
+  'reason.budgetSlightlyOverRange': '人均{price}元 — 略超预算',
+  'reason.budgetOverRange': '人均{price}元 — 超出预算较多',
+  'reason.priceMissing': '价格信息缺失',
+  'reason.distanceNearSolo': '步行{mins}分钟 — 很近',
+  'reason.distanceModerateSolo': '步行{mins}分钟 — 距离适中',
+  'reason.distanceFarSolo': '步行{mins}分钟 — 稍远',
 }
 
 export { zh }
