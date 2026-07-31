@@ -781,12 +781,12 @@ function normalizeScore(score, min = 0, max = 100) {
  */
 function stretchScore(raw) {
   const safeRaw = typeof raw === 'number' && !isNaN(raw) ? raw : 60;
-  const min = 35, max = 85;
-  const targetMin = 52, targetMax = 99;
+  const min = 25, max = 120;
+  const targetMin = 50, targetMax = 99;
   const clamped = Math.max(min, Math.min(max, safeRaw));
   const ratio = (clamped - min) / (max - min);
   const safeRatio = typeof ratio === 'number' && !isNaN(ratio) && isFinite(ratio) ? ratio : 0.5;
-  const stretchedRatio = Math.pow(safeRatio, 0.7);
+  const stretchedRatio = Math.pow(safeRatio, 0.65);
   const stretched = targetMin + stretchedRatio * (targetMax - targetMin);
   const result = Math.round(stretched * 10) / 10;
   return (typeof result === 'number' && !isNaN(result)) ? result : 75;
