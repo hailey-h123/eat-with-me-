@@ -12,6 +12,8 @@ let _t = (key, params) => {
     'reason.cravePerfect': '{name}：想吃{cuisines}，完美契合',
     'reason.cravePartial': '{name}：想吃{cuisines}，部分契合',
     'reason.craveMismatch': '{name}：想吃{cuisines}，做法差异较大',
+    'reason.craveMatchSolo': '想吃{cuisines}',
+    'reason.cravePartialSolo': '想吃{cuisines}',
     'reason.noPrefs': '{name}：无特殊偏好，餐厅适合',
     'reason.allergy': '{name}：含{allergy}相关，扣分',
     'reason.allergyVegPartial': '{name}：有素菜可选，扣分较少',
@@ -1033,6 +1035,7 @@ export function calculateMemberScore(restaurant, member) {
       );
       reasons.push({
         type: (exactMatches > 0 || hasSubstring) ? 'match' : 'partial',
+        category: 'preference',
         text: (exactMatches > 0 || hasSubstring)
           ? t('reason.cravePerfect', { name: member.name, cuisines: matched.join('、') })
           : t('reason.cravePartial', { name: member.name, cuisines: matched.join('、') })
@@ -1160,7 +1163,7 @@ export function calculateMemberScore(restaurant, member) {
     const hasPrefs = preferences && preferences.length > 0;
     const hasAllergies = allergies && allergies.length > 0;
     if (hasPrefs) {
-      reasons.push({ type: 'mismatch', text: t('reason.craveMismatch', { name: member.name, cuisines: preferences.join('、') }) });
+      reasons.push({ type: 'mismatch', category: 'preference', text: t('reason.craveMismatch', { name: member.name, cuisines: preferences.join('、') }) });
     } else if (hasAllergies) {
       reasons.push({ type: 'match', text: t('reason.allergyPass', { name: member.name, allergies: allergies.join('、') }) });
     } else {
@@ -1322,7 +1325,7 @@ export function calculateGroupScore(restaurant, intent) {
     // 融合详情已说明偏好匹配，只保留非偏好类原因（预算、忌口等）
     intent.members.forEach(member => {
       const reasons = memberReasonsMap[member.name] || [];
-      const nonPrefReasons = reasons.filter(r => !r.text.includes('想吃'));
+      const nonPrefReasons = reasons.filter(r => r.category !== 'preference');
       allReasons = allReasons.concat(nonPrefReasons);
     });
 
@@ -1455,7 +1458,10 @@ export function calculateSingleScore(restaurant, intent) {
       );
       reasons.push({
         type: (exactMatches > 0 || hasSubstring) ? 'match' : 'partial',
-        text: `想吃${matched.join('、')}`
+        category: 'preference',
+        text: (exactMatches > 0 || hasSubstring)
+          ? t('reason.craveMatchSolo', { cuisines: matched.join('、') })
+          : t('reason.cravePartialSolo', { cuisines: matched.join('、') })
       });
     }
   } else {

@@ -47,8 +47,8 @@ function App() {
     } catch {}
   }, []);
 
-  // 将 i18n 翻译函数注入评分服务，使推荐理由支持多语言
-  useEffect(() => { setScoringTranslator(t); }, [t]);
+  // 将 i18n 翻译函数注入评分服务，直接注入确保最新语言
+  setScoringTranslator(t);
 
   // 页面浏览埋点：currentView 变化时上报
   useEffect(() => {

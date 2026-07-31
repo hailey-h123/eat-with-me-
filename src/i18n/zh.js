@@ -311,6 +311,8 @@ const zh = {
   'reason.cravePerfect': '{name}：想吃{cuisines}，完美契合',
   'reason.cravePartial': '{name}：想吃{cuisines}，部分契合',
   'reason.craveMismatch': '{name}：想吃{cuisines}，做法差异较大',
+  'reason.craveMatchSolo': '想吃{cuisines}',
+  'reason.cravePartialSolo': '想吃{cuisines}',
   'reason.noPrefs': '{name}：无特殊偏好，餐厅适合',
 
   'reason.allergy': '{name}：含{allergy}相关，扣分',
