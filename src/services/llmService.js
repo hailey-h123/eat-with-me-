@@ -19,6 +19,70 @@ const SOUR_KEYWORDS = ['酸的', '酸辣', '开胃'];
 const CHEAP_KEYWORDS = ['便宜', '实惠', '性价比', '不贵'];
 const EXPENSIVE_KEYWORDS = ['高档', '贵一点', '精致', '环境好'];
 
+// ===== English keyword equivalents (map to same internal tokens) =====
+
+// Allergies (EN → internal token)
+const EN_ALLERGY_KEYWORDS = {
+  '辣': ['no spicy', 'not spicy', "can't eat spicy", 'no spice', 'not hot', 'mild only', 'i don\'t eat spicy', 'no chili', 'can not handle spicy'],
+  '香菜': ['no cilantro', 'no coriander', 'hate cilantro', 'no culantro'],
+  '清真': ['halal', 'muslim'],
+  '素食': ['vegetarian', 'vegan', 'plant-based', 'no meat', 'veggie', 'veg only', 'vegan only'],
+  '海鲜': ['no seafood', 'seafood allergy', 'allergic to seafood', 'no fish', 'no shellfish', 'allergic to fish'],
+  '坚果': ['nut allergy', 'no nuts', 'allergic to nuts', 'nut free'],
+  '减肥': ['diet', 'dieting', 'low calorie', 'low cal', 'losing weight', 'cutting', 'lean', 'healthy options'],
+};
+
+// Preferences (EN → internal token)
+const EN_PREFERENCE_KEYWORDS = {
+  '火锅': ['hot pot', 'hotpot', 'steamboat', 'shabu shabu', 'shabu', 'sukiyaki', 'boil pot', 'chinese fondue'],
+  '烤肉': ['korean bbq', 'kbbq', 'bbq', 'barbecue', 'barbeque', 'grill', 'grilled meat', 'yakiniku', 'galbi', 'bulgogi'],
+  '日料': ['japanese food', 'japanese cuisine', 'japanese', 'sushi', 'sashimi', 'ramen', 'izakaya', 'donburi', 'udon', 'tempura', 'tonkatsu'],
+  '韩餐': ['korean food', 'korean cuisine', 'korean', 'bibimbap', 'tteokbokki', 'japchae', 'kimchi', 'korean fried chicken'],
+  '川菜': ['sichuan', 'szechuan', 'sichuan food', 'szechuan cuisine', 'chongqing', 'mala', 'mapo tofu', 'dan dan noodles'],
+  '湘菜': ['hunan', 'hunan food', 'xiang cuisine', 'hunan cuisine', 'spicy hunan'],
+  '粤菜': ['cantonese', 'canton food', 'dim sum', 'guangdong food', 'cantonese cuisine', 'char siu', 'wonton', 'congee'],
+  '江浙菜': ['jiangzhe', 'shanghainese', 'shanghai food', 'hangzhou food', 'nanjing', 'xiao long bao', 'soup dumpling', 'dongpo pork', 'lion head meatball'],
+  '东北菜': ['dongbei', 'northeastern chinese', 'manchurian', 'guo bao rou', 'di san xian'],
+  '西北菜': ['northwest chinese', 'xi\'an food', 'lanzhou', 'lamb skewer', 'biang biang noodles', 'hand pulled noodles', 'cumin lamb'],
+  '北京菜': ['beijing food', 'peking duck', 'beijing cuisine', 'zhajiangmian', 'beijing noodles'],
+  '云南菜': ['yunnan food', 'yunnan cuisine', 'crossing bridge noodles', 'rice noodle'],
+  '贵州菜': ['guizhou food', 'guizhou cuisine', 'sour soup fish', 'sour and spicy'],
+  '西餐': ['western food', 'western cuisine', 'steak', 'steakhouse', 'italian food', 'italian', 'french food', 'french cuisine', 'american food', 'pasta', 'risotto'],
+  '披萨': ['pizza', 'pizzeria'],
+  '东南亚菜': ['southeast asian', 'thai food', 'thai', 'vietnamese food', 'vietnamese', 'pho', 'banh mi', 'pad thai', 'tom yum', 'singapore food', 'malaysian'],
+  '泰菜': ['thai food', 'thai cuisine', 'thai', 'tom yum', 'pad thai', 'green curry', 'red curry', 'pad kra pao'],
+  '越南菜': ['vietnamese', 'pho', 'banh mi', 'vietnamese food', 'bun bo hue'],
+  '面馆': ['noodles', 'noodle soup', 'lamian', 'ramen', 'noodle spot', 'pulled noodles', 'soup noodles'],
+  '饺子': ['dumplings', 'dumpling', 'jiaozi', 'gyoza', 'pot stickers', 'potstickers', 'pierogi'],
+  '快餐': ['fast food', 'burger', 'burgers', 'fried chicken', 'mcdonald', 'kfc', 'quick bite', 'fast casual', 'takeout'],
+  '轻食': ['light meal', 'salad', 'healthy food', 'clean eating', 'poke bowl', 'grain bowl', 'smoothie bowl', 'low carb'],
+  '海鲜': ['seafood', 'fish', 'crab', 'lobster', 'oyster', 'shellfish', 'shrimp', 'prawn', 'sashimi boat'],
+  '甜品': ['dessert', 'cake', 'pastry', 'ice cream', 'sweet', 'gelato', 'tiramisu', 'cheesecake', 'boba shop', 'bubble tea shop'],
+  '咖啡': ['coffee', 'cafe', 'latte', 'espresso', 'americano', 'cappuccino', 'matcha', 'cafe latte'],
+  '烧烤': ['bbq', 'barbecue', 'barbeque', 'skewer', 'chinese bbq', 'chuanr', 'grill', 'charcoal grill'],
+  '撸串': ['skewer', 'chuanr', 'kebab', 'street bbq', 'late night grill'],
+  '小吃': ['street food', 'snack', 'tapas', 'small plates', 'appetizers'],
+  '喝': ['drinks', 'beverage', 'boba', 'bubble tea', 'milkshake', 'smoothie', 'juice bar'],
+  '咖喱': ['curry', 'indian food', 'indian cuisine', 'indian', 'butter chicken', 'tikka masala', 'naan'],
+};
+
+// Budget patterns (EN)
+const EN_BUDGET_PATTERNS = {
+  above: [/\b(?:budget|spend|price|cost)\b[^.!?]*\b(?:over|above|at least|more than|minimum|min)\b[^.!?]*?\$?(\d+)/i, /\$(?:(\d+)\+|\+?\$?(\d+)\s*(?:\+|and above|or more|or up))/i, /(\d+)\s*(?:\+|and above|or more|or up)\s*(?:dollars|yuan|bucks|rmb)?/i],
+  around: [/\b(?:budget|spend|price|cost)\b[^.!?]*\b(?:around|about|approximately|roughly|near|around)\b[^.!?]*?\$?(\d+)/i, /\$?(\d+)\s*(?:ish|around|or so)/i],
+  max: [/\b(?:budget|spend|price|cost)\b[^.!?]*\b(?:under|below|within|max|maximum|up to|no more than|at most)\b[^.!?]*?\$?(\d+)/i, /\$?(\d+)\s*(?:or less|or under|or below|max)/i, /\bunder\s*\$?(\d+)/i, /\bwithin\s*\$?(\d+)/i],
+};
+
+// ===== Helpers =====
+
+// Check if text is primarily English (heuristic: >60% ASCII alphabetic chars)
+function isEnglishText(text) {
+  if (!text) return false;
+  const alpha = (text.match(/[a-zA-Z]/g) || []).length;
+  const cjk = (text.match(/[一-鿿㐀-䶿]/g) || []).length;
+  return alpha > cjk && alpha > text.length * 0.3;
+}
+
 const CUISINE_KEYWORDS = {
   '火锅': ['火锅', '涮锅', '串串', '麻辣烫', '冒菜', '铜锅', '鸳鸯锅', '打边炉'],
   '烤肉': ['烤肉', '韩式烤肉', '日式烤肉', '烧肉', '韩国烤肉'],
@@ -265,6 +329,83 @@ export function parseIntent(text) {
         result.shopType = cuisine;
       }
     }
+  }
+
+  // ===== English input parsing =====
+  if (isEnglishText(trimmedText)) {
+    const lowerText = trimmedText.toLowerCase();
+
+    // Budget
+    if (!result.budget && !result.minBudget) {
+      for (const p of EN_BUDGET_PATTERNS.above) {
+        const m = lowerText.match(p);
+        if (m) { const v = parseInt(m[1] || m[2]); if (v) { result.minBudget = v; result.budget = 999; break; } }
+      }
+      if (!result.budget) {
+        for (const p of EN_BUDGET_PATTERNS.around) {
+          const m = lowerText.match(p);
+          if (m) { const v = parseInt(m[1] || m[2]); if (v) { result.minBudget = Math.max(0, Math.round(v * 0.7)); result.budget = Math.round(v * 1.3); break; } }
+        }
+      }
+      if (!result.budget) {
+        for (const p of EN_BUDGET_PATTERNS.max) {
+          const m = lowerText.match(p);
+          if (m) { const v = parseInt(m[1] || m[2]); if (v) { result.budget = v; break; } }
+        }
+      }
+    }
+
+    // Allergies
+    for (const [token, keywords] of Object.entries(EN_ALLERGY_KEYWORDS)) {
+      if (keywords.some(k => lowerText.includes(k))) {
+        if (!result.allergies.includes(token)) result.allergies.push(token);
+      }
+    }
+
+    // Preferences / Cuisines
+    for (const [token, keywords] of Object.entries(EN_PREFERENCE_KEYWORDS)) {
+      if (keywords.some(k => lowerText.includes(k))) {
+        if (!result.preferences.includes(token)) result.preferences.push(token);
+        if (!result.cuisines.includes(token)) result.cuisines.push(token);
+        if (!result.shopType) result.shopType = token;
+      }
+    }
+
+    // Cheap / expensive
+    const cheapEn = ['cheap', 'affordable', 'budget friendly', 'inexpensive', 'good value', 'cheap eats', 'not expensive'];
+    const expensiveEn = ['fancy', 'upscale', 'expensive', 'high-end', 'high end', 'fine dining', 'nice restaurant', 'treat myself', 'splurge'];
+    if (cheapEn.some(k => lowerText.includes(k))) { if (!result.preferences.includes('实惠')) result.preferences.push('实惠'); }
+    if (expensiveEn.some(k => lowerText.includes(k))) { if (!result.preferences.includes('高档')) result.preferences.push('高档'); }
+
+    // Atmosphere
+    const quietEn = ['quiet', 'calm', 'romantic', 'intimate', 'date night', 'chat', 'talk', 'conversation', 'not too loud', 'not loud'];
+    const noisyEn = ['lively', 'bustling', 'loud', 'party', 'celebration', 'birthday', 'fun atmosphere', 'vibrant'];
+    if (quietEn.some(k => lowerText.includes(k))) result.atmosphere = '安静';
+    if (noisyEn.some(k => lowerText.includes(k))) result.atmosphere = '热闹';
+
+    // Soup / warm
+    const soupEn = ['soup', 'broth', 'stew', 'warm food', 'comfort food', 'hot soup', 'noodle soup', 'hot bowl'];
+    if (soupEn.some(k => lowerText.includes(k))) { if (!result.preferences.includes('热汤')) result.preferences.push('热汤'); }
+
+    // Light / healthy
+    const lightEn = ['light food', 'light meal', 'light', 'not heavy', 'clean eating', 'clean food'];
+    if (lightEn.some(k => lowerText.includes(k))) { if (!result.preferences.includes('清淡')) result.preferences.push('清淡'); }
+
+    // Drink
+    const drinkEn = ['drink', 'drinks', 'bar', 'cocktail', 'pub', 'brewery', 'wine bar', 'bubble tea', 'boba', 'milk tea', 'matcha latte'];
+    if (drinkEn.some(k => lowerText.includes(k))) { if (!result.preferences.includes('饮品')) result.preferences.push('饮品'); }
+
+    // Sweet / dessert
+    const sweetEn = ['sweet tooth', 'sweet', 'dessert', 'ice cream', 'cake', 'pastry', 'candy', 'chocolate', 'gelato', 'tiramisu'];
+    if (sweetEn.some(k => lowerText.includes(k))) { if (!result.preferences.includes('甜食')) result.preferences.push('甜食'); }
+
+    // Spicy craving (not allergy — "I want spicy")
+    const spicyCraveEn = ['want spicy', 'love spicy', 'craving spicy', 'spicy food', 'spicy please', 'extra spicy'];
+    if (spicyCraveEn.some(k => lowerText.includes(k))) { if (!result.preferences.includes('辣')) result.preferences.push('辣'); }
+
+    // Meat craving
+    const meatEn = ['meat lover', 'carnivore', 'need meat', 'want meat', 'steak', 'bbq', 'roast', 'beef', 'pork', 'lamb', 'chicken wings'];
+    if (meatEn.some(k => lowerText.includes(k))) { if (!result.preferences.includes('吃肉')) result.preferences.push('吃肉'); }
   }
 
   return result;
