@@ -209,7 +209,14 @@ const zh = {
   'resultList.found': '为你找到 {count} 家匹配的餐厅',
 
   // Group Input
-  'group.placeholder': '例如：不吃辣、想吃火锅、预算80以内',
+  'group.placeholder1': '例如：想吃川菜，预算80以内',
+  'group.placeholder2': '例如：不吃辣，不吃海鲜',
+  'group.placeholder3': '例如：随便吃啥都行，近就行',
+  'group.placeholder4': '例如：最好有素食选项',
+  'group.placeholder5': '例如：想吃韩式烤肉或者日料',
+  'group.placeholder6': '例如：环境安静点，能聊天的',
+  'group.placeholder7': '例如：火锅或者辣一点的菜系',
+  'group.placeholder8': '例如：人均50以内，快就行',
   'group.addMember': '添加成员',
   'group.maxMembers': '（最多 8 人）',
   'group.deleteMember': '删除该成员',
