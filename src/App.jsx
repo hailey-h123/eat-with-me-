@@ -22,7 +22,7 @@ import { useTranslation } from './i18n';
 const LAST_MODE_KEY = 'eatwithme_last_mode';
 
 function App() {
-  const { t } = useTranslation();
+  const { t, lang } = useTranslation();
   const { location, isLocating, error, debugInfo, retryLocate, updateLocation } = useLocation();
   const [currentView, setCurrentView] = useState('home');
   const [results, setResults] = useState([]);
@@ -47,8 +47,8 @@ function App() {
     } catch {}
   }, []);
 
-  // 将 i18n 翻译函数注入评分服务，直接注入确保最新语言
-  setScoringTranslator(t);
+  // 将 i18n 翻译函数注入评分服务，附带当前语言
+  setScoringTranslator(t, lang);
 
   // 页面浏览埋点：currentView 变化时上报
   useEffect(() => {
