@@ -86,8 +86,16 @@ function App() {
   const handleSearch = async (members) => {
     setIsLoading(true);
     setLastMembers(members);
-    const memberIntents = members.map(m => parseMemberIntent(m.text, m.name));
+    const debugInfo = [];
+    debugInfo.push(`raw: ${members.map(m => `${m.name}=${m.text}`).join(', ')}`);
+    const memberIntents = members.map(m => {
+      const intent = parseMemberIntent(m.text, m.name);
+      debugInfo.push(`parsed ${m.name}: prefs=[${intent.preferences.join(',')}]`);
+      return intent;
+    });
     const groupIntent = mergeMemberIntents(memberIntents);
+    debugInfo.push(`merged: members=${groupIntent.members.length}, prefs=[${groupIntent.preferences.join(',')}]`);
+    console.log('[BUGFIX]', debugInfo.join(' | '));
     if (!groupIntent.location && location.name) groupIntent.location = location.name;
     setLastIntent(groupIntent);
     setSearchRadius(3000);
