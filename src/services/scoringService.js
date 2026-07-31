@@ -62,11 +62,52 @@ let _t = (key, params) => {
   return zh[key] || key;
 };
 export function setScoringTranslator(fn) { _t = fn; }
+
+// Chinese token → English display name mapping
+const ZH_EN_TOKEN_MAP = {
+  // Cuisines
+  '火锅': 'Hot Pot', '烤肉': 'Korean BBQ', '烧烤': 'BBQ & Grill', '日料': 'Japanese', '韩餐': 'Korean',
+  '川菜': 'Sichuan', '湘菜': 'Hunan', '粤菜': 'Cantonese', '江浙菜': 'Jiangzhe',
+  '东北菜': 'Dongbei', '西北菜': 'Northwest Chinese', '云南菜': 'Yunnan', '贵州菜': 'Guizhou',
+  '北京菜': 'Beijing', '鲁菜': 'Shandong', '江西菜': 'Jiangxi', '福建菜': 'Fujian',
+  '广西菜': 'Guangxi', '新疆菜': 'Xinjiang', '西餐': 'Western', '意面': 'Pasta', '披萨': 'Pizza',
+  '东南亚菜': 'Southeast Asian', '泰菜': 'Thai', '越南菜': 'Vietnamese',
+  '面馆': 'Noodles', '饺子': 'Dumplings', '包子': 'Steamed Buns', '粥': 'Congee', '汤': 'Soup',
+  '快餐': 'Fast Food', '轻食': 'Light & Healthy', '海鲜': 'Seafood', '自助': 'Buffet',
+  '甜品': 'Desserts', '咖啡': 'Coffee', '小吃': 'Street Food', '撸串': 'Skewers',
+  '烧腊': 'Cantonese Roast', '卤味': 'Braised',
+  // Preferences / allergies
+  '辣': 'Spicy', '麻辣': 'Mala Spicy', '香菜': 'Cilantro', '素食': 'Vegetarian',
+  '清真': 'Halal', '坚果': 'Nuts', '花生': 'Peanuts',
+  '减肥': 'Diet/Low-Cal', '低卡': 'Low-Cal', '饮品': 'Drinks',
+  '热汤': 'Hot Soup', '清淡': 'Light', '吃肉': 'Meat', '甜食': 'Sweet', '咸香': 'Savory',
+  '酸辣': 'Sour & Spicy', '实惠': 'Budget-Friendly', '高档': 'Upscale',
+  '海鲜': 'Seafood', '牛奶': 'Dairy', '乳糖不耐': 'Lactose-Free',
+  // Atmosphere
+  '安静': 'Quiet Atmosphere', '热闹': 'Lively Atmosphere',
+};
+
+// Detect if the translated text is in English (no CJK characters)
+function isEnglishText(text) {
+  if (!text) return false;
+  return !/[一-鿿㐀-䶿]/.test(text);
+}
+
 function t(key, params) {
   let text = _t(key, params);
+  const isEnglish = isEnglishText(text);
   if (params) {
     Object.entries(params).forEach(([k, v]) => {
-      text = text.replace(new RegExp(`\\{${k}\\}`, 'g'), String(v ?? ''));
+      let val = String(v ?? '');
+      // If displayed text is English, translate Chinese tokens to English
+      if (isEnglish && val) {
+        // Handle comma/、separated lists like "火锅、川菜"
+        val = val.split(/[、,]/).map(token => {
+          const trimmed = token.trim();
+          return ZH_EN_TOKEN_MAP[trimmed] || trimmed;
+        }).join(', ');
+      }
+      text = text.replace(new RegExp(`\\{${k}\\}`, 'g'), val);
     });
   }
   return text;
