@@ -434,7 +434,16 @@ export async function recommendRestaurants(intent, location, excludeIds = []) {
     return r;
   });
 
-  return safeResults;
+  // 最终去重：多个搜索路径可能返回同一餐厅（id 相同或 name+address 相同）
+  const seenFinal = new Set();
+  const uniqueResults = safeResults.filter(r => {
+    const key = r.id || `${r.name}__${r.address}`;
+    if (seenFinal.has(key)) return false;
+    seenFinal.add(key);
+    return true;
+  });
+
+  return uniqueResults;
 }
 
 // ============ 按模式推荐（调度入口） ============
