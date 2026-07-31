@@ -314,6 +314,8 @@ const en = {
   'reason.cravePerfect': '{name}: In the mood for {cuisines} — perfect match',
   'reason.cravePartial': '{name}: In the mood for {cuisines} — partial match',
   'reason.craveMismatch': '{name}: Wanted {cuisines} — styles differ',
+  'reason.craveMatchSolo': 'In the mood for {cuisines}',
+  'reason.cravePartialSolo': 'In the mood for {cuisines}',
   'reason.noPrefs': '{name}: Open to anything, this spot fits',
 
   // Allergies
