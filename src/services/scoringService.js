@@ -61,7 +61,8 @@ let _t = (key, params) => {
   };
   return zh[key] || key;
 };
-export function setScoringTranslator(fn) { _t = fn; }
+let _lang = 'zh';
+export function setScoringTranslator(fn, lang) { _t = fn; _lang = lang || 'zh'; }
 
 // Chinese token → English display name mapping
 const ZH_EN_TOKEN_MAP = {
@@ -75,17 +76,68 @@ const ZH_EN_TOKEN_MAP = {
   '面馆': 'Noodles', '饺子': 'Dumplings', '包子': 'Steamed Buns', '粥': 'Congee', '汤': 'Soup',
   '快餐': 'Fast Food', '轻食': 'Light & Healthy', '海鲜': 'Seafood', '自助': 'Buffet',
   '甜品': 'Desserts', '咖啡': 'Coffee', '小吃': 'Street Food', '撸串': 'Skewers',
-  '烧腊': 'Cantonese Roast', '卤味': 'Braised',
+  '烧腊': 'Cantonese Roast', '卤味': 'Braised', '咖喱': 'Curry',
   // Preferences / allergies
   '辣': 'Spicy', '麻辣': 'Mala Spicy', '香菜': 'Cilantro', '素食': 'Vegetarian',
   '清真': 'Halal', '坚果': 'Nuts', '花生': 'Peanuts',
   '减肥': 'Diet/Low-Cal', '低卡': 'Low-Cal', '饮品': 'Drinks',
   '热汤': 'Hot Soup', '清淡': 'Light', '吃肉': 'Meat', '甜食': 'Sweet', '咸香': 'Savory',
   '酸辣': 'Sour & Spicy', '实惠': 'Budget-Friendly', '高档': 'Upscale',
-  '海鲜': 'Seafood', '牛奶': 'Dairy', '乳糖不耐': 'Lactose-Free',
+  '牛奶': 'Dairy', '乳糖不耐': 'Lactose-Free', '素': 'Vegetarian',
   // Atmosphere
-  '安静': 'Quiet Atmosphere', '热闹': 'Lively Atmosphere',
+  '安静': 'Quiet', '热闹': 'Lively',
+  // Action / status words (appear in fusion & conflict text)
+  '完美': 'Perfect', '融合': 'Fusion', '口味': 'Flavor', '倾向': 'Preference',
+  '做法': 'Cooking Style', '风味': 'Flavor', '接近': 'Similar to', '契合': 'Matches',
+  '差异': 'Difference', '较大': 'Large', '期待': 'Expectation', '可': 'Can',
+  '满足': 'Satisfy', '采用': 'Using', '与': 'with', '相近': 'Similar',
+  '包含': 'Contains', '相融': 'Compatible', '不可': 'Cannot',
+  '为': 'for', '需': 'Need', '可要求不加': 'Can Be Omitted',
+  // Conflict resolution phrases (longer patterns first)
+  '推荐不辣或少辣的': 'Recommend less spicy or non-spicy ',
+  '可能含香菜，可要求不加': 'May contain cilantro, can be omitted',
+  '以肉食为主，但通常有素菜可选，已优先推荐素友好的店': 'Meat-heavy, but vegetarian options available — prioritizing veg-friendly spots',
+  '已排除': 'Excluded',
+  '不能吃': "Can't Eat",
+  '偏高热量，注意控制': 'High calorie, watch portions',
+  '可能不符合': 'May not fit',
+  '的需求，可调整': "'s needs, adjustable",
+  // Multi-word phrases
+  '的完美融合': 'Perfect Fusion',
+  '主打': 'Features ',
+  '可满足': 'Satisfies ',
+  '或': ' or ',
+  '的口味期待': "'s Flavor Expectations",
+  '有共通之处，可融合': 'has Common Ground, Compatible',
+  '的辣系': "'s Spicy Family",
+  '形式相近': 'Similar Style',
+  '需求': 'Needs',
+  '需求，可调整': "'s Needs, Adjustable",
+  '涮煮方式': 'Hot Broth Style',
+  '烤制做法': 'Grill Method',
+  '的辣系': "'s Spicy Profile",
+  '元素': 'Elements',
+  '符合': 'Fits',
+  '丰富': 'Rich',
+  '不足': 'Insufficient',
+  '一般': 'Average',
+  '少量': 'Few',
+  '大量': 'Many',
+  '少量': 'Some',
 };
+
+// Translate Chinese tokens in a string to English — brute-force post-processing
+function translateTokens(text) {
+  if (!text) return text;
+  // Sort keys by length descending so longer patterns match first
+  const keys = Object.keys(ZH_EN_TOKEN_MAP).sort((a, b) => b.length - a.length);
+  for (const zh of keys) {
+    if (text.includes(zh)) {
+      text = text.replace(new RegExp(zh.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), ZH_EN_TOKEN_MAP[zh]);
+    }
+  }
+  return text;
+}
 
 // Detect if the translated text is in English (no CJK characters)
 function isEnglishText(text) {
@@ -99,9 +151,7 @@ function t(key, params) {
   if (params) {
     Object.entries(params).forEach(([k, v]) => {
       let val = String(v ?? '');
-      // If displayed text is English, translate Chinese tokens to English
       if (isEnglish && val) {
-        // Handle comma/、separated lists like "火锅、川菜"
         val = val.split(/[、,]/).map(token => {
           const trimmed = token.trim();
           return ZH_EN_TOKEN_MAP[trimmed] || trimmed;
@@ -109,6 +159,11 @@ function t(key, params) {
       }
       text = text.replace(new RegExp(`\\{${k}\\}`, 'g'), val);
     });
+  }
+  // Post-processing: if UI is English but text still has Chinese characters,
+  // brute-force translate all known Chinese tokens
+  if (isEnglish) {
+    text = translateTokens(text);
   }
   return text;
 }
@@ -1457,7 +1512,10 @@ export function calculateGroupScore(restaurant, intent) {
     groupScore = 75;
   }
 
-  return { score: groupScore, reasons: dedupeReasons(allReasons) };
+  // Post-process: when UI is English, brute-force translate any Chinese in fusion/conflict text
+  const deduped = dedupeReasons(allReasons);
+  const finalReasons = _lang === 'en' ? deduped.map(r => ({ ...r, text: translateTokens(r.text) })) : deduped;
+  return { score: groupScore, reasons: finalReasons };
 }
 
 // ============ 单人评分（向后兼容） ============
