@@ -211,7 +211,14 @@ const en = {
   'resultList.found': 'Found {count} matching restaurants for you',
 
   // Group Input
-  'group.placeholder': 'e.g. no spicy, craving hot pot, budget under ¥80',
+  'group.placeholder1': 'e.g. craving Sichuan food, budget within ¥80',
+  'group.placeholder2': 'e.g. no spicy food, no seafood',
+  'group.placeholder3': 'e.g. anything is fine, just close by',
+  'group.placeholder4': 'e.g. must have vegetarian options',
+  'group.placeholder5': 'e.g. want Korean BBQ or Japanese',
+  'group.placeholder6': 'e.g. quiet atmosphere, good for chat',
+  'group.placeholder7': 'e.g. hot pot or spicy cuisine',
+  'group.placeholder8': 'e.g. under ¥50, fast and filling',
   'group.addMember': 'Add Member',
   'group.maxMembers': '(max 8)',
   'group.deleteMember': 'Remove this member',

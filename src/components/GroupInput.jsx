@@ -11,6 +11,7 @@ import { useTranslation } from '../i18n';
 
 export default function GroupInput({ onSearch, onRandomExplore, isLoading }) {
   const { t } = useTranslation();
+  const getMemberPlaceholder = (index) => t(`group.placeholder${(index % 8) + 1}`);
   const [members, setMembers] = useState([
     { id: 1, name: '成员1', text: '' },
     { id: 2, name: '成员2', text: '' },
@@ -189,7 +190,7 @@ export default function GroupInput({ onSearch, onRandomExplore, isLoading }) {
                         value={member.text}
                         onChange={(e) => handleMemberChange(member.id, 'text', e.target.value)}
                         className="w-full h-[64px] bg-bg-soft text-sm text-text placeholder:text-text-muted resize-none focus:outline-none leading-relaxed rounded-xl px-3 py-2 border border-border/50 focus:border-primary/30 focus:ring-2 focus:ring-primary/10 transition-all"
-                        placeholder={t('group.placeholder')}
+                        placeholder={getMemberPlaceholder(index)}
                       />
                     </div>
                     {members.length > 1 && (
@@ -285,7 +286,7 @@ export default function GroupInput({ onSearch, onRandomExplore, isLoading }) {
                       value={member.text}
                       onChange={(e) => handleMemberChange(member.id, 'text', e.target.value)}
                       className="w-full h-[64px] bg-bg-soft text-sm text-text placeholder:text-text-muted resize-none focus:outline-none leading-relaxed rounded-xl px-3 py-2 border border-border/50 focus:border-primary/30 focus:ring-2 focus:ring-primary/10 transition-all"
-                      placeholder={t('group.placeholder')}
+                      placeholder={getMemberPlaceholder(index)}
                     />
                   </div>
                   {members.length > 1 && (
@@ -343,7 +344,7 @@ export default function GroupInput({ onSearch, onRandomExplore, isLoading }) {
                     value={member.text}
                     onChange={(e) => handleMemberChange(member.id, 'text', e.target.value)}
                     className="w-full h-[64px] bg-bg-soft text-sm text-text placeholder:text-text-muted resize-none focus:outline-none leading-relaxed rounded-xl px-3 py-2 border border-border/50 focus:border-primary/30 focus:ring-2 focus:ring-primary/10 transition-all"
-                    placeholder={t('group.placeholder')}
+                    placeholder={getMemberPlaceholder(index)}
                     />
                   </div>
                   {members.length > 1 && (
