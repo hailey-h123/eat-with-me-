@@ -3,6 +3,7 @@
  * 包含: 权重配置、菜系匹配、口味元素融合、忌口过滤、单人/群体评分、多样性平衡
  */
 import { applyFeedbackToScore } from './feedbackService';
+import { parseIntent } from './llmService';
 
 // ============ 口味元素分类（用于跨菜系融合匹配） ============
 
@@ -917,20 +918,27 @@ export function filterByAllergies(restaurants, allergies, conflicts = []) {
  * 计算单个成员对餐厅的评分
  */
 export function calculateMemberScore(restaurant, member) {
+  // 兜底：如果 member.preferences 为空但 member.text 有内容，重新解析
+  let preferences = member.preferences;
+  let allergies = member.allergies;
+  if ((!preferences || preferences.length === 0) && member.text && member.text.trim()) {
+    const reparsed = parseIntent(member.text);
+    if (!preferences || preferences.length === 0) preferences = reparsed.preferences;
+    if (!allergies || allergies.length === 0) allergies = reparsed.allergies;
+  }
   let score = 0;
   const reasons = [];
-  let penalty = 0;
 
   const allFeatures = [...(restaurant.tags || []), ...(restaurant.features || []), restaurant.cuisine || '', restaurant.name || ''];
   const cuisineFeatures = [...(restaurant.tags || []), ...(restaurant.features || []), restaurant.cuisine || '', restaurant.name || ''];
   const allText = allFeatures.join('');
 
   // 1. 偏好匹配
-  if (member.preferences && member.preferences.length > 0) {
+  if (preferences && preferences.length > 0) {
     let exactMatches = 0;
     let partialMatches = 0;
 
-    member.preferences.forEach(pref => {
+    preferences.forEach(pref => {
       const exactMatch = cuisineFeatures.some(f => f === pref);
       // 子串匹配：限制 tag 长度差 <= 4，防止菜品标签误判
       const substringMatch = !exactMatch && cuisineFeatures.some(f =>
@@ -942,16 +950,16 @@ export function calculateMemberScore(restaurant, member) {
       else if (partialMatch || substringMatch) partialMatches++;
     });
 
-    const matchRate = (exactMatches + partialMatches * 0.7) / member.preferences.length;
+    const matchRate = (exactMatches + partialMatches * 0.7) / preferences.length;
     const baseScore = 55;
     const bonusScore = 45 * powerScale(matchRate, 1.8);
     const cuisineScore = baseScore + bonusScore;
     score += cuisineScore * WEIGHTS.cuisine;
 
     if (exactMatches > 0 || partialMatches > 0) {
-      const matched = member.preferences.filter(pref => checkPrefMatch(pref, cuisineFeatures));
+      const matched = preferences.filter(pref => checkPrefMatch(pref, cuisineFeatures));
       // 子串匹配（如韩式烤肉→烤肉）在展示上视为契合，但不影响评分
-      const hasSubstring = member.preferences.some(pref =>
+      const hasSubstring = preferences.some(pref =>
         cuisineFeatures.some(f =>
           (f.includes(pref) && (f.length - pref.length) <= 4) ||
           (pref.includes(f) && f.length >= 2)
@@ -969,8 +977,8 @@ export function calculateMemberScore(restaurant, member) {
   }
 
   // 2. 软约束忌口检测
-  if (member.allergies && member.allergies.length > 0) {
-    member.allergies.forEach(allergy => {
+  if (allergies && allergies.length > 0) {
+    allergies.forEach(allergy => {
       const isSoft = SOFT_ALLERGIES.includes(allergy);
       const isStrongSoft = STRONG_SOFT_ALLERGIES.includes(allergy);
       if (!isSoft && !isStrongSoft) return;
@@ -1083,9 +1091,12 @@ export function calculateMemberScore(restaurant, member) {
 
   // 确保每个成员至少有一条原因显示
   if (reasons.length === 0) {
-    const hasPrefs = member.preferences && member.preferences.length > 0;
+    const hasPrefs = preferences && preferences.length > 0;
+    const hasAllergies = allergies && allergies.length > 0;
     if (hasPrefs) {
-      reasons.push({ type: 'mismatch', text: `${member.name}：想吃${member.preferences.join('、')}，做法差异较大` });
+      reasons.push({ type: 'mismatch', text: `${member.name}：想吃${preferences.join('、')}，做法差异较大` });
+    } else if (hasAllergies) {
+      reasons.push({ type: 'match', text: `${member.name}：避开${allergies.join('、')}，餐厅适合` });
     } else {
       reasons.push({ type: 'match', text: `${member.name}：无特殊偏好，餐厅适合` });
     }
@@ -1110,7 +1121,9 @@ function dedupeReasons(reasons) {
  * 计算餐厅对群体的综合评分
  */
 export function calculateGroupScore(restaurant, intent) {
+  console.log('[BUGFIX] calculateGroupScore called:', restaurant.name, '| members count:', intent.members?.length, '| first member prefs:', intent.members?.[0]?.preferences);
   if (!intent.members || intent.members.length === 0) {
+    console.log('[BUGFIX] calculateGroupScore: no members, falling back to single score');
     return calculateSingleScore(restaurant, intent);
   }
 
