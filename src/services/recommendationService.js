@@ -406,8 +406,20 @@ export async function recommendRestaurants(intent, location, excludeIds = []) {
     return bScore - aScore;
   });
 
-  // 多样性平衡
+  // 多样性平衡：确保不同菜系都有代表，但最终按匹配度降序排列
   const balancedResults = balanceDiversity(scoredRestaurants, intent);
+  // 按分数降序，同分时融合餐厅优先
+  balancedResults.sort((a, b) => {
+    const aScore = typeof a.matchScore === 'number' && !isNaN(a.matchScore) ? a.matchScore : 0;
+    const bScore = typeof b.matchScore === 'number' && !isNaN(b.matchScore) ? b.matchScore : 0;
+    if (Math.abs(aScore - bScore) < 0.5) {
+      // 同分：融合餐厅（匹配多菜系）排在前面
+      const aFusion = (a._matchedCuisines || 0) > 1 ? 1 : 0;
+      const bFusion = (b._matchedCuisines || 0) > 1 ? 1 : 0;
+      return bFusion - aFusion;
+    }
+    return bScore - aScore;
+  });
 
   // 防御性处理：确保所有餐厅都有有效的 matchScore
   const safeResults = balancedResults.slice(0, 5).map(r => {

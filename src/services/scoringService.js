@@ -582,7 +582,7 @@ const CUISINE_KEYWORDS_FOR_FILTER = {
 const CUISINE_SEMANTIC_MAP = {
   '烤肉': ['韩式烤肉', '韩国料理', '韩餐', '韩式', '日式烤肉', '烧肉', '烤肉', '炙烤'],
   '烧烤': ['烧烤', '韩国料理', '韩餐', '韩式', '烤肉', '烧肉', '炙烤'],
-  '火锅': ['四川火锅', '重庆火锅', '川渝火锅', '串串', '麻辣烫', '涮肉', '铜锅', '鸳鸯锅', '打边炉', '火锅', '涮锅', '锅物', '寿喜烧', '寿喜锅', '涮涮锅', 'shabushabu', '日式火锅', '牛肉火锅', '粥底火锅', '椰子鸡', '豆捞'],
+  '火锅': ['四川火锅', '重庆火锅', '川渝火锅', '串串', '麻辣烫', '涮肉', '铜锅', '鸳鸯锅', '打边炉', '火锅', '涮锅', '锅物', '寿喜烧', '寿喜锅', '涮涮锅', 'shabushabu', '日式火锅', '牛肉火锅', '粥底火锅', '椰子鸡', '豆捞', '涮羊肉', '羊肉火锅', '铜锅涮肉', '夺夺粉', '酸汤火锅', '酸汤鱼火锅', '贵州火锅', '老北京涮肉'],
   '日料': ['日本料理', '日式', '寿司', '刺身', '居酒屋', '日餐', '定食', '丼饭', '和食', '日料', '日本'],
   '韩餐': ['韩国料理', '韩式', '烤肉', '韩餐', '韩国', '首尔', '朝鲜'],
   '韩国料理': ['韩餐', '韩式', '烤肉', '韩国', '首尔', '朝鲜'],
@@ -1602,6 +1602,7 @@ export function balanceDiversity(scoredRestaurants, intent) {
   scoredRestaurants.forEach(r => {
     const allFeatures = [...(r.tags || []), ...(r.features || []), r.cuisine || ''];
     const matchedPrefs = cuisinePrefs.filter(p => checkPrefMatch(p, allFeatures));
+    r._matchedCuisines = matchedPrefs.length;
 
     if (matchedPrefs.length >= 2) {
       fusion.push(r);
