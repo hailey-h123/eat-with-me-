@@ -86,6 +86,7 @@ function App() {
   const handleSearch = async (members) => {
     setIsLoading(true);
     setLastMembers(members);
+    try {
     const debugInfo = [];
     debugInfo.push(`raw: ${members.map(m => `${m.name}=${m.text}`).join(', ')}`);
     const memberIntents = members.map(m => {
@@ -108,10 +109,15 @@ function App() {
     }
     addSearchHistory({ text: members.map(m => m.text).join(' + '), mode: 'group' });
     setIsExploreMode(false);
-    setIsLoading(false);
     trackSearch('group', { memberCount: members.length });
     trackResultsShown(recommendations.length, 'group', recommendations.length === 0);
     setCurrentView(members.length === 1 ? 'solo-results' : 'group-results');
+    } catch (e) {
+      console.error('[handleSearch] error:', e);
+      setCurrentView('group-results');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const [lastSoloPrefs, setLastSoloPrefs] = useState(null);
