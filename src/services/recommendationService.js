@@ -489,6 +489,20 @@ export async function recommendByMode(mode, location, extraIntent = null, fortun
   const priceRange = mergedIntent.priceRange;
   const distRange = mergedIntent.distRange;
   const prefTags = extraIntent?.preferences || [];
+  // 不可回退过滤：口味标签（即使候选为空也必须保持，否则推荐无意义）
+  const hardFilters = prefTags.length > 0 ? (list) => {
+    return list.filter(r => {
+      const allFeatures = [...(r.tags || []), ...(r.features || []), r.cuisine || ''];
+      const allText = allFeatures.join('');
+      return prefTags.some(tag => {
+        const mappedKeywords = CUISINE_KEYWORDS_FOR_FILTER[tag];
+        if (mappedKeywords) {
+          return mappedKeywords.some(kw => allText.includes(kw));
+        }
+        return allFeatures.some(f => f.includes(tag) || tag.includes(f));
+      });
+    });
+  } : null;
   const applyPrefFilter = (candidates) => {
     let filtered = candidates;
     // 价格范围过滤
@@ -513,19 +527,9 @@ export async function recommendByMode(mode, location, extraIntent = null, fortun
         return dist >= minMin && dist <= maxMin;
       });
     }
-    // 美食分类标签过滤
-    if (prefTags.length > 0) {
-      filtered = filtered.filter(r => {
-        const allFeatures = [...(r.tags || []), ...(r.features || []), r.cuisine || ''];
-        const allText = allFeatures.join('');
-        return prefTags.some(tag => {
-          const mappedKeywords = CUISINE_KEYWORDS_FOR_FILTER[tag];
-          if (mappedKeywords) {
-            return mappedKeywords.some(kw => allText.includes(kw));
-          }
-          return allFeatures.some(f => f.includes(tag) || tag.includes(f));
-        });
-      });
+    // 美食分类标签过滤（用 hardFilters）
+    if (hardFilters) {
+      filtered = hardFilters(filtered);
     }
     return filtered;
   };
@@ -534,7 +538,7 @@ export async function recommendByMode(mode, location, extraIntent = null, fortun
 
   if (isExploreMode) {
     const radius = getExploreRadius(mode);
-    const treasure = await exploreHiddenTreasures(location, radius, applyPrefFilter, mode, excludeIds);
+    const treasure = await exploreHiddenTreasures(location, radius, applyPrefFilter, mode, excludeIds, hardFilters);
     if (treasure) {
       const modeConfig = getSoloModes()[mode];
       return [{

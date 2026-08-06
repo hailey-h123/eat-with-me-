@@ -92,7 +92,7 @@ export function calculateGroupFriendly(restaurant) {
 /**
  * 探索隐藏宝藏店
  */
-export async function exploreHiddenTreasures(location, radius = 3000, applyPrefFilter = null, mode = null, excludeIds = []) {
+export async function exploreHiddenTreasures(location, radius = 3000, applyPrefFilter = null, mode = null, excludeIds = [], hardFilters = null) {
   let candidates = [];
   const radiusKm = radius / 1000;
 
@@ -188,10 +188,13 @@ export async function exploreHiddenTreasures(location, radius = 3000, applyPrefF
   if (applyPrefFilter) {
     candidates = applyPrefFilter(candidates);
     if (candidates.length === 0) {
+      // 过滤后为空：重新搜索候选，但仍应用 hardFilters（口味标签等不可回退过滤）
+      // 价格和距离过滤可放宽，但口味标签必须保持
       if (location) {
         const allResults = await searchPOI('餐厅', location, radius, targetMinMeters, targetMaxMeters);
         if (allResults && allResults.length > 0) {
-          const newCandidates = allResults.map(r => ({ ...r, isMock: false }));
+          let newCandidates = allResults.map(r => ({ ...r, isMock: false }));
+          if (hardFilters) newCandidates = hardFilters(newCandidates);
           candidates = filterByExcludeIds(newCandidates);
         }
       }
@@ -200,17 +203,20 @@ export async function exploreHiddenTreasures(location, radius = 3000, applyPrefF
           const largerRadius = Math.min(radius * 2, 10000);
           const allResults = await searchPOI('餐厅', location, largerRadius);
           if (allResults && allResults.length > 0) {
-            const newCandidates = allResults.map(r => ({ ...r, isMock: false }));
+            let newCandidates = allResults.map(r => ({ ...r, isMock: false }));
+            if (hardFilters) newCandidates = hardFilters(newCandidates);
             candidates = applyAllFilters(newCandidates);
           }
         }
       }
       if (candidates.length === 0) {
-        const mockFiltered = applyAllFilters([...mockRestaurants].map(r => ({ ...r, isMock: true })));
+        let mockFiltered = applyAllFilters([...mockRestaurants].map(r => ({ ...r, isMock: true })));
+        if (hardFilters) mockFiltered = hardFilters(mockFiltered);
         if (mockFiltered.length > 0) {
           candidates = mockFiltered;
         } else {
-          candidates = filterByExcludeIds([...mockRestaurants].map(r => ({ ...r, isMock: true })));
+          // 如果连 mock 数据都不满足 hardFilters，返回空，让上层显示空结果建议
+          return null;
         }
       }
     }

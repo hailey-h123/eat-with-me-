@@ -208,19 +208,19 @@ const FLAVOR_DIMENSIONS = {
 const CUISINE_FLAVOR_PROFILE = {
   '川菜': { spicy: ['麻辣', '香辣'], taste: ['浓郁'], style: ['炒', '烧', '干煸', '炝'] },
   '湘菜': { spicy: ['香辣', '微辣'], taste: ['鲜', '酸'], style: ['炒', '剁椒'] },
-  '火锅': { temperature: ['热汤', '涮'], style: ['涮', '烫', '焖'], social: ['适合聚餐'] },
-  '冒菜': { temperature: ['热汤'], style: ['烫', '焖'], spicy: ['麻辣', '香辣'] },
-  '麻辣烫': { temperature: ['热汤'], style: ['烫'], spicy: ['麻辣'] },
-  '串串': { temperature: ['热汤'], style: ['涮'], spicy: ['麻辣', '香辣'] },
-  '烤肉': { temperature: ['烤制'], style: ['烤'], social: ['适合聚餐'] },
-  '烧烤': { temperature: ['烤制'], style: ['烤'], taste: ['香', '酥脆'] },
+  '火锅': { temperature: ['热汤', '涮'], style: ['涮锅', '涮肉', '焖煮'], social: ['适合聚餐'] },
+  '冒菜': { temperature: ['热汤'], style: ['烫煮', '焖煮'], spicy: ['麻辣', '香辣'] },
+  '麻辣烫': { temperature: ['热汤'], style: ['烫煮'], spicy: ['麻辣'] },
+  '串串': { temperature: ['热汤'], style: ['涮锅'], spicy: ['麻辣', '香辣'] },
+  '烤肉': { temperature: ['烤制'], style: ['烤制', '炙烤'], social: ['适合聚餐'] },
+  '烧烤': { temperature: ['烤制'], style: ['烤制', '炙烤'], taste: ['香', '酥脆'] },
   '日料': { taste: ['鲜', '清淡'], style: ['蒸', '拌'], temperature: ['凉拌'] },
-  '烧鸟': { temperature: ['烤制'], style: ['烤'], taste: ['香'] },
-  '韩餐': { spicy: ['微辣'], style: ['烤', '炒'], taste: ['鲜'] },
+  '烧鸟': { temperature: ['烤制'], style: ['烤制', '炙烤'], taste: ['香'] },
+  '韩餐': { spicy: ['微辣'], style: ['烤制', '炒'], taste: ['鲜'] },
   '江浙菜': { taste: ['鲜', '甜', '清淡'], style: ['蒸', '炒', '炖'] },
   '粤菜': { taste: ['鲜', '清淡'], style: ['蒸', '炒', '炖'] },
-  '东北菜': { taste: ['浓郁', '香'], style: ['炒', '炖', '烤'], social: ['适合聚餐'] },
-  '新疆菜': { taste: ['香', '浓郁'], style: ['烤', '炒'], temperature: ['烤制'] },
+  '东北菜': { taste: ['浓郁', '香'], style: ['炒', '炖', '烤制'], social: ['适合聚餐'] },
+  '新疆菜': { taste: ['香', '浓郁'], style: ['烤制', '炒'], temperature: ['烤制'] },
 };
 
 /**
@@ -313,23 +313,68 @@ const FUSION_MATRIX = {
 };
 
 /**
+ * 菜系同义词扩展：用于 directMatch 时把子类/具体形式也视为偏好命中
+ * 例：偏好"烧烤"时，烤串/羊肉串/撸串/烤鱼 等子类也应算 directMatch
+ */
+const CUISINE_SYNONYMS = {
+  '烧烤': ['烧烤', '烤串', '羊肉串', '撸串', '烤鱼', '烤生蚝', '串烤', '烤肉'],
+  '烤肉': ['烤肉', '韩式烤肉', '日式烤肉', '烧肉', '炙烤'],
+  '火锅': ['火锅', '涮锅', '涮肉', '铜锅', '鸳鸯锅', '打边炉', '锅物', '寿喜烧', '寿喜锅', '涮涮锅', '串串', '麻辣烫', '冒菜'],
+  '串串': ['串串', '串串香', '冷锅串串'],
+  '冒菜': ['冒菜', '麻辣烫'],
+  '麻辣烫': ['麻辣烫', '冒菜'],
+  '川菜': ['川菜', '四川菜', '重庆菜', '川渝', '川味', '蜀菜'],
+  '湘菜': ['湘菜', '湖南菜'],
+  '粤菜': ['粤菜', '广东菜', '广式', '潮汕菜'],
+  '江浙菜': ['江浙菜', '江南菜', '本帮菜', '杭帮菜', '上海菜', '淮扬菜', '宁波菜', '无锡菜'],
+  '日料': ['日料', '日本料理', '日式', '寿司', '刺身', '居酒屋'],
+  '韩餐': ['韩餐', '韩国料理', '韩式', '韩国菜'],
+  '西餐': ['西餐', '西式', '牛排', '意大利菜', '法式', '意式', '美式'],
+};
+
+/**
+ * 检查餐厅特征是否命中某偏好的同义词（用于 directMatch / 完美契合判定）
+ */
+function featuresMatchPreference(features, pref) {
+  const synonyms = CUISINE_SYNONYMS[pref] || [pref];
+  return features.some(f => {
+    if (!f) return false;
+    // 精确匹配
+    if (synonyms.includes(f)) return true;
+    // 子串匹配：tag 包含任一同义词（限制长度差避免误匹配）
+    for (const syn of synonyms) {
+      if (f.includes(syn) && (f.length - syn.length) <= 4) return true;
+      // 反向：同义词包含 tag（如偏好"火锅"匹配"四川火锅"）
+      if (syn.includes(f) && f.length >= 2) return true;
+    }
+    return false;
+  });
+}
+
+/**
  * 检查两个偏好是否能融合
  * @returns {{ canFusion: boolean, fusionType: string, fusionReason: string }}
  */
-function checkFusion(pref1, pref2, restaurantFeatures) {
-  // 1. 直接匹配检查（限制长度差，避免子串误匹配）
-  const directMatch1 = restaurantFeatures.some(f => {
-    if (f === pref1) return true;
-    if (f.includes(pref1) && (f.length - pref1.length) <= 4) return true;
-    return false;
-  });
-  const directMatch2 = restaurantFeatures.some(f => {
-    if (f === pref2) return true;
-    if (f.includes(pref2) && (f.length - pref2.length) <= 4) return true;
-    return false;
-  });
-  
-  if (directMatch1 && directMatch2) {
+function checkFusion(pref1, pref2, restaurantFeatures, cuisine = '', flavorFeatures = null) {
+  // flavorFeatures 用于 flavor 融合（口味元素如麻辣），默认等于 restaurantFeatures
+  const flavorFeat = flavorFeatures || restaurantFeatures;
+  // 0. 互斥检查：火锅系 vs 烧烤系属于做法差异，不通过 directMatch 判定完美契合
+  //    （避免"串串火锅"被误判为契合"烧烤"）
+  const HOTPOT_SYNS = CUISINE_SYNONYMS['火锅'] || [];
+  const GRILL_SYNS = [...(CUISINE_SYNONYMS['烧烤'] || []), ...(CUISINE_SYNONYMS['烤肉'] || [])];
+  const pref1IsHotpot = HOTPOT_SYNS.includes(pref1) || pref1 === '火锅';
+  const pref2IsHotpot = HOTPOT_SYNS.includes(pref2) || pref2 === '火锅';
+  const pref1IsGrill = GRILL_SYNS.includes(pref1) || ['烧烤', '烤肉'].includes(pref1);
+  const pref2IsGrill = GRILL_SYNS.includes(pref2) || ['烧烤', '烤肉'].includes(pref2);
+  const isHotpotVsGrill = (pref1IsHotpot && pref2IsGrill) || (pref1IsGrill && pref2IsHotpot);
+
+  // 1. 直接匹配检查（使用同义词扩展：烤串/羊肉串等子类也算命中"烧烤"）
+  //    但火锅 vs 烧烤 不走 perfect，避免串串/冒菜被误判为契合烧烤
+  //    directMatch 用 flavorFeat（含 tags），因为"餐厅是否体现川菜"需要看分类标签
+  const directMatch1 = featuresMatchPreference(flavorFeat, pref1);
+  const directMatch2 = featuresMatchPreference(flavorFeat, pref2);
+
+  if (directMatch1 && directMatch2 && !isHotpotVsGrill) {
     return {
       canFusion: true,
       fusionType: 'perfect',
@@ -340,68 +385,61 @@ function checkFusion(pref1, pref2, restaurantFeatures) {
       member2Matched: [pref2],
     };
   }
-  
+
   // 2. 查找融合矩阵
   const fusionType = FUSION_MATRIX[pref1]?.[pref2] || FUSION_MATRIX[pref2]?.[pref1];
-  
+
   if (fusionType && fusionType !== 'none') {
+    // style 融合主导菜系检查：餐厅主导菜系(cuisine)必须同时体现双方偏好才算形式融合
+    // 避免烤肉店因 features 里有少量"涮锅"菜品就被判为"与火锅形式融合"
+    if (fusionType === 'style' && cuisine) {
+      const cHit1 = featuresMatchPreference([cuisine], pref1);
+      const cHit2 = featuresMatchPreference([cuisine], pref2);
+      // cuisine 明确只属于一方偏好 → 不是形式融合，跳过 FUSION_MATRIX 的 style 判定
+      if ((cHit1 && !cHit2) || (!cHit1 && cHit2)) {
+        // 直接进入后续 checkFlavorFusion
+        const flavorFusion = checkFlavorFusion(pref1, pref2, restaurantFeatures, cuisine);
+        if (flavorFusion) return flavorFusion;
+        return { canFusion: false, fusionType: 'none', fusionReason: '', member1Reason: '', member2Reason: '', member1Matched: [], member2Matched: [] };
+      }
+    }
+
     const profile1 = CUISINE_FLAVOR_PROFILE[pref1] || {};
     const profile2 = CUISINE_FLAVOR_PROFILE[pref2] || {};
-    
-    let fusionDetail = checkFusionElements(restaurantFeatures, profile1, profile2, fusionType);
-    
+
+    // flavor 融合用 flavorFeat（含菜品口味标签），style 融合用 restaurantFeatures（仅主营业务）
+    const featsForType = fusionType === 'flavor' ? flavorFeat : restaurantFeatures;
+    let fusionDetail = checkFusionElements(featsForType, profile1, profile2, fusionType);
+
     // 元素级匹配失败时，按融合类型选择兜底元素
     if (!fusionDetail.canFusion) {
-      // 类别级匹配：检查餐厅特征是否与偏好菜系直接相关
-      // 限制：只接受精确匹配或强关联（长度差 <= 4），避免子串误匹配
-      const hasPref = (pref) => restaurantFeatures.some(f => {
-        if (f === pref) return true;
-        if (f.includes(pref) && (f.length - pref.length) <= 4) return true;
-        if (pref.includes(f) && f.length >= 2) return true;
-        for (const cuisines of Object.values(CUISINE_CATEGORIES)) {
-          if (cuisines.some(c => c === pref)) {
-            return cuisines.some(c => {
-              if (c === f) return true;
-              if (f.includes(c) && (f.length - c.length) <= 4) return true;
-              if (c.includes(f) && f.length >= 2) return true;
-              return false;
-            });
-          }
-        }
-        return false;
-      });
-      const hasPref1 = hasPref(pref1);
-      const hasPref2 = hasPref(pref2);
+      // 类别级匹配：检查餐厅特征是否与偏好菜系直接相关（使用同义词扩展）
+      const hasPref1 = featuresMatchPreference(featsForType, pref1);
+      const hasPref2 = featuresMatchPreference(featsForType, pref2);
       // 必须两边偏好都在餐厅特征中有直接体现，才算融合
       if (hasPref1 && hasPref2) {
         const p1 = CUISINE_FLAVOR_PROFILE[pref1] || {};
         const p2 = CUISINE_FLAVOR_PROFILE[pref2] || {};
-        let fallbackElements;
+        // 兜底元素：每个成员只用自己的 profile 元素，不混入对方的（防止烤肉店拿到火锅涮烫）
+        let fallback1, fallback2;
         if (fusionType === 'flavor') {
-          // 口味融合只用辣度+口感元素
-          fallbackElements = [
-            ...(p1.spicy || []), ...(p1.taste || []),
-            ...(p2.spicy || []), ...(p2.taste || []),
-          ];
+          fallback1 = [...(p1.spicy || []), ...(p1.taste || [])];
+          fallback2 = [...(p2.spicy || []), ...(p2.taste || [])];
         } else if (fusionType === 'style') {
-          // 形式融合只用做法+温度元素
-          fallbackElements = [
-            ...(p1.style || []), ...(p2.style || []),
-            ...(p1.temperature || []).filter(t => ['热汤', '涮'].includes(t)),
-            ...(p2.temperature || []).filter(t => ['热汤', '涮'].includes(t)),
-          ];
+          fallback1 = [...(p1.style || []), ...(p1.temperature || []).filter(tt => ['热汤', '涮'].includes(tt))];
+          fallback2 = [...(p2.style || []), ...(p2.temperature || []).filter(tt => ['热汤', '涮'].includes(tt))];
         } else {
-          fallbackElements = [...(p1.spicy || []), ...(p1.taste || []), ...(p1.style || []),
-                             ...(p2.spicy || []), ...(p2.taste || []), ...(p2.style || [])];
+          fallback1 = [...(p1.spicy || []), ...(p1.taste || []), ...(p1.style || [])];
+          fallback2 = [...(p2.spicy || []), ...(p2.taste || []), ...(p2.style || [])];
         }
         fusionDetail = {
           canFusion: true,
-          matched1: fallbackElements,
-          matched2: fallbackElements,
+          matched1: fallback1,
+          matched2: fallback2,
         };
       }
     }
-    
+
     if (fusionDetail.canFusion) {
       const fusionReason = getFusionReason(pref1, pref2, fusionType, fusionDetail);
       return {
@@ -415,14 +453,14 @@ function checkFusion(pref1, pref2, restaurantFeatures) {
       };
     }
   }
-  
-  // 3. 通过口味特征融合
-  const allFlavorFeatures = [...new Set([...restaurantFeatures])];
-  const flavorFusion = checkFlavorFusion(pref1, pref2, allFlavorFeatures);
+
+  // 3. 通过口味特征融合（用 flavorFeat，含菜品口味标签）
+  const allFlavorFeatures = [...new Set([...flavorFeat])];
+  const flavorFusion = checkFlavorFusion(pref1, pref2, allFlavorFeatures, cuisine);
   if (flavorFusion) {
     return flavorFusion;
   }
-  
+
   return { canFusion: false, fusionType: 'none', fusionReason: '', member1Reason: '', member2Reason: '', member1Matched: [], member2Matched: [] };
 }
 
@@ -475,7 +513,7 @@ function checkFusionElements(restaurantFeatures, profile1, profile2, fusionType)
       matched2,
     };
   }
-  
+
   return { canFusion: false, matched1: [], matched2: [] };
 }
 
@@ -522,7 +560,7 @@ function areInSameCategory(pref1, pref2) {
  * @param {string} pref2 成员2的偏好
  * @param {Array<string>} allFeatures 餐厅的所有特征（tags + cuisine + name）
  */
-function checkFlavorFusion(pref1, pref2, allFeatures) {
+function checkFlavorFusion(pref1, pref2, allFeatures, cuisine = '') {
   if (!areInSameCategory(pref1, pref2)) {
     return null;
   }
@@ -559,7 +597,6 @@ function checkFlavorFusion(pref1, pref2, allFeatures) {
   const matchedSpicy = spicyKeywords.filter(k => allText.includes(k));
 
   // 火锅相关关键词：必须是双字以上复合词（避免"中餐厅"中的"厅"误匹配）
-  // 单字"涮"/"烫"/"焖"在菜系名/餐厅类型 tag 中太容易误命中，故剔除
   const hotKeywords = ['火锅', '热汤', '涮锅', '涮肉', '铜锅', '鸳鸯锅', '打边炉', '锅物', '四川火锅', '重庆火锅'];
   const matchedHot = hotKeywords.filter(k => allText.includes(k));
 
@@ -578,8 +615,23 @@ function checkFlavorFusion(pref1, pref2, allFeatures) {
   const pref2NeedsSpicy = (pref2Profile.spicy || []).length > 0;
   const pref1NeedsHot = (pref1Profile.temperature || []).some(t => ['热汤', '火锅', '涮'].includes(t));
   const pref2NeedsHot = (pref2Profile.temperature || []).some(t => ['热汤', '火锅', '涮'].includes(t));
-  const pref1NeedsRoast = (pref1Profile.style || []).includes('烤');
-  const pref2NeedsRoast = (pref2Profile.style || []).includes('烤');
+  const pref1NeedsRoast = (pref1Profile.style || []).some(s => ['烤制', '炙烤', '烤'].includes(s));
+  const pref2NeedsRoast = (pref2Profile.style || []).some(s => ['烤制', '炙烤', '烤'].includes(s));
+
+  // 主导菜系守卫：如果 cuisine 明确属于某一方，禁止跨菜系融合
+  // 例如：串串店(cuisine="串串")属于火锅系，不应与烧烤产生融合
+  let cuisineBlocksHot = false;   // cuisine 明确属于烧烤系，禁止热汤融合
+  let cuisineBlocksRoast = false; // cuisine 明确属于火锅系，禁止烤制融合
+  if (cuisine) {
+    const HOTPOT_SYNS = CUISINE_SYNONYMS['火锅'] || [];
+    const GRILL_SYNS = [...(CUISINE_SYNONYMS['烧烤'] || []), ...(CUISINE_SYNONYMS['烤肉'] || [])];
+    const cuisineIsHotpot = HOTPOT_SYNS.includes(cuisine);
+    const cuisineIsGrill = GRILL_SYNS.includes(cuisine);
+    // cuisine 只属于火锅系 → 禁止烤制融合
+    if (cuisineIsHotpot && !cuisineIsGrill) cuisineBlocksRoast = true;
+    // cuisine 只属于烧烤系 → 禁止热汤融合
+    if (cuisineIsGrill && !cuisineIsHotpot) cuisineBlocksHot = true;
+  }
   
   const getMemberReason = (pref, matched, profile, fusionType) => {
     // 只保留与该成员profile相关的匹配元素（如火锅成员不应看到"烤"做法）
@@ -591,7 +643,7 @@ function checkFlavorFusion(pref1, pref2, allFeatures) {
     const elementDesc = relevant.length > 0 ? relevant.slice(0, 2).join('、') : '';
     const hasSpicy = (profile?.spicy || []).length > 0;
     const hasHot = (profile?.temperature || []).some(t => ['热汤', '火锅', '涮'].includes(t));
-    const hasRoast = (profile?.style || []).includes('烤');
+    const hasRoast = (profile?.style || []).some(s => ['烤制', '炙烤', '烤'].includes(s));
     
     if (fusionType === 'flavor') {
       if (hasSpicy && elementDesc) return `带有${elementDesc}风味，满足${pref}的口味期待`;
@@ -623,32 +675,31 @@ function checkFlavorFusion(pref1, pref2, allFeatures) {
     };
   }
   
-  if ((pref1NeedsHot || pref2NeedsHot) && hasHot) {
-    const member1Reason = getMemberReason(pref1, matchedHot, pref1Profile, 'style');
-    const member2Reason = getMemberReason(pref2, matchedHot, pref2Profile, 'style');
+  // 形式融合：餐厅必须同时具备火锅和烧烤的关键词（真正的烤涮一体/火锅烧烤店）
+  // 纯烤肉店只有烧烤关键词没有火锅关键词 → 不触发
+  // 纯火锅店只有火锅关键词没有烧烤关键词 → 不触发
+  if (hasHot && hasRoast && !cuisineBlocksHot && !cuisineBlocksRoast) {
+    // 每个成员拿到自己需要的匹配元素：火锅成员拿热汤元素，烧烤成员拿烤制元素
+    const member1Matched = [
+      ...(pref1NeedsHot ? matchedHot : []),
+      ...(pref1NeedsRoast ? matchedRoast : []),
+    ];
+    const member2Matched = [
+      ...(pref2NeedsHot ? matchedHot : []),
+      ...(pref2NeedsRoast ? matchedRoast : []),
+    ];
+    const member1Reason = getMemberReason(pref1, member1Matched, pref1Profile, 'style');
+    const member2Reason = getMemberReason(pref2, member2Matched, pref2Profile, 'style');
+    const hotDesc = matchedHot.slice(0, 2).join('、');
+    const roastDesc = matchedRoast.slice(0, 2).join('、');
     return {
       canFusion: true,
       fusionType: 'style',
-      fusionReason: `采用${matchedHot.slice(0, 2).join('、')}做法，可融合`,
+      fusionReason: `同时具备${hotDesc}与${roastDesc}做法，形式融合`,
       member1Reason,
       member2Reason,
-      member1Matched: matchedHot,
-      member2Matched: matchedHot,
-    };
-  }
-  
-  if ((pref1NeedsRoast || pref2NeedsRoast) && hasRoast) {
-    // 烤制元素只传给需要烤制的成员，火锅成员拿空数组避免误判
-    const member1Reason = getMemberReason(pref1, pref1NeedsRoast ? matchedRoast : [], pref1Profile, 'style');
-    const member2Reason = getMemberReason(pref2, pref2NeedsRoast ? matchedRoast : [], pref2Profile, 'style');
-    return {
-      canFusion: true,
-      fusionType: 'style',
-      fusionReason: `采用烤制做法，可融合`,
-      member1Reason,
-      member2Reason,
-      member1Matched: pref1NeedsRoast ? matchedRoast : [],
-      member2Matched: pref2NeedsRoast ? matchedRoast : [],
+      member1Matched,
+      member2Matched,
     };
   }
   
@@ -678,7 +729,7 @@ function getFusionReason(pref1, pref2, fusionType, fusionDetail) {
     const elementDesc = getElementDesc(relevant);
     const hasSpicy = (profile?.spicy || []).length > 0;
     const hasHot = (profile?.temperature || []).some(t => ['热汤', '火锅', '涮'].includes(t));
-    const hasRoast = (profile?.style || []).includes('烤');
+    const hasRoast = (profile?.style || []).some(s => ['烤制', '炙烤', '烤'].includes(s));
     
     if (fusionType === 'perfect') {
       if (elementDesc) return `主打${elementDesc}，完美契合${pref}需求`;
@@ -1309,9 +1360,41 @@ export function calculateGroupScore(restaurant, intent) {
     }
   });
 
+  // 推断主导菜系：如果 cuisine 为空，从 tags + features 中推断
+  // 优先使用 tags 中的餐厅分类标签（如"火锅店"、"烧烤店"），其次使用 features 中的菜品特征
+  const inferCuisine = () => {
+    if (restaurant.cuisine) return restaurant.cuisine;
+    const allTags = [...(restaurant.tags || []), ...(restaurant.features || [])];
+    // 第一轮：找精确匹配（tag 完全等于某个同义词）
+    for (const tag of allTags) {
+      for (const syns of Object.values(CUISINE_SYNONYMS)) {
+        if (syns.includes(tag)) return tag;
+      }
+    }
+    // 第二轮：找子串匹配
+    for (const tag of allTags) {
+      for (const syns of Object.values(CUISINE_SYNONYMS)) {
+        for (const syn of syns) {
+          if (tag.includes(syn) && (tag.length - syn.length) <= 4) return syn;
+        }
+      }
+    }
+    return '';
+  };
+  const effectiveCuisine = inferCuisine();
+
   const allFeatures = [...(restaurant.tags || []), ...(restaurant.features || []), restaurant.cuisine || '', restaurant.name || ''];
   const cuisineFeatures = [...(restaurant.tags || []), ...(restaurant.features || []), restaurant.cuisine || '', restaurant.name || ''];
+  // 融合判定使用两套特征：
+  // - fusionCheckFeatures: 主营业务（cuisine + name），用于 style 融合（烤/涮做法）
+  //   避免烧烤店因有"水饺"等菜品标签被误判为与火锅融合
+  // - flavorCheckFeatures: 全部特征（tags + features + cuisine + name），用于 flavor 融合（麻辣等口味）
+  //   口味元素确实需要从菜品特征中提取
   const fusionCheckFeatures = [
+    restaurant.cuisine || '',
+    restaurant.name || '',
+  ].filter(Boolean);
+  const flavorCheckFeatures = [
     ...(restaurant.tags || []),
     ...(restaurant.features || []),
     restaurant.cuisine || '',
@@ -1327,7 +1410,7 @@ export function calculateGroupScore(restaurant, intent) {
         const pref2 = allPreferences[j].pref;
         if (allPreferences[i].memberName === allPreferences[j].memberName) continue;
         
-        const fusion = checkFusion(pref1, pref2, fusionCheckFeatures);
+        const fusion = checkFusion(pref1, pref2, fusionCheckFeatures, effectiveCuisine, flavorCheckFeatures);
         if (fusion.canFusion) {
           fusionResults.push({
             ...fusion,
@@ -1409,7 +1492,7 @@ export function calculateGroupScore(restaurant, intent) {
         { type: 'fusion-detail', fusionType: 'flavor', memberName: fusion.member2, text: fusion.member2Reason },
       ];
     } else if (styleFusions.length > 0) {
-      groupScore += styleFusions.length * 2;
+      groupScore += styleFusions.length * 6;
       const fusion = styleFusions[0];
       fusionHeader = { type: 'fusion', fusionType: 'style', text: t('reason.fusionStyle') };
       fusionDetails = [
