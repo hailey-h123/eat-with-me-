@@ -179,7 +179,7 @@ describe('calculateGroupScore', () => {
       allergies: [],
       conflicts: [],
     });
-    expect(result.reasons.some(r => r.text.includes('全部满足'))).toBe(true);
+    expect(result.reasons.some(r => r.text.includes('全员满意'))).toBe(true);
   });
 
   it('部分成员不匹配：一人想吃川菜，一人想吃火锅 + 纯川菜餐厅 → 有融合详情', () => {
