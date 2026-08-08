@@ -14,6 +14,7 @@ import {
   getCuisineSearchKeys,
   getFusionSearchKeywords,
   getExpandedSearchKeyword,
+  filterExpansionsByAllergies,
   balanceDiversity,
   analyzeEmptyResult,
 } from './scoringService';
@@ -232,7 +233,8 @@ export async function recommendRestaurants(intent, location, excludeIds = []) {
     const candidateCuisines = new Map(); // id -> Set<cuisineKey>
     for (const key of cuisineKeys) {
       try {
-        const searchKeyword = getExpandedSearchKeyword(key);
+        let searchKeyword = getExpandedSearchKeyword(key);
+        if (intent.allergies) searchKeyword = filterExpansionsByAllergies(searchKeyword, intent.allergies);
         const results = await searchPOI(searchKeyword, location, 3000);
         if (results && results.length > 0) {
           results.slice(0, 15).forEach(r => {
@@ -290,13 +292,7 @@ export async function recommendRestaurants(intent, location, excludeIds = []) {
     let searchKeyword;
     if (cuisineKeys.length === 1) {
       searchKeyword = getExpandedSearchKeyword(cuisineKeys[0]);
-      // 如果有冲突的过敏，过滤掉与之矛盾的扩展词（如不吃辣时去掉"麻辣"）
-      if (intent.allergies && intent.allergies.includes('辣')) {
-        searchKeyword = getExpandedSearchKeyword(cuisineKeys[0])
-          .split('|')
-          .filter(k => !['麻辣', '辣味', '香辣', '红油', '泡椒', '剁椒'].some(spicy => k.includes(spicy)))
-          .join('|');
-      }
+      if (intent.allergies) searchKeyword = filterExpansionsByAllergies(searchKeyword, intent.allergies);
     } else {
       searchKeyword = buildSearchKeyword(intent);
     }
