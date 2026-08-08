@@ -2099,5 +2099,25 @@ export function getExpandedSearchKeyword(cuisine) {
   return cuisine;
 }
 
+
+	// 过敏感知搜索关键词过滤：移除扩张子词中与过敏冲突的关键词
+	const ALLERGY_FILTER_RULES = [
+	  { allergy: '辣',    remove: ['麻辣', '麻辣烫', '冒菜', '串串', '部队锅', '香辣', '辣味', '红油', '泡椒', '水煮', '剁椒'] },
+	  { allergy: '素食',  remove: ['锅包肉', '杀猪菜', '羊肉串', '烤羊肉', '烤鸭', '涮羊肉', '韩国烤肉', '韩式烤肉', '烤肉自助', '汉堡', '炸鸡', '牛排', '烤肉'] },
+	  { allergy: '海鲜',  remove: ['海鲜自助', '海鲜酒楼', '大排档', '水产'] },
+	];
+
+	export function filterExpansionsByAllergies(keywords, allergies) {
+	  if (!allergies || allergies.length === 0) return keywords;
+	  const toRemove = new Set();
+	  allergies.forEach(allergy => {
+	    const rule = ALLERGY_FILTER_RULES.find(r => r.allergy === allergy);
+	    if (rule) rule.remove.forEach(k => toRemove.add(k));
+	  });
+	  if (toRemove.size === 0) return keywords;
+	  const parts = keywords.split('|');
+	  const filtered = parts.filter(k => !toRemove.has(k));
+	  return filtered.length > 0 ? filtered.join('|') : keywords;
+	}
 // 导出共享常量供其他服务使用
 export { CUISINE_KEYWORDS_FOR_FILTER, CUISINE_SEMANTIC_MAP };
