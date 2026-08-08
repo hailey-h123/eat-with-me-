@@ -1005,14 +1005,24 @@ export function calculateSoloFriendly(restaurant) {
 
 // ============ 忌口过滤 ============
 
-// 硬约束忌口：一票否决（健康/宗教，完全不能碰）
+// 硬约束忌口：一票否决（健康/宗教/过敏，完全不能碰）
 const HARD_ALLERGIES = ['清真', '海鲜', '坚果', '花生', '牛奶', '乳糖不耐'];
 
-// 强力软约束：不否决，但大幅降分（如素食，肉餐厅也有素菜可选）
-const STRONG_SOFT_ALLERGIES = ['素食'];
+// 联合过敏：当一个成员有此偏好，另一个成员有此过敏时，触发冲突
+// 冲突本身不否决餐厅，而是通过评分和化解机制来处理
+const CONFLICT_PAIRS = [
+  { preference: '火锅', allergy: '辣' },
+  { preference: '川菜', allergy: '辣' },
+  { preference: '湘菜', allergy: '辣' },
+  { preference: '贵州菜', allergy: '辣' },
+  { preference: '江西菜', allergy: '辣' },
+  { preference: '烧烤', allergy: '素食' },
+  { preference: '烤肉', allergy: '素食' },
+  { preference: '火锅', allergy: '素食' },
+];
 
-// 普通软约束：不否决，适度降分
-const SOFT_ALLERGIES = ['辣', '麻辣', '香菜', '减肥', '低卡'];
+// 软约束：不否决，但降分
+const SOFT_ALLERGIES = ['辣', '麻辣', '香菜', '减肥', '低卡', '素食'];
 
 const ALLERGY_PENALTY = {
   '辣': 15,
@@ -1022,6 +1032,9 @@ const ALLERGY_PENALTY = {
   '减肥': 10,
   '低卡': 10,
 };
+
+// 冲突化解加分：当餐厅同时满足冲突双方时，加分幅度
+const CONFLICT_RESOLVE_BONUS = 8;
 
 const ALLERGY_TRAIT_MAP = {
   '辣': 'spicy',
@@ -1051,32 +1064,61 @@ function restaurantHasTrait(restaurant, trait) {
 
 const COMPROMISE_RULES = [
   {
+    // Conflict: member wants 火锅/川菜/湘菜/贵州菜/江西菜，another doesn't eat 辣
+    // Resolution: restaurant IS a hotpot/Sichuan/etc but doesn't show spicy traits in its name/tags
     match: (conflict) => conflict.allergy === '辣',
-    keywords: ['不辣', '微辣', '鸳鸯', '清汤', '新派', '改良', '去辣', '清淡'],
+    resolve: (restaurant, conflict) => {
+      // Check if the restaurant matches the preference (e.g., is a hotpot)
+      const allFeatures = [...(restaurant.tags || []), ...(restaurant.features || []), restaurant.cuisine || '', restaurant.name || ''].join('');
+      const isHotpot = allFeatures.includes('火锅') || allFeatures.includes('涮锅') || allFeatures.includes('涮') || allFeatures.includes('寿喜') || allFeatures.includes('锅物') || allFeatures.includes('打边炉') || allFeatures.includes('铜锅') || allFeatures.includes('涮肉');
+      const isMatch = checkPrefMatch(conflict.preference, [...(restaurant.tags || []), ...(restaurant.features || []), restaurant.cuisine || '', restaurant.name || '']);
+      if (!isMatch) return { resolved: false };
+      // Resolution: the restaurant matches the cuisine preference but lacks spicy traits
+      const hasSpicy = restaurantHasTrait(restaurant, 'spicy');
+      if (!hasSpicy) return { resolved: true, text: `这家${conflict.preference}店无明显辣元素，可满足双方需求` };
+      // Even if it has spicy traits, check if it's explicitly "微辣/不辣" variant
+      const isMild = allFeatures.includes('不辣') || allFeatures.includes('微辣') || allFeatures.includes('清汤') || allFeatures.includes('鸳鸯') || allFeatures.includes('菌汤') || allFeatures.includes('番茄') || allFeatures.includes('骨汤') || allFeatures.includes('养生') || allFeatures.includes('新派') || allFeatures.includes('改良') || allFeatures.includes('去辣') || allFeatures.includes('清淡');
+      if (isMild) return { resolved: true, text: `这家${conflict.preference}店有不辣/微辣选项，可化解冲突` };
+      return { resolved: false };
+    }
   },
   {
     match: (conflict) => conflict.allergy === '素食',
-    keywords: ['素', '素菜', '菌菇', '豆制品', '轻食', '沙拉', '蔬菜'],
+    resolve: (restaurant) => {
+      const allFeatures = [...(restaurant.tags || []), ...(restaurant.features || []), restaurant.cuisine || ''].join('');
+      const hasVeg = allFeatures.includes('素') || allFeatures.includes('素菜') || allFeatures.includes('菌菇') || allFeatures.includes('豆制品') || allFeatures.includes('轻食') || allFeatures.includes('沙拉') || allFeatures.includes('蔬菜');
+      return { resolved: hasVeg, text: hasVeg ? '这家店有素食选项，可满足素食需求' : undefined };
+    }
   },
   {
     match: (conflict) => conflict.allergy === '海鲜',
-    keywords: ['拉面', '定食', '饭', '面', '肉'],
+    resolve: (restaurant) => {
+      const allFeatures = [...(restaurant.tags || []), ...(restaurant.features || []), restaurant.cuisine || ''].join('');
+      const notSeafood = !(allFeatures.includes('海鲜') || allFeatures.includes('鱼') || allFeatures.includes('虾') || allFeatures.includes('蟹') || allFeatures.includes('贝'));
+      const hasAlternatives = allFeatures.includes('拉面') || allFeatures.includes('定食') || allFeatures.includes('饭') || allFeatures.includes('面') || allFeatures.includes('肉');
+      return { resolved: notSeafood && hasAlternatives, text: (notSeafood && hasAlternatives) ? '这家店以非海鲜为主，安全可选' : undefined };
+    }
   },
   {
     match: (conflict) => conflict.allergy === '减肥' || conflict.allergy === '低卡',
-    keywords: ['轻食', '低卡', '健康', '素', '沙拉', '少糖', '低脂'],
+    resolve: (restaurant) => {
+      const allFeatures = [...(restaurant.tags || []), ...(restaurant.features || []), restaurant.cuisine || ''].join('');
+      const isLight = allFeatures.includes('轻食') || allFeatures.includes('低卡') || allFeatures.includes('健康') || allFeatures.includes('素') || allFeatures.includes('沙拉') || allFeatures.includes('少糖') || allFeatures.includes('低脂') || allFeatures.includes('清淡');
+      return { resolved: isLight, text: isLight ? '这家店有低卡/健康选项' : undefined };
+    }
   },
 ];
 
 function checkCompromise(restaurant, conflict) {
-  const allText = [...(restaurant.tags || []), ...(restaurant.features || []), restaurant.cuisine || ''].join('');
-
   for (const rule of COMPROMISE_RULES) {
     if (rule.match(conflict)) {
-      return rule.keywords.some(kw => allText.includes(kw));
+      const result = rule.resolve(restaurant, conflict);
+      if (result.resolved) {
+        return result.text || `${conflict.resolution}`;
+      }
     }
   }
-  return false;
+  return null;
 }
 
 export function filterByAllergies(restaurants, allergies, conflicts = []) {
@@ -1131,7 +1173,7 @@ export function filterByAllergies(restaurants, allergies, conflicts = []) {
 /**
  * 计算单个成员对餐厅的评分
  */
-export function calculateMemberScore(restaurant, member) {
+export function calculateMemberScore(restaurant, member, groupConflicts = []) {
   // 兜底：如果 member.preferences 为空但 member.text 有内容，重新解析
   let preferences = member.preferences;
   let allergies = member.allergies;
@@ -1143,6 +1185,15 @@ export function calculateMemberScore(restaurant, member) {
   let score = 0;
   const reasons = [];
   let penalty = 0;
+
+  // 检查该成员的过敏是否被某个冲突化解
+  const memberIsResolver = (allergy) => {
+    return groupConflicts.some(c =>
+      c.allergy === allergy &&
+      c.members[1] === member.name &&
+      checkCompromise(restaurant, c)
+    );
+  };
 
   const allFeatures = [...(restaurant.tags || []), ...(restaurant.features || []), restaurant.cuisine || '', restaurant.name || ''];
   const cuisineFeatures = [...(restaurant.tags || []), ...(restaurant.features || []), restaurant.cuisine || '', restaurant.name || ''];
@@ -1215,6 +1266,12 @@ export function calculateMemberScore(restaurant, member) {
       } else {
         const trait = ALLERGY_TRAIT_MAP[allergy];
         if (!trait) return;
+
+        // 冲突化解：该成员的过敏被某个冲突化解（如不吃辣 + 非辣火锅）
+        if (memberIsResolver(allergy)) {
+          reasons.push({ type: 'match', text: t('reason.conflictResolved', { resolution: `${member.name}：${allergy}冲突已化解` }) });
+          return;
+        }
 
         if (restaurantHasTrait(restaurant, trait)) {
           const penaltyAmount = ALLERGY_PENALTY[allergy] || 10;
@@ -1424,8 +1481,10 @@ export function calculateGroupScore(restaurant, intent) {
     }
   }
 
+  const activeConflicts = intent.conflicts || [];
+
   intent.members.forEach(member => {
-    const { score, reasons: memberReasons } = calculateMemberScore(restaurant, member);
+    const { score, reasons: memberReasons } = calculateMemberScore(restaurant, member, activeConflicts);
     memberScores.push({ member, score });
     const hasMismatch = memberReasons.some(r => r.type === 'mismatch');
     if (!hasMismatch) satisfiedMembers++;
@@ -1521,26 +1580,27 @@ export function calculateGroupScore(restaurant, intent) {
     });
   }
 
-  if (intent.conflicts && intent.conflicts.length > 0) {
+  if (activeConflicts.length > 0) {
     let resolvedCount = 0;
-    const totalConflicts = intent.conflicts.length;
+    const totalConflicts = activeConflicts.length;
 
-    intent.conflicts.forEach(conflict => {
-      const hasCompromise = checkCompromise(restaurant, conflict);
-      if (hasCompromise) {
+    activeConflicts.forEach(conflict => {
+      const resolutionText = checkCompromise(restaurant, conflict);
+      if (resolutionText) {
         resolvedCount++;
         allReasons.push({
           type: 'match',
-          text: t('reason.conflictResolved', { resolution: conflict.resolution })
+          category: 'resolution',
+          text: resolutionText
         });
       }
     });
 
-    groupScore += resolvedCount * 5;
+    groupScore += resolvedCount * CONFLICT_RESOLVE_BONUS;
 
     if (resolvedCount === totalConflicts && totalConflicts > 0) {
       groupScore += 10;
-      allReasons.push({ type: 'match', text: t('reason.conflictAllResolved') });
+      allReasons.push({ type: 'match', category: 'resolution', text: t('reason.conflictAllResolved') });
     }
   }
 
