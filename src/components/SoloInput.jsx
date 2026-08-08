@@ -190,6 +190,9 @@ const DIST_OPTIONS = [
   { key: 'solo.prefs.dist_5k', value: [0, 5] },
 ];
 
+// 默认值用 null（不限），避免与 5km 选项的 [0,5] 冲突导致无法选中 5km
+const DEFAULT_DIST_RANGE = null;
+
 // 偏好微调组件
 // variant: 'scenario'（按心情选）显示价格+距离，'explore'（探索未知）显示价格+菜系口味
 function PreferenceTuner({ variant, priceRange, onPriceRangeChange, tags, onTagsChange, distRange, onDistRangeChange }) {
@@ -257,13 +260,13 @@ function PreferenceTuner({ variant, priceRange, onPriceRangeChange, tags, onTags
           <p className="text-xs text-text-secondary mb-2 font-bold">{t('solo.prefs.distance')}</p>
           <div className="flex flex-wrap gap-2">
             {DIST_OPTIONS.map(opt => {
-              const isDefault = distRange[0] === 0 && distRange[1] === 5;
+              const isDefault = distRange === null;
               const isSelected = opt.value === null
                 ? isDefault
                 : (!isDefault && distRange[0] === opt.value[0] && distRange[1] === opt.value[1]);
               return (
                 <button key={opt.key} type="button"
-                  onClick={() => onDistRangeChange(opt.value || [0, 5])}
+                  onClick={() => onDistRangeChange(opt.value)}
                   className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all border-2 ${
                     isSelected
                       ? 'text-white shadow-[2px_2px_0_var(--color-ink)] -translate-x-0.5 -translate-y-0.5'
@@ -310,7 +313,7 @@ export default function SoloInput({ onSearch, onFortune, isLoading }) {
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [drawnCard, setDrawnCard] = useState(null);
   const [priceRange, setPriceRange] = useState([PRICE_MIN, PRICE_MAX]);
-  const [distRange, setDistRange] = useState([0, 5]);
+  const [distRange, setDistRange] = useState(DEFAULT_DIST_RANGE);
   const [selectedTags, setSelectedTags] = useState([]);
   const soloModes = getSoloModes();
   const categories = getSoloModeCategories();
@@ -321,7 +324,7 @@ export default function SoloInput({ onSearch, onFortune, isLoading }) {
   };
   const handleSelectMode = (modeKey) => {
     const hasPriceFilter = priceRange[0] !== PRICE_MIN || priceRange[1] !== PRICE_MAX;
-    const hasDistFilter = distRange[0] !== 0 || distRange[1] !== 5;
+    const hasDistFilter = distRange !== null;
     const prefs = {
       priceRange: hasPriceFilter ? priceRange : null,
       distRange: selectedCategory === 'scenario' && hasDistFilter ? distRange : null,

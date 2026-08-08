@@ -143,11 +143,14 @@ function App() {
           priceRange: prefs.priceRange,
           distRange: prefs.distRange,
         };
-        if (prefs.distRange) {
-          if (prefs.distRange === 'near') currentRadius = 1000;
-          else if (prefs.distRange === 'mid') currentRadius = 3000;
-          else if (prefs.distRange === 'far') currentRadius = 5000;
-          else if (prefs.distRange === 'any') currentRadius = 8000;
+        if (prefs.distRange && Array.isArray(prefs.distRange)) {
+          const maxKm = prefs.distRange[1];
+          if (maxKm <= 0.5) currentRadius = 1000;
+          else if (maxKm <= 1) currentRadius = 1000;
+          else if (maxKm <= 2) currentRadius = 2000;
+          else if (maxKm <= 3) currentRadius = 3000;
+          else if (maxKm <= 5) currentRadius = 5000;
+          else currentRadius = 8000;
         }
       } else if (text && text.trim()) {
         const parsed = parseIntent(text.trim());
