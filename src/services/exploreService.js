@@ -9,6 +9,7 @@ import {
   CUISINE_KEYWORDS_FOR_FILTER,
   calculateSoloFriendly,
   calculateSingleScore,
+  filterExpansionsByAllergies,
 } from './scoringService';
 
 const EXPLORE_MODES = {

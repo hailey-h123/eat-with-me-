@@ -263,7 +263,11 @@ export async function recommendRestaurants(intent, location, excludeIds = []) {
     const fusionKeywords = getFusionSearchKeywords(intent);
     for (const fusionKey of fusionKeywords) {
       try {
-        const results = await searchPOI(fusionKey, location, 5000);
+        // 🔧 修复：融合关键词也做过敏感知过滤
+        let safeKeyword = fusionKey;
+        if (intent.allergies) safeKeyword = filterExpansionsByAllergies(safeKeyword, intent.allergies);
+        if (!safeKeyword) continue; // 过滤后为空则跳过该融合词
+        const results = await searchPOI(safeKeyword, location, 5000);
         if (results && results.length > 0) {
           results.slice(0, 8).forEach(r => {
             if (!seenIds.has(r.id) && !excludeIds.includes(r.id)) {
@@ -295,8 +299,16 @@ export async function recommendRestaurants(intent, location, excludeIds = []) {
       if (intent.allergies) searchKeyword = filterExpansionsByAllergies(searchKeyword, intent.allergies);
     } else {
       searchKeyword = buildSearchKeyword(intent);
+      // 🔧 修复：兜底 buildSearchKeyword 如果含明确菜系关键词，也做过敏过滤
+      if (intent.allergies && intent.preferences && intent.preferences.length > 0) {
+        searchKeyword = filterExpansionsByAllergies(searchKeyword, intent.allergies);
+      }
     }
-    const realRestaurants = location ? await searchPOI(searchKeyword, location, 3000) : null;
+    // 如果过滤后为空（偏好菜系完全与过敏冲突），直接走通用餐厅兜底
+    let realRestaurants = null;
+    if (searchKeyword && location) {
+      realRestaurants = await searchPOI(searchKeyword, location, 3000);
+    }
 
     if (realRestaurants && realRestaurants.length > 0) {
       candidates = realRestaurants.filter(r => !excludeIds.includes(r.id));
@@ -317,7 +329,11 @@ export async function recommendRestaurants(intent, location, excludeIds = []) {
   if (intent.conflictAltKeywords && intent.conflictAltKeywords.length > 0 && location) {
     for (const altKeyword of intent.conflictAltKeywords) {
       try {
-        const altResults = await searchPOI(altKeyword, location, 3000);
+        // 🔧 修复：冲突替代关键词也做过敏感知过滤
+        let safeAlt = altKeyword;
+        if (intent.allergies) safeAlt = filterExpansionsByAllergies(safeAlt, intent.allergies);
+        if (!safeAlt) continue;
+        const altResults = await searchPOI(safeAlt, location, 3000);
         if (altResults && altResults.length > 0) {
           altResults.forEach(r => {
             if (!seenIds.has(r.id)) { seenIds.add(r.id); candidates.push(r); }
@@ -359,8 +375,13 @@ export async function recommendRestaurants(intent, location, excludeIds = []) {
 
     // 候选不足时，扩大搜索范围
     if (candidates.length < 5 && location) {
-      const keyword = buildSearchKeyword(intent);
-      const page2 = await searchPOI(keyword, location, 5000, 0, 0, 2);
+      let keyword = buildSearchKeyword(intent);
+      // 🔧 修复：价格补充搜索的关键词也做过敏感知过滤
+      if (intent.allergies && intent.preferences && intent.preferences.length > 0) {
+        keyword = filterExpansionsByAllergies(keyword, intent.allergies);
+      }
+      let page2 = null;
+      if (keyword) page2 = await searchPOI(keyword, location, 5000, 0, 0, 2);
       if (page2 && page2.length > 0) {
         const newOnes = page2.filter(r => !excludeIds.includes(r.id) && !candidates.some(c => c.id === r.id));
         const filtered = newOnes.filter(r => {
@@ -563,7 +584,7 @@ export async function recommendByMode(mode, location, extraIntent = null, fortun
   }
 
   if (mode === SOLO_MODES.FORTUNE) {
-    const result = await recommendFortune(location, fortuneCard, applyPrefFilter, excludeId, excludeIds);
+    const result = await recommendFortune(location, fortuneCard, applyPrefFilter, excludeId, excludeIds, mergedIntent.allergies);
     return result ? [result] : [];
   }
 
