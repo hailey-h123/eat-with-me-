@@ -1024,6 +1024,9 @@ const CONFLICT_PAIRS = [
 // 软约束：不否决，但降分
 const SOFT_ALLERGIES = ['辣', '麻辣', '香菜', '减肥', '低卡', '素食'];
 
+// 强力软约束：不否决，但大幅降分（如素食，肉餐厅也有素菜可选）
+const STRONG_SOFT_ALLERGIES = ['素食'];
+
 const ALLERGY_PENALTY = {
   '辣': 15,
   '麻辣': 15,
