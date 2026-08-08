@@ -810,7 +810,7 @@ export function mergeMemberIntents(members) {
 
 /**
  * LLM 增强版合并成员意图
- * 先用 LLM 解析原始文本提取隐含语义，再交给规则引擎合并
+ * LLM 输出的 searchKeywords 直接作为偏好标签传给规则引擎合并
  * LLM 不可用时自动回退到纯规则
  */
 export async function mergeMemberIntentsWithLLM(members) {
@@ -821,19 +821,20 @@ export async function mergeMemberIntentsWithLLM(members) {
 
   const enrichedMembers = await Promise.all(
     validMembers.map(async (m) => {
+      const ruleResult = parseMemberIntent(m.text, m.name);
       const llmResult = await parseWithLLM(m.text);
-      if (llmResult) {
+      if (llmResult && llmResult.searchKeywords.length > 0) {
         return {
           name: m.name, text: m.text,
-          preferences: llmResult.preferences || [],
-          allergies: llmResult.allergies || [],
-          budget: llmResult.budget || null,
-          minBudget: llmResult.minBudget || null,
-          atmosphere: llmResult.atmosphere || '',
-          cuisines: llmResult.cuisines || [],
+          preferences: [...new Set([...llmResult.searchKeywords, ...ruleResult.preferences])],
+          allergies: [...new Set([...(llmResult.allergies || []), ...ruleResult.allergies])],
+          budget: llmResult.budget || ruleResult.budget || null,
+          minBudget: llmResult.minBudget || ruleResult.minBudget || null,
+          atmosphere: llmResult.atmosphere || ruleResult.atmosphere || '',
+          cuisines: [...new Set([...llmResult.searchKeywords, ...ruleResult.cuisines])],
         };
       }
-      return parseMemberIntent(m.text, m.name);
+      return ruleResult;
     })
   );
 
@@ -847,13 +848,12 @@ export async function mergeMemberIntentsWithLLM(members) {
 export async function parseSoloIntentWithLLM(text) {
   if (!isLLMAvailable() || !text || !text.trim()) return null;
   const llmResult = await parseWithLLM(text);
-  if (!llmResult) return null;
+  if (!llmResult || llmResult.searchKeywords.length === 0) return null;
   return {
-    preferences: llmResult.preferences || [],
+    preferences: llmResult.searchKeywords,
     allergies: llmResult.allergies || [],
     budget: llmResult.budget || null,
     minBudget: llmResult.minBudget || null,
     atmosphere: llmResult.atmosphere || '',
-    cuisines: llmResult.cuisines || [],
   };
 }

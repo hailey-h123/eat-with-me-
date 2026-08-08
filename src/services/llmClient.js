@@ -1,56 +1,62 @@
 /**
  * LLM Client — 通用 OpenAI 兼容接口
- * 支持 DeepSeek、OpenAI、通义千问等任何兼容 /v1/chat/completions 的服务
+ * 参考 ChoppedEats: LLM 输出搜索关键词而非固定标签，让 LLM 做语义理解，
+ * 关键词交给 Amap API 搜索，结果交给 scoringService 评分排序。
  */
-
 const API_KEY = import.meta.env.VITE_LLM_API_KEY || '';
 const API_BASE = import.meta.env.VITE_LLM_API_BASE || 'https://api.deepseek.com';
 const MODEL = import.meta.env.VITE_LLM_MODEL || 'deepseek-chat';
 const ENABLED = !!API_KEY;
 
-/**
- * 调用 LLM 解析自然语言 → 结构化意图
- * 返回 { preferences, allergies, budget, minBudget, atmosphere } 或 null（调用失败时回退到规则引擎）
- */
+const SYSTEM_PROMPT = `你是餐厅推荐系统的意图解析器。用户会用中英文描述想吃什么，你需要输出两个东西：
+1. searchKeywords — 用来调地图API搜餐厅的关键词（高德地图POI搜索，输入什么就返回什么）
+2. constraints — 结构化约束条件
+
+## searchKeywords 生成规则
+- 不要用抽象形容词（"清淡""重口味""下饭"），要翻译成地图上能搜到的餐厅类型或菜系名
+- "清淡" → ["粥","汤面","轻食","日料","粤菜","江浙菜"]
+- "暖和/热乎" → ["火锅","汤面","砂锅","麻辣烫","粥"]
+- "重口味/下饭" → ["川菜","湘菜","东北菜","烧烤","烤肉"]
+- "想吃肉" → ["烤肉","牛排","汉堡","烧烤","韩式烤肉"]
+- "甜食/甜的" → ["甜品","蛋糕","奶茶","咖啡","面包"]
+- "随便吃点/赶时间" → ["快餐","面馆","饺子","便当","小吃"]
+- "吃不动油腻" → ["轻食","沙拉","日料","粤菜","粥","江浙菜"]
+- "环境好/安静/约会" → atmostphere设为安静，searchKeywords正常填菜系
+- "想尝尝新的/不想吃平常吃的" → 排除常见菜系，填["异国料理","小众","猎奇"]或具体异国菜系名
+- 如果用户说了具体菜系名（火锅、川菜、日料等），直接包含它
+- 如果用户什么菜系都没说（就"今天吃啥""随便"），填["餐厅"]让搜索引擎兜底
+- 最多5个关键词，中英文都可以
+
+## constraints 规则
+- allergies: 从以下识别 ["辣","麻辣","香菜","素食","清真","海鲜","坚果","牛奶","减肥","低卡"]
+  区分程度: "不太辣/微辣"≠忌口辣，"完全不吃辣/辣过敏"=忌口辣
+  "no spicy/halal/vegetarian/vegan" 也对应忌口
+- budget: 整数，预算上限(null表示没提)，支持"80以内"→80、"100左右"→预算100+minBudget70、"100以上"→minBudget100
+- minBudget: 整数，预算下限(null表示没提)
+- atmosphere: "安静"/"热闹"/""
+
+## 输出格式
+只输出合法JSON对象，不要markdown代码块，不要解释文字。
+{"searchKeywords":["词1","词2"],"allergies":["辣"],"budget":80,"minBudget":null,"atmosphere":""}`;
+
+function parseLLMOutput(content) {
+  let json = content.replace(/```json|```/g, '').trim();
+  const start = json.indexOf('{');
+  const end = json.lastIndexOf('}');
+  if (start >= 0 && end > start) json = json.slice(start, end + 1);
+
+  const p = JSON.parse(json);
+  return {
+    searchKeywords: Array.isArray(p.searchKeywords) ? p.searchKeywords : [],
+    allergies: Array.isArray(p.allergies) ? p.allergies : [],
+    budget: typeof p.budget === 'number' ? p.budget : (p.budget ? parseInt(p.budget) : null),
+    minBudget: typeof p.minBudget === 'number' ? p.minBudget : (p.minBudget ? parseInt(p.minBudget) : null),
+    atmosphere: typeof p.atmosphere === 'string' ? p.atmosphere : '',
+  };
+}
+
 export async function parseWithLLM(text) {
   if (!ENABLED || !text || !text.trim()) return null;
-
-  const prompt = `你是一个中英文双语餐厅推荐助手。分析用户输入，提取结构化标签。
-
-支持的 偏好(preferences) 标签（中英文均可识别）:
-  菜系: ['火锅','烤肉','烧烤','日料','韩餐','川菜','湘菜','粤菜','江浙菜','东北菜','北京菜','鲁菜','云南菜','贵州菜','江西菜','福建菜','广西菜','新疆菜','西北菜','西餐','意面','披萨','东南亚菜','泰菜','越南菜']
-  品类: ['面馆','饺子','包子','粥','汤','快餐','轻食','海鲜','自助','甜品','咖啡','小吃','撸串','烧腊','卤味','咖喱']
-  口味: ['辣','麻辣','清淡','热乎','重口味','甜食','酸辣','咸香']
-  隐含需求映射规则:
-  - "清淡/不太油/吃不动油腻"→偏好['清淡']或映射为['轻食','粤菜','江浙菜','日料']
-  - "暖和/热乎"→偏好['热乎']或映射为['火锅','汤面','砂锅','粥']
-  - "下饭/重口味"→偏好['重口味']或映射为['川菜','湘菜','东北菜']
-  - "想吃肉/无肉不欢"→偏好['烧烤','烤肉','牛排','西餐']
-  - "甜食/甜的/甜点/糖水"→偏好['甜食','甜品','咖啡']
-  - "快餐/随便吃点/赶时间/快点"→偏好['快餐','面馆','饺子','小吃']
-  - "环境好/安静/聊天/约会"→不填偏好，填atmosphere='安静'
-  - "热闹/聚会/生日/团建"→不填偏好，填atmosphere='热闹'
-
-支持的 忌口(allergies) 标签:
-  ['辣','麻辣','香菜','素食','清真','海鲜','坚果','花生','牛奶','乳糖不耐','减肥','低卡']
-
-支持 预算(budget): "80" 表示上限，"around 80" 或 "80左右" 或 "80上下" 表示区间中点,"100以上" 表示下限
-支持 氛围(atmosphere): "安静" 或 "热闹"
-
-规则:
-1. 理解语义，分清程度词："不太辣"→偏好[辣]+忌口[]并非忌口辣，"不要太油"→偏好[清淡]
-2. 理解隐含需求：看到抽象描述词时，同时返回描述词+具体菜系推测
-3. 理解中英文："no spicy"→忌口辣，"craving sushi"→偏好日料
-4. 识别组合："想吃火锅但不要太辣"→偏好['火锅','辣']+忌口[]
-5. 用户没有明确说的不要猜，返回空数组/空字符串
-6. 只输出合法JSON，不要markdown代码块，不要解释
-5. 用户没有明确说的不要猜，返回空数组/空字符串
-6. 只输出合法JSON，不要markdown代码块，不要解释
-
-用户输入: "${text}"
-
-输出格式（纯JSON，不要其他内容）:
-{"preferences":["标签1","标签2"],"allergies":["标签1"],"budget":数字或null,"minBudget":数字或null,"atmosphere":"安静"或"热闹"或""}`;
 
   try {
     const res = await fetch(`${API_BASE}/v1/chat/completions`, {
@@ -62,8 +68,8 @@ export async function parseWithLLM(text) {
       body: JSON.stringify({
         model: MODEL,
         messages: [
-          { role: 'system', content: 'You are a JSON parser. Always output valid JSON only, no markdown.' },
-          { role: 'user', content: prompt },
+          { role: 'system', content: SYSTEM_PROMPT },
+          { role: 'user', content: `"${text}"` },
         ],
         temperature: 0.1,
         max_tokens: 300,
@@ -71,36 +77,30 @@ export async function parseWithLLM(text) {
     });
 
     if (!res.ok) {
-      console.warn('[llmClient] API call failed:', res.status, await res.text().catch(() => ''));
+      console.warn('[llmClient] API error:', res.status);
       return null;
     }
 
     const data = await res.json();
-    const content = data.choices?.[0]?.message?.content || '';
-
-    // 清洗：去掉 markdown 代码块，取第一个完整 JSON 对象
-    let json = content.replace(/```json|```/g, '').trim();
-    const braceStart = json.indexOf('{');
-    const braceEnd = json.lastIndexOf('}');
-    if (braceStart >= 0 && braceEnd > braceStart) {
-      json = json.slice(braceStart, braceEnd + 1);
-    }
-
-    const parsed = JSON.parse(json);
-    console.log('[llmClient] LLM parsed:', text, '→', parsed);
-
-    return {
-      preferences: Array.isArray(parsed.preferences) ? parsed.preferences : [],
-      allergies: Array.isArray(parsed.allergies) ? parsed.allergies : [],
-      budget: typeof parsed.budget === 'number' ? parsed.budget : (parsed.budget ? parseInt(parsed.budget) : null),
-      minBudget: typeof parsed.minBudget === 'number' ? parsed.minBudget : (parsed.minBudget ? parseInt(parsed.minBudget) : null),
-      atmosphere: typeof parsed.atmosphere === 'string' ? parsed.atmosphere : '',
-      cuisines: Array.isArray(parsed.preferences) ? [...parsed.preferences] : [],
-    };
+    const raw = data.choices?.[0]?.message?.content || '';
+    const result = parseLLMOutput(raw);
+    console.log('[llmClient]', text, '→', result);
+    return result;
   } catch (e) {
-    console.warn('[llmClient] LLM parse failed, falling back to rules:', e.message);
+    console.warn('[llmClient] parse failed:', e.message);
     return null;
   }
+}
+
+/**
+ * 批量解析多人成员输入
+ * 并发调用，单条失败不影响其他成员
+ */
+export async function parseBatchWithLLM(texts) {
+  const results = await Promise.all(
+    texts.map(text => parseWithLLM(text).catch(() => null))
+  );
+  return results;
 }
 
 export function isLLMAvailable() {
