@@ -289,10 +289,11 @@ export async function recommendRestaurants(intent, location, excludeIds = []) {
     // 用扩展关键词搜索，避免单关键词搜偏（如"川菜"搜出全是火锅）
     let searchKeyword;
     if (cuisineKeys.length === 1) {
-      searchKeyword = getExpandedSearchKeyword(cuisineKeys[0]).join('|');
+      searchKeyword = getExpandedSearchKeyword(cuisineKeys[0]);
       // 如果有冲突的过敏，过滤掉与之矛盾的扩展词（如不吃辣时去掉"麻辣"）
       if (intent.allergies && intent.allergies.includes('辣')) {
         searchKeyword = getExpandedSearchKeyword(cuisineKeys[0])
+          .split('|')
           .filter(k => !['麻辣', '辣味', '香辣', '红油', '泡椒', '剁椒'].some(spicy => k.includes(spicy)))
           .join('|');
       }
