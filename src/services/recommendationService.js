@@ -204,7 +204,7 @@ function buildSearchKeyword(intent) {
 
   if (intent.preferences && intent.preferences.length > 0) {
     keywords.push(...intent.preferences.filter(p =>
-      !['减肥', '安静', '热闹', '环境好', '实惠'].includes(p)
+      !['减肥', '安静', '热闹', '环境好', '实惠', '清淡', '热乎', '重口味', '下饭', '暖和', '甜的', '甜食', '随便', '随便吃点', '快', '慢', '环境好', '便宜', '贵', '高档', '好吃', '正宗', 'light', 'heavy', 'warm', 'cheap', 'expensive', 'fancy', 'quiet', 'lively', 'spicy', 'sweet'].includes(p)
     ));
   }
 
@@ -231,27 +231,33 @@ export async function recommendRestaurants(intent, location, excludeIds = []) {
     // 扩展关键词解决烤涮一体等跨菜系餐厅因标签不匹配搜不到的问题
     // 例如：搜索"烤肉|烧烤|韩式烤肉|日式烤肉|烧肉"代替仅搜"烤肉"
     const candidateCuisines = new Map(); // id -> Set<cuisineKey>
-    for (const key of cuisineKeys) {
+
+    // 并行搜索所有菜系（串行会成倍增加首屏延迟）
+    const cuisineSearchTasks = cuisineKeys.map(async (key) => {
       try {
         let searchKeyword = getExpandedSearchKeyword(key);
         if (intent.allergies) searchKeyword = filterExpansionsByAllergies(searchKeyword, intent.allergies);
+        if (!searchKeyword) return []; // 过敏过滤后为空
         const results = await searchPOI(searchKeyword, location, 3000);
-        if (results && results.length > 0) {
-          results.slice(0, 15).forEach(r => {
-            if (excludeIds.includes(r.id)) return;
-            if (!seenIds.has(r.id)) {
-              seenIds.add(r.id);
-              candidates.push(r);
-              candidateCuisines.set(r.id, new Set([key]));
-            } else {
-              candidateCuisines.get(r.id)?.add(key);
-            }
-          });
-        }
+        return (results && results.length > 0) ? results.slice(0, 15) : [];
       } catch (e) {
-        // 单菜系搜索失败，跳过
+        return [];
       }
-    }
+    });
+    const cuisineSearchResults = await Promise.all(cuisineSearchTasks);
+    cuisineKeys.forEach((key, idx) => {
+      const results = cuisineSearchResults[idx];
+      results.forEach(r => {
+        if (excludeIds.includes(r.id)) return;
+        if (!seenIds.has(r.id)) {
+          seenIds.add(r.id);
+          candidates.push(r);
+          candidateCuisines.set(r.id, new Set([key]));
+        } else {
+          candidateCuisines.get(r.id)?.add(key);
+        }
+      });
+    });
 
     // 融合候选：同时命中多个菜系搜索的餐厅 → 天然跨菜系
     const fusionIds = new Set();
@@ -260,27 +266,30 @@ export async function recommendRestaurants(intent, location, excludeIds = []) {
     }
 
     // 补充搜索：用菜系组合词扩大候选池（如"火锅烧烤"比"烤涮一体"更真实），扩大搜索半径
+    // 并行搜索所有融合关键词
     const fusionKeywords = getFusionSearchKeywords(intent);
-    for (const fusionKey of fusionKeywords) {
+    const fusionSearchTasks = fusionKeywords.map(async (fusionKey) => {
       try {
         // 🔧 修复：融合关键词也做过敏感知过滤
         let safeKeyword = fusionKey;
         if (intent.allergies) safeKeyword = filterExpansionsByAllergies(safeKeyword, intent.allergies);
-        if (!safeKeyword) continue; // 过滤后为空则跳过该融合词
+        if (!safeKeyword) return { fusionKey, results: [] }; // 过滤后为空则跳过该融合词
         const results = await searchPOI(safeKeyword, location, 5000);
-        if (results && results.length > 0) {
-          results.slice(0, 8).forEach(r => {
-            if (!seenIds.has(r.id) && !excludeIds.includes(r.id)) {
-              seenIds.add(r.id);
-              candidates.push({ ...r, _fusionKeyword: fusionKey });
-              fusionIds.add(r.id);
-            }
-          });
-        }
+        return { fusionKey, results: (results && results.length > 0) ? results.slice(0, 8) : [] };
       } catch (e) {
-        // 融合关键词搜索失败，跳过
+        return { fusionKey, results: [] };
       }
-    }
+    });
+    const fusionSearchResults = await Promise.all(fusionSearchTasks);
+    fusionSearchResults.forEach(({ fusionKey, results }) => {
+      results.forEach(r => {
+        if (!seenIds.has(r.id) && !excludeIds.includes(r.id)) {
+          seenIds.add(r.id);
+          candidates.push({ ...r, _fusionKeyword: fusionKey });
+          fusionIds.add(r.id);
+        }
+      });
+    });
 
     // 将融合候选排到最前面
     if (fusionIds.size > 0) {
@@ -420,13 +429,15 @@ export async function recommendRestaurants(intent, location, excludeIds = []) {
 
   // 群体评分
   const scoredRestaurants = candidates.map(restaurant => {
-    const { score, reasons } = calculateGroupScore(restaurant, intent);
+    const { score, reasons, _groupMin, _groupAvg } = calculateGroupScore(restaurant, intent);
     const adjustedScore = applyFeedbackToScore(restaurant, score);
     return {
       ...restaurant,
       matchScore: adjustedScore,
       reasons,
       soloFriendly: calculateSoloFriendly(restaurant),
+      _groupMin,
+      _groupAvg,
     };
   });
 
@@ -438,12 +449,16 @@ export async function recommendRestaurants(intent, location, excludeIds = []) {
 
   // 多样性平衡：确保不同菜系都有代表，但最终按匹配度降序排列
   const balancedResults = balanceDiversity(scoredRestaurants, intent);
-  // 按分数降序，同分时融合餐厅优先
+  // 按分数降序，同分时优先看最低成员分（maximin，谁都不被亏待者优先），再看融合餐厅
   balancedResults.sort((a, b) => {
     const aScore = typeof a.matchScore === 'number' && !isNaN(a.matchScore) ? a.matchScore : 0;
     const bScore = typeof b.matchScore === 'number' && !isNaN(b.matchScore) ? b.matchScore : 0;
     if (Math.abs(aScore - bScore) < 0.5) {
-      // 同分：融合餐厅（匹配多菜系）排在前面
+      // 同分：先看最低成员分（maximin），谁都不被亏待者优先
+      const aMin = typeof a._groupMin === 'number' ? a._groupMin : 0;
+      const bMin = typeof b._groupMin === 'number' ? b._groupMin : 0;
+      if (Math.abs(aMin - bMin) >= 1) return bMin - aMin;
+      // 再看融合餐厅（匹配多菜系）
       const aFusion = (a._matchedCuisines || 0) > 1 ? 1 : 0;
       const bFusion = (b._matchedCuisines || 0) > 1 ? 1 : 0;
       return bFusion - aFusion;

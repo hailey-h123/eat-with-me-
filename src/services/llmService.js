@@ -1,5 +1,16 @@
 import { parseWithLLM, isLLMAvailable } from './llmClient';
 
+// 已知菜系/品类名白名单（LLM 搜索词在此→偏好展示；不在→仅搜索）
+const KNOWN_CUISINE = new Set([
+  '烤肉','烧烤','火锅','日料','韩餐','韩国料理','西餐','川菜','湘菜','粤菜','江浙菜',
+  '东北菜','西北菜','云南菜','贵州菜','北京菜','鲁菜','江西菜','福建菜','广西菜','新疆菜',
+  '海鲜','沙拉','轻食','健康餐','快餐','面馆','饺子','包子','粥','汤','烧腊','卤味',
+  '潮汕菜','本帮菜','杭帮菜','淮扬菜','意面','披萨','东南亚菜','泰菜','越南菜',
+  '咖啡','奶茶','甜品','小吃','撸串','冒菜','麻辣烫','串串','烧鸟','自助餐','自助',
+  '汉堡','炸鸡','牛排','咖喱','喝','意大利菜',
+  '牛肉面','酸菜鱼','烤鱼','涮羊肉','烤鸭','酸汤鱼','螺蛳粉','沙茶面','小笼包','炒菜','简餐','便当',
+]);
+
 const ALLERGY_KEYWORDS = ['不吃辣', '忌辣', '不要辣', '怕辣', '不能吃辣', '辣椒', '辣的', '麻辣', '香辣', '不吃辣的', '怕辣的'];
 const CILANTRO_KEYWORDS = ['不吃香菜', '忌香菜', '不要香菜', '讨厌香菜', '不爱香菜', '不吃芫荽'];
 const HALAL_KEYWORDS = ['清真', '回民', '穆斯林'];
@@ -675,6 +686,24 @@ export function mergeMemberIntents(members) {
     }
   });
 
+  // 预算折中：当成员预算分歧较大时，用中位数替代严格 min/max，避免一人把整组锁死
+  // 仅在多人模式生效（validMembers.length >= 2），放宽阈值较保守，只在分歧明显时介入
+  const memberBudgets = validMembers
+    .map(m => m.budget)
+    .filter(b => b && b < 900); // 排除"以上"占位符
+  if (memberBudgets.length >= 2 && groupMaxBudget) {
+    const sorted = [...memberBudgets].sort((a, b) => a - b);
+    const median = sorted[Math.floor(sorted.length / 2)];
+    // 最严上限远低于中位数（< 50%）→ 一人在压缩所有人，放宽到中位数
+    if (groupMaxBudget < median * 0.5) {
+      groupMaxBudget = Math.round(median);
+    }
+    // 最严下限远高于中位数（> 130%）→ 一人在抬高门槛，放宽到中位数的 70%
+    if (groupMinBudget && groupMinBudget > median * 1.3) {
+      groupMinBudget = Math.round(median * 0.7);
+    }
+  }
+
   // 共同偏好：所有成员都提到的偏好
   const commonPreferences = validMembers.length > 0
     ? validMembers[0].preferences.filter(p =>
@@ -824,14 +853,18 @@ export async function mergeMemberIntentsWithLLM(members) {
       const ruleResult = parseMemberIntent(m.text, m.name);
       const llmResult = await parseWithLLM(m.text);
       if (llmResult && llmResult.searchKeywords.length > 0) {
+        // Split: known cuisines -> preferences (scoring+display), rest -> searchKeywords only
+        const llmPrefs = llmResult.searchKeywords.filter(k => KNOWN_CUISINE.has(k));
         return {
           name: m.name, text: m.text,
-          preferences: [...new Set([...llmResult.searchKeywords, ...ruleResult.preferences])],
+          preferences: [...new Set([...llmPrefs, ...ruleResult.preferences])],
+          searchKeywords: llmResult.searchKeywords,
+          intent: llmResult.intent || '',
           allergies: [...new Set([...(llmResult.allergies || []), ...ruleResult.allergies])],
           budget: llmResult.budget || ruleResult.budget || null,
           minBudget: llmResult.minBudget || ruleResult.minBudget || null,
           atmosphere: llmResult.atmosphere || ruleResult.atmosphere || '',
-          cuisines: [...new Set([...llmResult.searchKeywords, ...ruleResult.cuisines])],
+          cuisines: [...new Set([...llmPrefs, ...ruleResult.cuisines])],
         };
       }
       return ruleResult;
@@ -849,8 +882,11 @@ export async function parseSoloIntentWithLLM(text) {
   if (!isLLMAvailable() || !text || !text.trim()) return null;
   const llmResult = await parseWithLLM(text);
   if (!llmResult || llmResult.searchKeywords.length === 0) return null;
+  const llmPrefs = llmResult.searchKeywords.filter(k => KNOWN_CUISINE.has(k));
   return {
-    preferences: llmResult.searchKeywords,
+    preferences: llmPrefs,
+    searchKeywords: llmResult.searchKeywords,
+    intent: llmResult.intent || '',
     allergies: llmResult.allergies || [],
     budget: llmResult.budget || null,
     minBudget: llmResult.minBudget || null,

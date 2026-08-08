@@ -35,9 +35,12 @@ const SYSTEM_PROMPT = `你是餐厅推荐系统的意图解析器。用户会用
 - minBudget: 整数，预算下限(null表示没提)
 - atmosphere: "安静"/"热闹"/""
 
+## intent
+用一个短句概括用户的总体就餐意图（中英文均可，用于展示）。例如: "清淡口味"、"想吃火锅但不要太辣"、"日料控"、"赶时间随便吃点"
+
 ## 输出格式
 只输出合法JSON对象，不要markdown代码块，不要解释文字。
-{"searchKeywords":["词1","词2"],"allergies":["辣"],"budget":80,"minBudget":null,"atmosphere":""}`;
+{"searchKeywords":["词1","词2"],"allergies":["辣"],"budget":80,"minBudget":null,"atmosphere":"","intent":"用户意图概括"}`;
 
 function parseLLMOutput(content) {
   let json = content.replace(/```json|```/g, '').trim();
@@ -52,6 +55,7 @@ function parseLLMOutput(content) {
     budget: typeof p.budget === 'number' ? p.budget : (p.budget ? parseInt(p.budget) : null),
     minBudget: typeof p.minBudget === 'number' ? p.minBudget : (p.minBudget ? parseInt(p.minBudget) : null),
     atmosphere: typeof p.atmosphere === 'string' ? p.atmosphere : '',
+    intent: typeof p.intent === 'string' ? p.intent : '',
   };
 }
 

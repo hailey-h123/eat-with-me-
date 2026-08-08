@@ -1498,6 +1498,7 @@ export function calculateGroupScore(restaurant, intent) {
     memberReasonsMap[member.name] = memberReasons;
   });
 
+  const memberCount = intent.members.length;
   const scores = memberScores.map(m => m.score);
   const avgScore = scores.reduce((sum, s) => sum + s, 0) / scores.length;
   const minScore = Math.min(...scores);
@@ -1507,15 +1508,33 @@ export function calculateGroupScore(restaurant, intent) {
   const variance = scores.reduce((sum, s) => sum + Math.pow(s - avgScore, 2), 0) / scores.length;
   const stdDev = Math.sqrt(variance);
 
-  const powerAvg = powerScale(avgScore / 100, 1.3) * 100;
-  const minPenalty = minScore < 50 ? powerScale((50 - minScore) / 50, 1.3) * 12 : 0;
-  const stdPenalty = stdDev > 15 ? powerScale((stdDev - 15) / 35, 1.3) * 8 : 0;
-  const unhappyPenalty = unhappyMembers > 0 ? unhappyMembers * 6 : 0;
+  // 公平性聚合：纳什福利（几何平均）天然惩罚短板，maximin（最低分）兜底
+  // 算术平均追求总效用，纳什追求均衡，最低分防止"一人低分被高分掩盖"
+  const safeScores = scores.map(s => Math.max(20, s)); // log 安全下限
+  const logSum = safeScores.reduce((sum, s) => sum + Math.log(s), 0);
+  const nashScore = Math.exp(logSum / scores.length); // 几何平均
+  const fairAvg = avgScore * 0.4 + nashScore * 0.4 + minScore * 0.2;
+
+  const powerAvg = powerScale(fairAvg / 100, 1.3) * 100;
+
+  // 最低分惩罚：连续函数，不再只在 <50 时触发；与均值差距越大惩罚越重
+  const minGap = avgScore - minScore;
+  const minPenalty = minGap > 10 ? powerScale((minGap - 10) / 50, 1.3) * 15 : 0;
+
+  // 标准差惩罚：人数越多可容忍的离散度越大（2人组阈值14，8人组阈值26）
+  const stdTolerance = 10 + memberCount * 2;
+  const stdPenalty = stdDev > stdTolerance ? powerScale((stdDev - stdTolerance) / 35, 1.3) * 8 : 0;
+
+  // 不满意惩罚：按人数比例归一化，避免大组里1人不满扣分过重
+  const unhappyFraction = unhappyMembers / memberCount;
+  const unhappyPenalty = unhappyFraction > 0 ? powerScale(unhappyFraction, 1.3) * 12 : 0;
 
   let groupScore = powerAvg - minPenalty - stdPenalty - unhappyPenalty;
 
-  if (stdDev < 10) {
-    const consistencyBonus = powerScale((10 - stdDev) / 10, 1.3) * 6;
+  // 一致性奖励：标准差低于容忍阈值的一半时给奖励
+  const consistencyThreshold = stdTolerance / 2;
+  if (stdDev < consistencyThreshold) {
+    const consistencyBonus = powerScale((consistencyThreshold - stdDev) / consistencyThreshold, 1.3) * 6;
     groupScore += consistencyBonus;
   }
 
@@ -1607,7 +1626,6 @@ export function calculateGroupScore(restaurant, intent) {
     }
   }
 
-  const memberCount = intent.members.length;
   if (memberCount >= 3) {
     const groupBonus = Math.min(8, (memberCount - 2) * 2);
     groupScore += groupBonus;
@@ -1661,7 +1679,7 @@ export function calculateGroupScore(restaurant, intent) {
   // Post-process: when UI is English, brute-force translate any Chinese in fusion/conflict text
   const deduped = dedupeReasons(allReasons);
   const finalReasons = _lang === 'en' ? deduped.map(r => ({ ...r, text: translateTokens(r.text) })) : deduped;
-  return { score: groupScore, reasons: finalReasons };
+  return { score: groupScore, reasons: finalReasons, _groupMin: minScore, _groupAvg: avgScore };
 }
 
 // ============ 单人评分（向后兼容） ============
@@ -2099,48 +2117,43 @@ export function getExpandedSearchKeyword(cuisine) {
   return cuisine;
 }
 
+	// CUISINE_WHITELIST: known cuisine/category names.
+	// LLM keywords in this set → display as preferences; not in set → search-only
+	export const CUISINE_WHITELIST = new Set([
+	  '烤肉',	  '烧烤',	  '火锅',	  '日料',	  '韩餐',	  '韩国料理',	  '西餐',	  '川菜',	  '湘菜',	  '粤菜',	  '江浙菜',	  '东北菜',	  '西北菜',	  '云南菜',	  '贵州菜',	  '北京菜',	  '鲁菜',	  '江西菜',	  '福建菜',	  '广西菜',	  '新疆菜',	  '海鲜',	  '沙拉',	  '轻食',	  '健康餐',	  '快餐',	  '面馆',	  '饺子',	  '包子',	  '粥',	  '汤',	  '烧腊',	  '卤味',	  '潮汕菜',	  '本帮菜',	  '杭帮菜',	  '淮扬菜',	  '意面',	  '披萨',	  '东南亚菜',	  '泰菜',	  '越南菜',	  '咖啡',	  '奶茶',	  '甜品',	  '小吃',	  '撸串',	  '冒菜',	  '麻辣烫',	  '串串',	  '烧鸟',	  '自助餐',	  '自助',	  '汉堡',	  '炸鸡',	  '牛排',	  '咖喱',	  '喝',	  '意大利菜',	  '牛肉面',	  '酸菜鱼',	  '烤鱼',	  '涮羊肉',	  '烤鸭',	  '酸汤鱼',	  '螺蛳粉',	  '沙茶面',	  '小笼包',	  '炒菜',	  '简餐',	  '便当'
+	]);
 
-	// 过敏感知搜索关键词过滤：移除扩张子词中与过敏冲突的关键词
-	const ALLERGY_FILTER_RULES = [
-	  {
-	    allergy: '辣',
-	    remove: [
-	      '麻辣', '麻辣烫', '冒菜', '串串', '部队锅', '香辣', '辣味', '红油', '泡椒', '水煮', '剁椒',
-	      '麻辣火锅', '川味火锅', '四川火锅', '重庆火锅', '火锅冒菜',
-	      '麻辣冒菜', '川式冒菜',
-	      '麻辣烧烤', '川式烤肉', '麻辣系烤肉',
-	      '湘味烧烤', '湖南烤肉', '湖南烧烤', '湘味火锅', '湖南火锅',
-	      '麻辣烤鱼', '巫山烤鱼',
-	    ],
-	  },
-	  {
-	    allergy: '素食',
-	    remove: [
-	      // 烧烤/烤肉系（所有带肉的扩展词）
-	      '烤肉', '韩式烤肉', '日式烤肉', '烧肉', '韩国烤肉',
-	      '烧烤', '烤串', '羊肉串', '烤生蚝', '烤鱼', '撸串', '烤羊肉',
-	      '韩式烧烤', '日本烤肉', '自助烤肉', '烤肉自助', '东北烧烤', '东北烤肉',
-	      '新疆烤肉', '新疆烧烤', '湘味烧烤', '湖南烤肉', '湖南烧烤', '麻辣烧烤',
-	      '烧鸟', '日式烧烤',
-	      // 荤菜特色菜
-	      '锅包肉', '杀猪菜', '大盘鸡', '烤鸭', '涮羊肉',
-	      // 西餐/快餐荤菜
-	      '汉堡', '炸鸡', '牛排',
-	      // 海鲜类（素海鲜过敏也处理，这里一起覆盖更安全）
-	      '海鲜自助', '海鲜酒楼', '大排档', '水产',
-	      // 火锅系里明显带荤的（保留清汤打边炉等素可吃的）
-	      '羊肉火锅', '铜锅涮肉', '老北京涮肉',
-	    ],
-	  },
-	  {
-	    allergy: '海鲜',
-	    remove: [
-	      '海鲜', '鱼鲜', '水产', '大排档', '海鲜自助', '海鲜酒楼',
-	      '海鲜料理', '海虾', '螃蟹', '贝类', '渔港', '渔家', '海鲜舫',
-	      '寿司', '刺身', '日式', '日料', '过桥米线', // 过桥米线常放海鲜料，保守移除
-	    ],
-	  },
-	];
+	// ABSTRACT_WORDS: should NOT be used as Amap search keywords
+	// or matched against restaurant tags
+	const ABSTRACT_WORDS = new Set([
+	  '清淡',	  '热乎',	  '重口味',	  '下饭',	  '暖和',	  '甜的',	  '甜食',	  '随便',	  '随便吃点',	  '快',	  '慢',	  '环境好',	  '便宜',	  '贵',	  '实惠',	  '高档',	  '好吃',	  '正宗',	  'light',	  'heavy',	  'warm',	  'cheap',	  'expensive',	  'fancy',	  'quiet',	  'lively',	  'spicy',	  'sweet'
+	]);
+
+
+
+// 过敏感知搜索关键词过滤：移除扩张子词中与过敏冲突的关键词
+// 避免搜索结果过度偏向过敏方向（如不吃辣 → 川菜扩张中移除"麻辣"）
+const ALLERGY_FILTER_RULES = [
+  {
+    allergy: '辣',
+    remove: [
+      '麻辣', '麻辣烫', '冒菜', '串串', '部队锅', '香辣', '辣味', '红油', '泡椒', '水煮', '剁椒',
+    ],
+  },
+  {
+    allergy: '素食',
+    remove: [
+      '锅包肉', '杀猪菜', '羊肉串', '烤羊肉', '烤鸭', '涮羊肉',
+      '韩国烤肉', '韩式烤肉', '烤肉自助', '汉堡', '炸鸡', '牛排', '烤肉',
+    ],
+  },
+  {
+    allergy: '海鲜',
+    remove: [
+      '海鲜自助', '海鲜酒楼', '大排档', '水产',
+    ],
+  },
+];
 
 	export function filterExpansionsByAllergies(keywords, allergies) {
 	  if (!allergies || allergies.length === 0) return keywords;

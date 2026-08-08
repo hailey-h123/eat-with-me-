@@ -154,7 +154,7 @@ function App() {
           extraIntent = { preferences: llmParsed.preferences || [], allergies: llmParsed.allergies || [], budget: llmParsed.budget };
         } else {
           const parsed = parseIntent(text.trim());
-          extraIntent = { preferences: parsed.preferences || [], allergies: parsed.allergies || [], budget: parsed.budget };
+          extraIntent = { preferences: parsed.preferences || [], allergies: parsed.allergies || [], budget: parsed.budget, searchKeyword: (llmParsed && llmParsed.searchKeywords) ? llmParsed.searchKeywords.join('|') : undefined };
         }
       }
       setSearchRadius(currentRadius);
