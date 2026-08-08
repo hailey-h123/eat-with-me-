@@ -286,8 +286,20 @@ export async function recommendRestaurants(intent, location, excludeIds = []) {
 
   // 单菜系、或分别搜索无结果时，回退到合并搜索
   if (candidates.length === 0) {
-    const keyword = buildSearchKeyword(intent);
-    const realRestaurants = location ? await searchPOI(keyword, location, 3000) : null;
+    // 用扩展关键词搜索，避免单关键词搜偏（如"川菜"搜出全是火锅）
+    let searchKeyword;
+    if (cuisineKeys.length === 1) {
+      searchKeyword = getExpandedSearchKeyword(cuisineKeys[0]).join('|');
+      // 如果有冲突的过敏，过滤掉与之矛盾的扩展词（如不吃辣时去掉"麻辣"）
+      if (intent.allergies && intent.allergies.includes('辣')) {
+        searchKeyword = getExpandedSearchKeyword(cuisineKeys[0])
+          .filter(k => !['麻辣', '辣味', '香辣', '红油', '泡椒', '剁椒'].some(spicy => k.includes(spicy)))
+          .join('|');
+      }
+    } else {
+      searchKeyword = buildSearchKeyword(intent);
+    }
+    const realRestaurants = location ? await searchPOI(searchKeyword, location, 3000) : null;
 
     if (realRestaurants && realRestaurants.length > 0) {
       candidates = realRestaurants.filter(r => !excludeIds.includes(r.id));
