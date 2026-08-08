@@ -8,7 +8,7 @@ import ResultList from './components/ResultList';
 import VoteView from './components/VoteView';
 import HistoryView from './components/HistoryView';
 import { useLocation } from './hooks/useLocation';
-import { parseMemberIntent, mergeMemberIntents, parseIntent } from './services/llmService';
+import { parseMemberIntent, mergeMemberIntents, parseIntent, mergeMemberIntentsWithLLM, parseSoloIntentWithLLM } from './services/llmService';
 import { recommendRestaurants, randomExplore, recommendByMode, drawFortuneCard, analyzeEmptyResult } from './services/recommendationService';
 import { geocode, IS_MOCK_MODE } from './services/amapService';
 import { calculateSingleScore, calculateSoloFriendly, setScoringTranslator } from './services/scoringService';
@@ -90,16 +90,11 @@ function App() {
     setIsLoading(true);
     setLastMembers(members);
     try {
-    const debugInfo = [];
-    debugInfo.push(`raw: ${members.map(m => `${m.name}=${m.text}`).join(', ')}`);
-    const memberIntents = members.map(m => {
-      const intent = parseMemberIntent(m.text, m.name);
-      debugInfo.push(`parsed ${m.name}: prefs=[${intent.preferences.join(',')}]`);
-      return intent;
-    });
-    const groupIntent = mergeMemberIntents(memberIntents);
-    debugInfo.push(`merged: members=${groupIntent.members.length}, prefs=[${groupIntent.preferences.join(',')}]`);
-    console.log('[BUGFIX]', debugInfo.join(' | '));
+    // LLM 增强解析：先跑规则引擎拿到 memberIntents，再用 LLM 重新解析（仅当文本非空时）
+    const memberIntents = members.map(m => parseMemberIntent(m.text, m.name));
+    // 尝试 LLM 增强（不阻塞，失败自动回退）
+    const groupIntent = await mergeMemberIntentsWithLLM(members);
+    console.log('[handleSearch] members:', members.length, 'prefs:', groupIntent.preferences);
     if (!groupIntent.location && location.name) groupIntent.location = location.name;
     setLastIntent(groupIntent);
     setSearchRadius(3000);
@@ -153,8 +148,14 @@ function App() {
           else currentRadius = 8000;
         }
       } else if (text && text.trim()) {
-        const parsed = parseIntent(text.trim());
-        extraIntent = { preferences: parsed.preferences || [], allergies: parsed.allergies || [], budget: parsed.budget };
+        // LLM 增强解析：优先用 LLM，失败回退到规则引擎
+        const llmParsed = await parseSoloIntentWithLLM(text.trim());
+        if (llmParsed) {
+          extraIntent = { preferences: llmParsed.preferences || [], allergies: llmParsed.allergies || [], budget: llmParsed.budget };
+        } else {
+          const parsed = parseIntent(text.trim());
+          extraIntent = { preferences: parsed.preferences || [], allergies: parsed.allergies || [], budget: parsed.budget };
+        }
       }
       setSearchRadius(currentRadius);
       const recommendations = await recommendByMode(mode, location, extraIntent, null, null, excludeIds);

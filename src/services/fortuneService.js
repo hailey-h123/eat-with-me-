@@ -5,7 +5,7 @@
 import { mockRestaurants } from '../data/mockRestaurants';
 import { searchPOI } from './amapService';
 import { applyFeedbackToScore } from './feedbackService';
-import { calculateSoloFriendly, calculateSingleScore } from './scoringService';
+import { calculateSoloFriendly, calculateSingleScore, filterExpansionsByAllergies } from './scoringService';
 
 export const FORTUNE_CARDS = [
   { id: 'spicy', icon: '🌶️', label: '宜吃辣', keywords: ['川菜', '湘菜', '火锅'], message: '星象显示你今天需要一点刺激' },
@@ -32,7 +32,7 @@ export function drawFortuneCard() {
 /**
  * 今日运势模式推荐
  */
-export async function recommendFortune(location, fortuneCard = null, applyPrefFilter = null, excludeId = null, excludeIds = []) {
+export async function recommendFortune(location, fortuneCard = null, applyPrefFilter = null, excludeId = null, excludeIds = [], allergies = []) {
   const card = fortuneCard || drawFortuneCard();
   let candidates = [];
 
@@ -48,10 +48,17 @@ export async function recommendFortune(location, fortuneCard = null, applyPrefFi
   };
 
   if (card.keywords.length > 0) {
-    const keyword = card.keywords.join('|');
-    const realRestaurants = location ? await searchPOI(keyword, location, 3000) : null;
-    if (realRestaurants && realRestaurants.length > 0) {
-      candidates = realRestaurants;
+    // 🔧 修复：运势卡关键词也要做过敏感知过滤
+    let keyword = card.keywords.join('|');
+    if (allergies && allergies.length > 0) {
+      keyword = filterExpansionsByAllergies(keyword, allergies);
+    }
+    // 如果过滤后关键词为空，说明运势卡内容与用户过敏完全冲突，跳过该卡关键词搜索
+    if (keyword) {
+      const realRestaurants = location ? await searchPOI(keyword, location, 3000) : null;
+      if (realRestaurants && realRestaurants.length > 0) {
+        candidates = realRestaurants;
+      }
     }
   }
 
@@ -75,9 +82,14 @@ export async function recommendFortune(location, fortuneCard = null, applyPrefFi
   if (candidates.length === 0) {
     let fallbackList = [];
     if (card.keywords.length > 0) {
-      const keyword = card.keywords.join('|');
-      const fallbackResults = location ? await searchPOI(keyword, location, 3000) : null;
-      if (fallbackResults && fallbackResults.length > 0) fallbackList = fallbackResults;
+      let keyword = card.keywords.join('|');
+      if (allergies && allergies.length > 0) {
+        keyword = filterExpansionsByAllergies(keyword, allergies);
+      }
+      if (keyword) {
+        const fallbackResults = location ? await searchPOI(keyword, location, 3000) : null;
+        if (fallbackResults && fallbackResults.length > 0) fallbackList = fallbackResults;
+      }
     }
     if (fallbackList.length === 0) fallbackList = [...mockRestaurants];
     candidates = applyFortuneExclude(fallbackList);
@@ -85,6 +97,7 @@ export async function recommendFortune(location, fortuneCard = null, applyPrefFi
 
   const fortuneIntent = {
     preferences: card.keywords,
+    allergies: allergies || [],
     solo: true,
   };
 

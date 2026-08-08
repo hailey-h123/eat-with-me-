@@ -1,3 +1,5 @@
+import { parseWithLLM, isLLMAvailable } from './llmClient';
+
 const ALLERGY_KEYWORDS = ['不吃辣', '忌辣', '不要辣', '怕辣', '不能吃辣', '辣椒', '辣的', '麻辣', '香辣', '不吃辣的', '怕辣的'];
 const CILANTRO_KEYWORDS = ['不吃香菜', '忌香菜', '不要香菜', '讨厌香菜', '不爱香菜', '不吃芫荽'];
 const HALAL_KEYWORDS = ['清真', '回民', '穆斯林'];
@@ -803,5 +805,55 @@ export function mergeMemberIntents(members) {
     conflicts,
     conflictAltKeywords,
     members: validMembers,
+  };
+}
+
+/**
+ * LLM 增强版合并成员意图
+ * 先用 LLM 解析原始文本提取隐含语义，再交给规则引擎合并
+ * LLM 不可用时自动回退到纯规则
+ */
+export async function mergeMemberIntentsWithLLM(members) {
+  if (!isLLMAvailable()) return mergeMemberIntents(members);
+
+  const validMembers = members.filter(m => m && m.text && m.text.trim());
+  if (validMembers.length === 0) return mergeMemberIntents(members);
+
+  const enrichedMembers = await Promise.all(
+    validMembers.map(async (m) => {
+      const llmResult = await parseWithLLM(m.text);
+      if (llmResult) {
+        return {
+          name: m.name, text: m.text,
+          preferences: llmResult.preferences || [],
+          allergies: llmResult.allergies || [],
+          budget: llmResult.budget || null,
+          minBudget: llmResult.minBudget || null,
+          atmosphere: llmResult.atmosphere || '',
+          cuisines: llmResult.cuisines || [],
+        };
+      }
+      return parseMemberIntent(m.text, m.name);
+    })
+  );
+
+  return mergeMemberIntents(enrichedMembers);
+}
+
+/**
+ * LLM 增强版单人意图解析
+ * LLM 不可用时返回 null，调用方回退到规则引擎
+ */
+export async function parseSoloIntentWithLLM(text) {
+  if (!isLLMAvailable() || !text || !text.trim()) return null;
+  const llmResult = await parseWithLLM(text);
+  if (!llmResult) return null;
+  return {
+    preferences: llmResult.preferences || [],
+    allergies: llmResult.allergies || [],
+    budget: llmResult.budget || null,
+    minBudget: llmResult.minBudget || null,
+    atmosphere: llmResult.atmosphere || '',
+    cuisines: llmResult.cuisines || [],
   };
 }
