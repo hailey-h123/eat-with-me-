@@ -220,7 +220,12 @@ describe('calculateGroupScore', () => {
         { preference: '川菜', allergy: '辣', type: 'soft', resolution: '有微辣选项' },
       ],
     });
-    expect(result.reasons.some(r => r.text.includes('冲突化解'))).toBe(true);
+    // 化解详情通过 compromiseDetails 暴露（含 tier + 双向解释）
+    expect(result.compromiseDetails.length > 0).toBe(true);
+    expect(result.compromiseDetails.some(cd => cd.tier === 1)).toBe(true);
+    // compromiseDetails 应包含双向解释（忌口方/偏好方）
+    expect(result.compromiseDetails.some(cd => cd.allergySide)).toBe(true);
+    expect(result.compromiseDetails.some(cd => cd.prefSide)).toBe(true);
   });
 
   it('满意度差异大：一人高分一人低分 → 有差异提示', () => {

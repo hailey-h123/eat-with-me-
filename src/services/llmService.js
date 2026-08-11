@@ -1,4 +1,5 @@
 import { parseWithLLM, isLLMAvailable } from './llmClient';
+import { CUISINE_KEYWORDS, CUISINE_TRAITS } from '../data/cuisineMap';
 
 // 已知菜系/品类名白名单（LLM 搜索词在此→偏好展示；不在→仅搜索）
 const KNOWN_CUISINE = new Set([
@@ -96,46 +97,7 @@ function isEnglishText(text) {
   return alpha > cjk && alpha > text.length * 0.3;
 }
 
-const CUISINE_KEYWORDS = {
-  '火锅': ['火锅', '涮锅', '串串', '麻辣烫', '冒菜', '铜锅', '鸳鸯锅', '打边炉'],
-  '烤肉': ['烤肉', '韩式烤肉', '日式烤肉', '烧肉', '韩国烤肉'],
-  '烧烤': ['烧烤', '烤串', '撸串', '羊肉串', '烤鱼', '烤生蚝'],
-  '日料': ['日料', '寿司', '刺身', '拉面', '日式', '日本料理', '居酒屋', '定食', '丼饭'],
-  '韩餐': ['韩餐', '韩国料理', '韩式', '部队锅', '石锅拌饭', '炸鸡', '辣白菜', '冷面'],
-  '川菜': ['川菜', '川', '麻辣', '四川', '重庆', '水煮鱼', '回锅肉', '宫保鸡丁'],
-  '湘菜': ['湘菜', '湘', '湖南', '剁椒鱼头', '小炒肉'],
-  '粤菜': ['粤菜', '粤', '广东', '广式', '潮汕', '早茶', '点心', '烧腊', '叉烧'],
-  '江浙菜': ['江浙菜', '杭帮菜', '上海菜', '本帮菜', '江浙', '江南', '苏杭', '淮扬菜', '无锡菜', '宁波菜'],
-  '东北菜': ['东北菜', '东北', '东北菜', '酸菜', '锅包肉', '小鸡炖蘑菇', '杀猪菜', '乱炖', '大拉皮', '地三鲜'],
-  '西北菜': ['西北菜', '陕西', '西安', '兰州', '牛肉面', '羊肉泡馍', '肉夹馍', '凉皮', '大盘鸡', '烤馕'],
-  '云南菜': ['云南菜', '滇菜', '云南', '过桥米线', '汽锅鸡', '宣威火腿'],
-  '贵州菜': ['贵州菜', '黔菜', '贵州', '酸汤鱼', '丝娃娃', '老干妈', '折耳根'],
-  '北京菜': ['北京菜', '京菜', '北京', '烤鸭', '炸酱面', '卤煮', '涮羊肉'],
-  '鲁菜': ['鲁菜', '山东菜', '山东', '孔府菜', '九转大肠', '葱烧海参'],
-  '江西菜': ['江西菜', '赣菜', '江西', '南昌炒粉', '瓦罐汤'],
-  '福建菜': ['福建菜', '闽菜', '福建', '福州菜', '佛跳墙', '沙茶面', '厦门'],
-  '广西菜': ['广西菜', '桂菜', '广西', '螺蛳粉', '桂林米粉', '酸嘢'],
-  '新疆菜': ['新疆菜', '新疆', '大盘鸡', '烤包子', '手抓饭', '羊肉串'],
-  '西餐': ['西餐', '西式', '牛排', '意面', '披萨', '沙拉', '意式', '法式', '美式'],
-  '意面': ['意面', '意大利面', 'pasta', '通心粉'],
-  '披萨': ['披萨', '比萨', 'pizza'],
-  '东南亚菜': ['东南亚菜', '泰国菜', '越南菜', '新加坡', '马来西亚', '冬阴功'],
-  '泰菜': ['泰菜', '泰国', '冬阴功', '咖喱', '青木瓜沙拉'],
-  '越南菜': ['越南菜', '越南', '河粉', '春卷', '法棍'],
-  '面馆': ['面馆', '面', '米线', '粉', '拉面', '嗦面', '拌面', '汤面'],
-  '饺子': ['饺子', '水饺', '煎饺', '蒸饺', '锅贴'],
-  '包子': ['包子', '小笼包', '汤包', '叉烧包'],
-  '粥': ['粥', '稀饭', '粥铺', '砂锅粥', '海鲜粥'],
-  '汤': ['汤', '炖汤', '煲汤', '老火汤', '靓汤'],
-  '快餐': ['快餐', '汉堡', '炸鸡', '麦当劳', '肯德基', '便当', '盒饭'],
-  '轻食': ['轻食', '沙拉', '健康餐', '低卡', '素食'],
-  '海鲜': ['海鲜', '鱼', '虾', '蟹', '贝类', '刺身'],
-  '自助': ['自助', '自助餐', 'all you can eat'],
-  '甜品': ['甜品', '蛋糕', '点心', '奶茶', '咖啡', '冰淇淋'],
-  '咖啡': ['咖啡', '拿铁', '美式', '手冲', 'Espresso'],
-  '烧腊': ['烧腊', '叉烧', '烧鹅', '烤鸭', '卤味'],
-  '卤味': ['卤味', '卤肉', '卤菜', '卤水'],
-};
+// CUISINE_KEYWORDS 已迁移到 src/data/cuisineMap.js
 
 const ALLERGY_CUISINE_MAP = {
   '辣': ['川菜', '湘菜', '火锅'],
@@ -168,7 +130,7 @@ export function parseIntent(text) {
   const budgetMax = trimmedText.match(/预算(?:人均)?(\d+)(?:以内|以下|之下)?/);
   if (budgetAbove) {
     result.minBudget = parseInt(budgetAbove[1], 10);
-    result.budget = 999; // 无上限，设一个高值兜底
+    result.budget = null; // 无上限
   } else if (budgetAround) {
     const mid = parseInt(budgetAround[1], 10);
     result.minBudget = Math.max(0, Math.round(mid * 0.7));
@@ -331,6 +293,8 @@ export function parseIntent(text) {
   }
 
   for (const [cuisine, keywords] of Object.entries(CUISINE_KEYWORDS)) {
+    // 跳过已被识别为过敏的菜系（如"不吃海鲜"→ allergies 已含"海鲜"，不应再加入 preferences）
+    if (result.allergies.includes(cuisine)) continue;
     if (keywords.some(k => trimmedText.includes(k))) {
       if (!result.preferences.includes(cuisine)) {
         result.preferences.push(cuisine);
@@ -352,7 +316,7 @@ export function parseIntent(text) {
     if (!result.budget && !result.minBudget) {
       for (const p of EN_BUDGET_PATTERNS.above) {
         const m = lowerText.match(p);
-        if (m) { const v = parseInt(m[1] || m[2]); if (v) { result.minBudget = v; result.budget = 999; break; } }
+        if (m) { const v = parseInt(m[1] || m[2]); if (v) { result.minBudget = v; result.budget = null; break; } }
       }
       if (!result.budget) {
         for (const p of EN_BUDGET_PATTERNS.around) {
@@ -430,7 +394,7 @@ export function parseIntent(text) {
  * @param {string} name - 成员名称
  * @returns {Object} 成员意图对象
  */
-export function parseMemberIntent(text, name = '成员') {
+export function parseMemberIntent(text, name = '成员', memberLocation = null) {
   const intent = parseIntent(text);
   return {
     name: name,
@@ -441,88 +405,10 @@ export function parseMemberIntent(text, name = '成员') {
     budget: intent.budget,
     minBudget: intent.minBudget,
     cuisines: intent.cuisines,
+    // 成员独立位置（可选）：{ lat, lng, address }
+    memberLocation,
   };
 }
-
-/**
- * 合并多个成员的意图为一个群体意图
- * @param {Array} members - 成员意图列表
- * @returns {Object} 群体意图
- */
-const CUISINE_TRAITS = {
-  '川菜': ['spicy', 'heavy'],
-  '湘菜': ['spicy', 'heavy'],
-  '重庆': ['spicy', 'heavy'],
-  '麻辣': ['spicy'],
-  '火锅': ['spicy', 'group', 'hot'],
-  '串串': ['spicy', 'group'],
-  '冒菜': ['spicy'],
-  '麻辣烫': ['spicy'],
-  '烤肉': ['meat', 'group', 'grill'],
-  '烧烤': ['meat', 'group', 'grill'],
-  '烤串': ['meat', 'grill'],
-  '日料': ['seafood', 'light', 'quiet'],
-  '寿司': ['seafood', 'light'],
-  '刺身': ['seafood'],
-  '日式': ['seafood', 'light'],
-  '日本料理': ['seafood', 'light'],
-  '海鲜': ['seafood'],
-  '鱼': ['seafood'],
-  '虾': ['seafood'],
-  '蟹': ['seafood'],
-  '韩餐': ['spicy', 'meat'],
-  '韩式烤肉': ['meat', 'spicy'],
-  '部队锅': ['spicy', 'group'],
-  '炸鸡': ['meat', 'fried'],
-  '江浙菜': ['light', 'sweet'],
-  '杭帮菜': ['light', 'sweet'],
-  '上海菜': ['light', 'sweet'],
-  '淮扬菜': ['light', 'sweet'],
-  '粤菜': ['light', 'seafood'],
-  '广式': ['light'],
-  '潮汕': ['light', 'seafood'],
-  '西餐': ['meat', 'quiet'],
-  '牛排': ['meat', 'quiet'],
-  '意面': ['light'],
-  '披萨': ['heavy', 'group'],
-  '东南亚菜': ['spicy', 'exotic'],
-  '泰国菜': ['spicy', 'exotic'],
-  '泰菜': ['spicy', 'exotic'],
-  '越南菜': ['light', 'exotic'],
-  '面馆': ['fast', 'noodles'],
-  '米线': ['fast', 'noodles'],
-  '拉面': ['fast', 'noodles'],
-  '粉': ['fast', 'noodles'],
-  '快餐': ['fast', 'cheap'],
-  '汉堡': ['fast', 'meat'],
-  '轻食': ['vegetarian_friendly', 'healthy', 'light'],
-  '沙拉': ['vegetarian_friendly', 'healthy'],
-  '素食': ['vegetarian'],
-  '甜品': ['sweet', 'casual'],
-  '蛋糕': ['sweet', 'casual'],
-  '奶茶': ['sweet', 'drink'],
-  '咖啡': ['drink', 'quiet'],
-  '自助': ['group', 'all_you_can_eat'],
-  '粥': ['light', 'warm'],
-  '汤': ['light', 'warm'],
-  '砂锅': ['warm', 'group'],
-  '小吃': ['fast', 'casual', 'street'],
-  '撸串': ['meat', 'grill', 'street'],
-  '云南菜': ['spicy', 'exotic'],
-  '北京菜': ['meat'],
-  '东北菜': ['heavy', 'meat', 'group'],
-  '西北菜': ['heavy', 'meat', 'group'],
-  '贵州菜': ['spicy', 'exotic'],
-  '鲁菜': ['heavy', 'meat'],
-  '江西菜': ['spicy', 'heavy'],
-  '福建菜': ['light', 'seafood'],
-  '广西菜': ['spicy', 'exotic'],
-  '新疆菜': ['heavy', 'meat', 'group'],
-  '饺子': ['group', 'casual'],
-  '包子': ['fast', 'casual'],
-  '烧腊': ['meat'],
-  '卤味': ['meat', 'casual'],
-};
 
 const ALLERGY_TRAIT_MAP = {
   '辣': { trait: 'spicy', type: 'soft', penalty: 15 },
@@ -622,6 +508,8 @@ function detectConflicts(members) {
               resolution,
               altKeyword,
               members: [memberA.name, memberB.name],
+              prefMemberName: memberA.name,  // 提偏好的这个人（soft偏好可以妥协）
+              memberName: memberB.name,       // 提忌口的这个人（硬约束优先级高）
             });
           }
         });
@@ -665,42 +553,86 @@ export function mergeMemberIntents(members) {
   validMembers.forEach(member => {
     member.preferences.forEach(p => allPreferences.add(p));
     member.allergies.forEach(a => allAllergies.add(a));
-    // maxBudget：取所有成员中最严格的上限（跳过"以上"产生的高值占位符）
-    if (member.budget) {
-      // 如果 budget === 999 且成员有明确的 minBudget，说明这是"以上"产生的占位符
-      const isSentinel = member.budget >= 900 && member.minBudget;
-      if (!isSentinel) {
-        if (groupMaxBudget === null || member.budget < groupMaxBudget) {
-          groupMaxBudget = member.budget;
-        }
-      }
-    }
-    // minBudget：取所有成员中最严格的下限（至少要花这么多）
-    if (member.minBudget) {
-      if (groupMinBudget === null || member.minBudget > groupMinBudget) {
-        groupMinBudget = member.minBudget;
-      }
-    }
     if (member.atmosphere) {
       atmosphereCounts[member.atmosphere] = (atmosphereCounts[member.atmosphere] || 0) + 1;
     }
   });
 
-  // 预算折中：当成员预算分歧较大时，用中位数替代严格 min/max，避免一人把整组锁死
-  // 仅在多人模式生效（validMembers.length >= 2），放宽阈值较保守，只在分歧明显时介入
-  const memberBudgets = validMembers
-    .map(m => m.budget)
-    .filter(b => b && b < 900); // 排除"以上"占位符
-  if (memberBudgets.length >= 2 && groupMaxBudget) {
-    const sorted = [...memberBudgets].sort((a, b) => a - b);
-    const median = sorted[Math.floor(sorted.length / 2)];
-    // 最严上限远低于中位数（< 50%）→ 一人在压缩所有人，放宽到中位数
-    if (groupMaxBudget < median * 0.5) {
-      groupMaxBudget = Math.round(median);
+  // ===== 多人预算交集计算 =====
+  // 每个成员的预算区间 [min, max]
+  // - "80以内" → [0, 80]
+  // - "100左右" → [70, 130]
+  // - "100以上" → [100, 200]（占位上限）
+  // - 没提 → 跳过，不参与约束
+  const memberBudgetRanges = [];
+  validMembers.forEach(member => {
+    const min = member.minBudget || 0;
+    let max = member.budget;
+    // "以上"产生的占位符（budget=null）→ 用 minBudget*2 作为合理上限
+    if (max === null && member.minBudget) {
+      max = member.minBudget * 2;
     }
-    // 最严下限远高于中位数（> 130%）→ 一人在抬高门槛，放宽到中位数的 70%
-    if (groupMinBudget && groupMinBudget > median * 1.3) {
-      groupMinBudget = Math.round(median * 0.7);
+    if (max !== null) {
+      memberBudgetRanges.push({ name: member.name, min, max });
+    } else if (member.minBudget) {
+      // 只有下限没有上限
+      memberBudgetRanges.push({ name: member.name, min, max: null });
+    }
+  });
+
+  let budgetCompromise = null;
+
+  if (memberBudgetRanges.length === 1) {
+    // 单人有预算 → 直接用
+    groupMinBudget = memberBudgetRanges[0].min;
+    groupMaxBudget = memberBudgetRanges[0].max === null ? null : memberBudgetRanges[0].max;
+  } else if (memberBudgetRanges.length >= 2) {
+    // 多人有预算 → 计算交集 [max(allMins), min(allMaxs)]
+    const allMins = memberBudgetRanges.map(r => r.min);
+    const allMaxs = memberBudgetRanges.map(r => r.max);
+    const interMin = Math.max(...allMins);
+    const interMax = Math.min(...allMaxs);
+
+    if (interMin <= interMax && interMax !== null) {
+      // 交集非空 → 用交集
+      groupMinBudget = interMin;
+      groupMaxBudget = interMax;
+      // 交集太窄（<15元）→ 适当放宽到中点±15
+      if (interMax - interMin < 15) {
+        const mid = Math.round((interMin + interMax) / 2);
+        groupMinBudget = Math.max(0, mid - 15);
+        groupMaxBudget = mid + 15;
+        budgetCompromise = {
+          type: 'narrow_intersection',
+          text: `大家预算交集较窄（${interMin}-${interMax}元），已适当放宽到${groupMinBudget}-${groupMaxBudget}元`,
+          range: [groupMinBudget, groupMaxBudget],
+        };
+      } else {
+        budgetCompromise = {
+          type: 'intersection',
+          text: `大家预算交集为${interMin}-${interMax}元，在此范围内推荐`,
+          range: [interMin, interMax],
+        };
+      }
+    } else {
+      // 交集为空（A说50-80, B说100-150）→ 回退到中位数价格±30%
+      const midpoints = memberBudgetRanges.map(r => Math.round((r.min + r.max) / 2));
+      const sortedMid = [...midpoints].sort((a, b) => a - b);
+      const medianMid = sortedMid[Math.floor(sortedMid.length / 2)];
+      groupMinBudget = Math.max(0, Math.round(medianMid * 0.7));
+      groupMaxBudget = Math.round(medianMid * 1.3);
+
+      // 生成折中说明
+      const rangeTexts = memberBudgetRanges.map(r =>
+        r.max === null ? `${r.name}:${r.min}元以上` : `${r.name}:${r.min}-${r.max}元`
+      );
+      budgetCompromise = {
+        type: 'empty_intersection',
+        text: `${rangeTexts.join('、')}无交集，已按中位数${medianMid}元折中推荐（${groupMinBudget}-${groupMaxBudget}元）`,
+        median: medianMid,
+        range: [groupMinBudget, groupMaxBudget],
+        memberRanges: memberBudgetRanges,
+      };
     }
   }
 
@@ -828,6 +760,7 @@ export function mergeMemberIntents(members) {
     allergies: groupAllergies,
     budget: groupMaxBudget,
     minBudget: groupMinBudget,
+    budgetCompromise,
     atmosphere: groupAtmosphere,
     shopType,
     cuisineVote,
@@ -843,14 +776,28 @@ export function mergeMemberIntents(members) {
  * LLM 不可用时自动回退到纯规则
  */
 export async function mergeMemberIntentsWithLLM(members) {
-  if (!isLLMAvailable()) return mergeMemberIntents(members);
+  if (!isLLMAvailable()) {
+    // LLM 不可用时先规则解析，保留 memberLocation
+    const parsed = members.map(m => {
+      const memberLocation = (m.lat && m.lng) ? { lat: m.lat, lng: m.lng, address: m.address } : null;
+      return parseMemberIntent(m.text, m.name, memberLocation);
+    });
+    return mergeMemberIntents(parsed);
+  }
 
   const validMembers = members.filter(m => m && m.text && m.text.trim());
-  if (validMembers.length === 0) return mergeMemberIntents(members);
+  if (validMembers.length === 0) {
+    const parsed = members.map(m => {
+      const memberLocation = (m.lat && m.lng) ? { lat: m.lat, lng: m.lng, address: m.address } : null;
+      return parseMemberIntent(m.text, m.name, memberLocation);
+    });
+    return mergeMemberIntents(parsed);
+  }
 
   const enrichedMembers = await Promise.all(
     validMembers.map(async (m) => {
-      const ruleResult = parseMemberIntent(m.text, m.name);
+      const memberLocation = (m.lat && m.lng) ? { lat: m.lat, lng: m.lng, address: m.address } : null;
+      const ruleResult = parseMemberIntent(m.text, m.name, memberLocation);
       const llmResult = await parseWithLLM(m.text);
       if (llmResult && llmResult.searchKeywords.length > 0) {
         // Split: known cuisines -> preferences (scoring+display), rest -> searchKeywords only
@@ -865,6 +812,7 @@ export async function mergeMemberIntentsWithLLM(members) {
           minBudget: llmResult.minBudget || ruleResult.minBudget || null,
           atmosphere: llmResult.atmosphere || ruleResult.atmosphere || '',
           cuisines: [...new Set([...llmPrefs, ...ruleResult.cuisines])],
+          memberLocation,
         };
       }
       return ruleResult;

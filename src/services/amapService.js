@@ -88,6 +88,21 @@ function mockGeocode(address) {
   };
 }
 
+/**
+ * haversine 公式计算两点间直线距离（米）
+ * 用于多人模式下计算每个成员到餐厅的独立距离
+ */
+export function haversineDistance(lng1, lat1, lng2, lat2) {
+  const R = 6371000; // 地球半径（米）
+  const toRad = (deg) => (deg * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return Math.round(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
+}
+
 function jsonp(url, params) {
   return new Promise((resolve, reject) => {
     const callbackName = `amap_jsonp_${Date.now()}_${jsonpCounter++}`;
@@ -182,7 +197,14 @@ export async function searchPOI(keyword, location, radius = 3000, minRadius = 0,
     });
 
     if (data.pois) {
-      let results = data.pois.map(poi => convertPOIToRestaurant(poi));
+      // 过滤非餐饮类POI：高德搜索"餐厅"等关键词时会混入超市/购物等非餐饮场所
+      // poi.type 形如 "餐饮相关场所;中式餐饮;火锅"，首段须为餐饮类才保留
+      const DINING_TYPE_PREFIX = /^(餐饮|餐饮服务|餐饮相关|餐饮服务场所)/;
+      const diningPois = data.pois.filter(poi => {
+        const t = (poi.type || '').split(';')[0].trim();
+        return DINING_TYPE_PREFIX.test(t);
+      });
+      let results = diningPois.map(poi => convertPOIToRestaurant(poi));
       if (minRadius > 0) {
         results = results.filter(r => r.distanceMeters >= minRadius);
       }

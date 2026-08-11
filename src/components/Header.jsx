@@ -1,5 +1,4 @@
 import { IconLogo, IconArrowLeft } from './icons/FancyIcons';
-import { useTranslation } from '../i18n';
 
 export default function Header({
   title = '吃什么',
@@ -7,8 +6,6 @@ export default function Header({
   showBack = false,
   onBack
 }) {
-  const { lang, toggleLang } = useTranslation();
-
   return (
     <header className="glass-header py-4">
       <div className="max-w-2xl mx-auto px-6 flex items-center gap-4">
@@ -43,26 +40,6 @@ export default function Header({
           </div>
         </div>
         <div className="ml-auto flex items-center gap-2">
-          <button
-            type="button"
-            onClick={toggleLang}
-            className="relative w-12 h-6 rounded-full border-2 transition-colors duration-300 overflow-hidden flex-shrink-0"
-            style={{
-              borderColor: 'var(--color-ink)',
-              backgroundColor: lang === 'zh' ? 'var(--color-bg-soft)' : 'var(--color-bg-soft)',
-            }}
-          >
-            <span className="absolute inset-0 flex items-center justify-between px-1.5 pointer-events-none">
-              <span className="text-[9px] font-extrabold text-ink leading-none">中</span>
-              <span className="text-[9px] font-extrabold text-ink leading-none">EN</span>
-            </span>
-            <span
-              style={{ background: 'linear-gradient(135deg, #FF6B3D 0%, #E8552A 100%)' }}
-              className={`absolute top-0.5 h-4 w-5 rounded-full shadow-md transition-all duration-300 ease-out ${
-                lang === 'zh' ? 'left-0.5' : 'left-[calc(100%-1.375rem)]'
-              }`}
-            />
-          </button>
           <div className="w-2 h-2 bg-secondary rounded-full animate-pulse" />
           <span className="text-[10px] text-text-muted font-medium">AI 就绪</span>
         </div>

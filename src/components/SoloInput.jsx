@@ -5,25 +5,22 @@ import { trackModeSelect } from '../services/analyticsService';
 import { EmojiToIcon } from './icons/FoodIcons';
 import Mascot, { FoodDecor } from './Mascot';
 import LoadingOverlay from './LoadingOverlay';
-import { useTranslation } from '../i18n';
 
-// 面仔美食小贴士（每次进入页面随机取一条，不自动轮播避免跳变）
-const FOOD_TIP_KEYS = [
-  { emoji: '🍜', key: 'tip.1' },
-  { emoji: '🌶️', key: 'tip.2' },
-  { emoji: '🥟', key: 'tip.3' },
-  { emoji: '🍣', key: 'tip.4' },
-  { emoji: '🔥', key: 'tip.5' },
-  { emoji: '🍰', key: 'tip.6' },
-  { emoji: '☕', key: 'tip.7' },
-  { emoji: '🥗', key: 'tip.8' },
-  { emoji: '🍖', key: 'tip.9' },
-  { emoji: '🧋', key: 'tip.10' },
+const FOOD_TIP_TEXTS = [
+  { emoji: '🍜', text: '听说楼下那家面馆的牛肉面，汤底熬了 8 个小时' },
+  { emoji: '🌶️', text: '无辣不欢的人，运气一般不会太差' },
+  { emoji: '🥟', text: '饺子要吃烫的，餐厅要选对的' },
+  { emoji: '🍣', text: '日料店的师傅说：新鲜就是最好的调味料' },
+  { emoji: '🔥', text: '没有什么烦恼是一顿火锅解决不了的' },
+  { emoji: '🍰', text: '饭后甜点是另一个胃，别亏待它' },
+  { emoji: '☕', text: '一杯好咖啡配一个悠闲下午，这才是生活' },
+  { emoji: '🥗', text: '今天吃得健康，明天才能吃得放肆' },
+  { emoji: '🍖', text: '烤肉滋滋作响的声音，是人间最美的旋律' },
+  { emoji: '🧋', text: '奶茶三分糖，快乐十分满' },
 ];
 
 function MascotTip() {
-  const { t } = useTranslation();
-  const tips = useMemo(() => FOOD_TIP_KEYS.map(item => ({ emoji: item.emoji, text: t(item.key) })), [t]);
+  const tips = useMemo(() => FOOD_TIP_TEXTS, []);
   const tip = useMemo(() => tips[Math.floor(Math.random() * tips.length)], [tips]);
   return (
     <div className="outline-card p-4 flex items-center gap-4 slide-up" style={{ animationDelay: '400ms', animationFillMode: 'both' }}>
@@ -31,7 +28,7 @@ function MascotTip() {
         <Mascot mood="drool" size={56} float={false} />
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-xs font-extrabold text-text-muted mb-1" style={{ fontFamily: 'var(--font-display)' }}>{t('solo.foodieTips')}</p>
+        <p className="text-xs font-extrabold text-text-muted mb-1" style={{ fontFamily: 'var(--font-display)' }}>面仔碎碎念</p>
         <p className="text-sm text-text-secondary leading-relaxed">
           <span className="mr-1.5">{tip.emoji}</span>
           {tip.text}
@@ -41,7 +38,6 @@ function MascotTip() {
   );
 }
 
-// 美食小插图列（纯装饰）
 function FoodBanner() {
   const items = [
     { type: 'noodle', size: 28, delay: '0s' },
@@ -67,23 +63,21 @@ const PRICE_MIN = 0;
 const PRICE_MAX = 200;
 const PRICE_STEP = 10;
 
-// 美食分类标签（参考美团一级分类规则，每个标签配一个彩色小图标）
 const TASTE_TAG_GROUPS = [
   { tags: [
-    { label: '地方菜系', icon: '🍜', key: 'solo.category.local' },
-    { label: '火锅', icon: '🍲', key: 'solo.category.hotpot' },
-    { label: '烧烤烤肉', icon: '🍢', key: 'solo.category.bbq' },
-    { label: '异域料理', icon: '🍣', key: 'solo.category.exotic' },
-    { label: '自助餐', icon: '🍖', key: 'solo.category.buffet' },
-    { label: '鱼鲜海鲜', icon: '🦐', key: 'solo.category.seafood' },
-    { label: '小吃快餐', icon: '🍔', key: 'solo.category.fastfood' },
-    { label: '饮品店', icon: '☕', key: 'solo.category.drinks' },
-    { label: '面包蛋糕甜品', icon: '🍰', key: 'solo.category.dessert' },
+    { label: '地方菜系', icon: '🍜' },
+    { label: '火锅', icon: '🍲' },
+    { label: '烧烤烤肉', icon: '🍢' },
+    { label: '异域料理', icon: '🍣' },
+    { label: '自助餐', icon: '🍖' },
+    { label: '鱼鲜海鲜', icon: '🦐' },
+    { label: '小吃快餐', icon: '🍔' },
+    { label: '饮品店', icon: '☕' },
+    { label: '面包蛋糕甜品', icon: '🍰' },
   ] },
 ];
 
 function FortuneSlotMachine({ onCardDrawn }) {
-  const { t } = useTranslation();
   const [isSpinning, setIsSpinning] = useState(true);
   const [currentCardIndex, setCurrentCardIndex] = useState(0);
   const [finalCard, setFinalCard] = useState(null);
@@ -129,10 +123,8 @@ function FortuneSlotMachine({ onCardDrawn }) {
 
   return (
     <div className="flex flex-col items-center gap-5 py-4">
-      {/* 吉祥物：转动中期待，结果出来惊讶 */}
       <div className="relative">
         <Mascot mood={isSpinning ? 'expect' : 'surprise'} size={72} />
-        {/* 吉祥物周围漂浮装饰 */}
         <FoodDecor type="sparkle" size={14} className="pointer-events-none absolute -top-2 -left-3 float-animation opacity-70" style={{ animationDelay: '0.4s' }} />
         <FoodDecor type="star" size={12} className="pointer-events-none absolute -top-1 right-0 float-animation opacity-70" style={{ animationDelay: '1s' }} />
       </div>
@@ -153,7 +145,7 @@ function FortuneSlotMachine({ onCardDrawn }) {
               <span className={`transition-all duration-150 ${isSpinning ? 'scale-90 opacity-70' : 'scale-100'}`}>
                 <EmojiToIcon emoji={displayCard?.icon || '🔮'} size={56} className="text-primary" />
               </span>
-              <p className="text-lg font-extrabold text-text" style={{ fontFamily: 'var(--font-display)' }}>{displayCard?.label || t('solo.fortune.title')}</p>
+              <p className="text-lg font-extrabold text-text" style={{ fontFamily: 'var(--font-display)' }}>{displayCard?.label || '占卜中...'}</p>
               {!isSpinning && finalCard && (
                 <p className="text-xs text-text-secondary px-6 text-center fade-in leading-relaxed">{finalCard.message}</p>
               )}
@@ -162,17 +154,17 @@ function FortuneSlotMachine({ onCardDrawn }) {
           </div>
         </div>
       </div>
-      {isSpinning && <p className="text-sm text-primary font-bold animate-pulse" style={{ fontFamily: 'var(--font-display)' }}>{t('solo.fortune.spin')}</p>}
+      {isSpinning && <p className="text-sm text-primary font-bold animate-pulse" style={{ fontFamily: 'var(--font-display)' }}>命运之轮转动中...</p>}
       {showResult && finalCard && (
         <div className="flex gap-3 fade-in">
           <button type="button" onClick={handleRedraw}
             className="btn-secondary px-5 py-3 text-sm flex items-center gap-2">
             <IconRefreshCw className="w-4 h-4" />
-            {t('solo.fortune.retry')}
+            再抽一次
           </button>
           <button type="button" onClick={handleConfirm}
             className="btn-primary px-7 py-3 text-sm">
-            {t('solo.fortune.go')}
+            就按这个来
           </button>
         </div>
       )}
@@ -180,23 +172,18 @@ function FortuneSlotMachine({ onCardDrawn }) {
   );
 }
 
-// 距离选项（按心情选模式）
 const DIST_OPTIONS = [
-  { key: 'solo.prefs.unlimited', value: null },
-  { key: 'solo.prefs.dist_500', value: [0, 0.5] },
-  { key: 'solo.prefs.dist_1k', value: [0, 1] },
-  { key: 'solo.prefs.dist_2k', value: [0, 2] },
-  { key: 'solo.prefs.dist_3k', value: [0, 3] },
-  { key: 'solo.prefs.dist_5k', value: [0, 5] },
+  { label: '不限', value: null },
+  { label: '500m内', value: [0, 0.5] },
+  { label: '1km内', value: [0, 1] },
+  { label: '2km内', value: [0, 2] },
+  { label: '3km内', value: [0, 3] },
+  { label: '5km内', value: [0, 5] },
 ];
 
-// 默认值用 null（不限），避免与 5km 选项的 [0,5] 冲突导致无法选中 5km
 const DEFAULT_DIST_RANGE = null;
 
-// 偏好微调组件
-// variant: 'scenario'（按心情选）显示价格+距离，'explore'（探索未知）显示价格+菜系口味
 function PreferenceTuner({ variant, priceRange, onPriceRangeChange, tags, onTagsChange, distRange, onDistRangeChange }) {
-  const { t } = useTranslation();
   const toggleTag = (tag) => {
     if (tags.includes(tag)) {
       onTagsChange(tags.filter(t => t !== tag));
@@ -219,23 +206,22 @@ function PreferenceTuner({ variant, priceRange, onPriceRangeChange, tags, onTags
   };
 
   const priceLabel = pMin === PRICE_MIN && pMax === PRICE_MAX
-    ? t('solo.prefs.unlimited')
+    ? '不限'
     : pMax === PRICE_MAX
-      ? t('solo.prefs.priceFormat', { pMin })
-      : t('solo.prefs.priceRange', { pMin, pMax });
+      ? `${pMin}元以上`
+      : `${pMin}-${pMax}元`;
 
   return (
     <div className="outline-card p-5 mt-5 slide-up" style={{ animationDelay: '200ms', animationFillMode: 'both' }}>
       <div className="flex items-center gap-2 mb-4">
         <Mascot mood="think" size={28} float={false} />
-        <span className="text-sm font-extrabold text-text" style={{ fontFamily: 'var(--font-display)' }}>{t('solo.prefs.title')}</span>
-        <span className="text-xs text-text-muted">{t('solo.prefs.optional')}</span>
+        <span className="text-sm font-extrabold text-text" style={{ fontFamily: 'var(--font-display)' }}>偏好微调</span>
+        <span className="text-xs text-text-muted">（可选）</span>
       </div>
 
-      {/* 价格范围 - 双向滑动条 */}
       <div className="mb-5">
         <div className="flex items-center justify-between mb-3">
-          <p className="text-xs text-text-secondary font-bold">{t('solo.prefs.price')}</p>
+          <p className="text-xs text-text-secondary font-bold">价格范围</p>
           <span className="text-xs font-extrabold text-primary px-2 py-0.5 bg-primary/10 rounded-full border-2 border-ink" style={{ borderColor: 'var(--color-ink)', fontFamily: 'var(--font-num)' }}>{priceLabel}</span>
         </div>
         <div className="relative h-6 flex items-center">
@@ -254,10 +240,9 @@ function PreferenceTuner({ variant, priceRange, onPriceRangeChange, tags, onTags
         </div>
       </div>
 
-      {/* scenario 模式：距离选项 */}
       {variant === 'scenario' && (
         <div className="mb-5">
-          <p className="text-xs text-text-secondary mb-2 font-bold">{t('solo.prefs.distance')}</p>
+          <p className="text-xs text-text-secondary mb-2 font-bold">距离范围</p>
           <div className="flex flex-wrap gap-2">
             {DIST_OPTIONS.map(opt => {
               const isDefault = distRange === null;
@@ -265,7 +250,7 @@ function PreferenceTuner({ variant, priceRange, onPriceRangeChange, tags, onTags
                 ? isDefault
                 : (!isDefault && distRange[0] === opt.value[0] && distRange[1] === opt.value[1]);
               return (
-                <button key={opt.key} type="button"
+                <button key={opt.label} type="button"
                   onClick={() => onDistRangeChange(opt.value)}
                   className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all border-2 ${
                     isSelected
@@ -273,7 +258,7 @@ function PreferenceTuner({ variant, priceRange, onPriceRangeChange, tags, onTags
                       : 'bg-white text-text-secondary hover:bg-primary/10'
                   }`}
                   style={isSelected ? { backgroundColor: 'var(--color-primary)', borderColor: 'var(--color-ink)', fontFamily: 'var(--font-display)' } : { borderColor: 'var(--color-ink)', fontFamily: 'var(--font-display)' }}>
-                  {t(opt.key)}
+                  {opt.label}
                 </button>
               );
             })}
@@ -281,12 +266,11 @@ function PreferenceTuner({ variant, priceRange, onPriceRangeChange, tags, onTags
         </div>
       )}
 
-      {/* explore 模式：美食分类标签 */}
       {variant === 'explore' && (
         <div>
-          <p className="text-xs text-text-secondary mb-3 font-bold">{t('solo.prefs.category')}</p>
+          <p className="text-xs text-text-secondary mb-3 font-bold">美食分类</p>
           <div className="flex flex-wrap gap-2">
-            {TASTE_TAG_GROUPS.flatMap(group => group.tags).map(({ label, icon, key }) => {
+            {TASTE_TAG_GROUPS.flatMap(group => group.tags).map(({ label, icon }) => {
               const isTagSelected = tags.includes(label);
               return (
                 <button key={label} type="button" onClick={() => toggleTag(label)}
@@ -297,7 +281,7 @@ function PreferenceTuner({ variant, priceRange, onPriceRangeChange, tags, onTags
                   }`}
                   style={isTagSelected ? { backgroundColor: 'var(--color-primary)', borderColor: 'var(--color-ink)', fontFamily: 'var(--font-display)' } : { borderColor: 'var(--color-ink)', fontFamily: 'var(--font-display)' }}>
                   <EmojiToIcon emoji={icon} size={14} />
-                  {t(key)}
+                  {label}
                 </button>
               );
             })}
@@ -309,7 +293,6 @@ function PreferenceTuner({ variant, priceRange, onPriceRangeChange, tags, onTags
 }
 
 export default function SoloInput({ onSearch, onFortune, isLoading }) {
-  const { t } = useTranslation();
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [drawnCard, setDrawnCard] = useState(null);
   const [priceRange, setPriceRange] = useState([PRICE_MIN, PRICE_MAX]);
@@ -335,15 +318,13 @@ export default function SoloInput({ onSearch, onFortune, isLoading }) {
     onSearch(modeKey, '', prefs);
   };
   const handleBackToCategories = () => { setSelectedCategory(null); setDrawnCard(null); };
-  const getModesByCategory = (categoryKey) => Object.entries(soloModes).filter(([_, mode]) => mode.category === categoryKey);
+  const getModesByCategory = (categoryKey) => Object.entries(soloModes).filter(([_key, mode]) => mode.category === categoryKey);
   const handleCardDrawn = (card) => { setDrawnCard(card); onFortune(card); };
 
-  // 今日运势不显示偏好微调
   const showPreferenceTuner = selectedCategory && selectedCategory !== 'fortune' && !drawnCard;
 
   return (
     <div className="relative max-w-2xl mx-auto px-6">
-      {/* 背景漂浮装饰 */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
         <FoodDecor type="noodle" size={24} className="absolute left-[4%] top-[8%] opacity-25 float-animation hidden sm:block" style={{ animationDelay: '0.5s' }} />
         <FoodDecor type="chili" size={20} className="absolute right-[6%] top-[14%] opacity-25 float-animation hidden sm:block" style={{ animationDelay: '1.4s' }} />
@@ -362,31 +343,29 @@ export default function SoloInput({ onSearch, onFortune, isLoading }) {
                   <div className="relative w-14 h-14 rounded-2xl border-2 border-ink flex items-center justify-center shadow-[3px_3px_0_var(--color-ink)]" style={{ borderColor: 'var(--color-ink)', background: i === 0 ? 'var(--color-primary)' : i === 1 ? 'var(--color-secondary)' : 'var(--color-accent)' }}>
                     <EmojiToIcon emoji={cat.icon} size={28} className="text-white" />
                   </div>
-                  <span className="text-sm font-extrabold text-text" style={{ fontFamily: 'var(--font-display)' }}>{t(`entry.${cat.key}`)}</span>
-                  <span className="text-xs text-text-muted text-center leading-relaxed">{t(`entry.${cat.key}Desc`)}</span>
+                  <span className="text-sm font-extrabold text-text" style={{ fontFamily: 'var(--font-display)' }}>{cat.label}</span>
+                  <span className="text-xs text-text-muted text-center leading-relaxed">{cat.description}</span>
                 </button>
               ))}
             </div>
 
-            {/* 面仔碎碎念 */}
             <div className="mt-4">
               <MascotTip />
             </div>
 
-            {/* 装饰食物小插图 */}
             <FoodBanner />
           </div>
         ) : selectedCategory === 'fortune' && !drawnCard ? (
           <div className="scale-in">
             <button type="button" onClick={handleBackToCategories} className="text-primary text-sm font-bold flex items-center gap-1.5 transition-all hover:gap-2.5 mb-6" style={{ fontFamily: 'var(--font-display)' }}>
-              <IconChevronLeft className="w-4 h-4" /> {t('solo.back')}
+              <IconChevronLeft className="w-4 h-4" /> 返回
             </button>
             <FortuneSlotMachine onCardDrawn={handleCardDrawn} />
           </div>
         ) : (
           <div className="scale-in">
             <button type="button" onClick={handleBackToCategories} className="text-primary text-sm font-bold flex items-center gap-1.5 transition-all hover:gap-2.5 mb-6" style={{ fontFamily: 'var(--font-display)' }}>
-              <IconChevronLeft className="w-4 h-4" /> {t('solo.backCategory')}
+              <IconChevronLeft className="w-4 h-4" /> 返回分类
             </button>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {getModesByCategory(selectedCategory).map(([key, mode]) => (
@@ -396,8 +375,8 @@ export default function SoloInput({ onSearch, onFortune, isLoading }) {
                     <EmojiToIcon emoji={mode.icon} size={24} className="text-primary" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-extrabold truncate text-text" style={{ fontFamily: 'var(--font-display)' }}>{t(`mode.${key}`)}</p>
-                    <p className="text-xs truncate text-text-muted mt-0.5">{t(`mode.${key}Desc`)}</p>
+                    <p className="text-sm font-extrabold truncate text-text" style={{ fontFamily: 'var(--font-display)' }}>{mode.label}</p>
+                    <p className="text-xs truncate text-text-muted mt-0.5">{mode.description}</p>
                   </div>
                   {isLoading && <IconLoader2 className="w-5 h-5 animate-spin text-primary flex-shrink-0" />}
                 </button>
@@ -419,8 +398,8 @@ export default function SoloInput({ onSearch, onFortune, isLoading }) {
 
         {isLoading && (
           <LoadingOverlay 
-            message={t('solo.loading')} 
-            subMessage={drawnCard ? t('solo.luckyLoading', { label: drawnCard.label }) : ''} 
+            message="正在为你挑餐厅..." 
+            subMessage={drawnCard ? `${drawnCard.label}好运加持中` : ''} 
           />
         )}
       </div>

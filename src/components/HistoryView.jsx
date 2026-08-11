@@ -4,6 +4,7 @@ import {
   IconStar, IconMapPin, IconTrash, IconSparkles
 } from './icons/FancyIcons';
 import { getFavorites, getVisited, getSearchHistory, clearSearchHistory } from '../services/historyService';
+import { getSoloModes } from '../services/recommendationService';
 
 export default function HistoryView({ onBack, onReselect }) {
   const [activeTab, setActiveTab] = useState('favorites');
@@ -37,12 +38,8 @@ export default function HistoryView({ onBack, onReselect }) {
   };
 
   const getModeLabel = (mode) => {
-    const labels = {
-      tired: '疲惫模式', happy: '开心模式', fresh: '想尝鲜',
-      explore_near: '1km探索', explore_mid: '3km探索',
-      explore_far: '5km探索', explore_any: '全城探索', fortune: '美食占卜',
-    };
-    return labels[mode] || mode || '';
+    const modes = getSoloModes();
+    return modes[mode]?.label || mode || '';
   };
 
   const tabs = [

@@ -3,10 +3,10 @@
  * 包含: 探索模式配置、隐藏宝藏店搜索、randomExplore 逻辑
  */
 import { mockRestaurants } from '../data/mockRestaurants';
+import { CUISINE_KEYWORDS_FOR_FILTER } from '../data/cuisineMap';
 import { searchPOI, searchPOIByDistanceRanges } from './amapService';
 import { applyFeedbackToScore } from './feedbackService';
 import {
-  CUISINE_KEYWORDS_FOR_FILTER,
   calculateSoloFriendly,
   calculateSingleScore,
   filterExpansionsByAllergies,

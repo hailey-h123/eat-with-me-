@@ -9,20 +9,18 @@ import VoteView from './components/VoteView';
 import HistoryView from './components/HistoryView';
 import { useLocation } from './hooks/useLocation';
 import { parseMemberIntent, mergeMemberIntents, parseIntent, mergeMemberIntentsWithLLM, parseSoloIntentWithLLM } from './services/llmService';
-import { recommendRestaurants, randomExplore, recommendByMode, drawFortuneCard, analyzeEmptyResult } from './services/recommendationService';
+import { recommendRestaurants, randomExplore, recommendByMode, drawFortuneCard, analyzeEmptyResult, getSearchRadiusFromIntent } from './services/recommendationService';
 import { geocode, IS_MOCK_MODE } from './services/amapService';
-import { calculateSingleScore, calculateSoloFriendly, setScoringTranslator } from './services/scoringService';
+import { calculateSingleScore, calculateSoloFriendly } from './services/scoringService';
 import { addSearchHistory } from './services/historyService';
 import {
   trackPageView, trackSearch,
   trackResultsShown, trackReroll, trackFeedback
 } from './services/analyticsService';
-import { useTranslation } from './i18n';
 
 const LAST_MODE_KEY = 'eatwithme_last_mode';
 
 function App() {
-  const { t, lang } = useTranslation();
   const { location, isLocating, error, debugInfo, retryLocate, updateLocation } = useLocation();
   const [currentView, setCurrentView] = useState('home');
   const [results, setResults] = useState([]);
@@ -47,9 +45,6 @@ function App() {
     } catch {}
   }, []);
 
-  // 将 i18n 翻译函数注入评分服务，附带当前语言
-  setScoringTranslator(t, lang);
-
   // 页面浏览埋点：currentView 变化时上报
   useEffect(() => {
     const pageNames = {
@@ -68,11 +63,17 @@ function App() {
     const isDefaultCoords = newLocation.lat === 39.9997 && newLocation.lng === 116.4706;
     const needGeocode = !newLocation.lat || !newLocation.lng || isDefaultCoords;
     if (newLocation.name && needGeocode) {
-      const geoResult = await geocode(newLocation.name);
-      if (geoResult) {
-        updateLocation({ name: newLocation.name, lat: geoResult.lat, lng: geoResult.lng });
-        return { success: true };
+      try {
+        const geoResult = await geocode(newLocation.name);
+        if (geoResult) {
+          updateLocation({ name: newLocation.name, lat: geoResult.lat, lng: geoResult.lng });
+          return { success: true, throttled: geoResult._throttled };
+        }
+      } catch (err) {
+        // geocode 抛错（非10021）时，用当前坐标兜底，至少不卡死用户
+        console.warn('[handleLocationChange] geocode失败，使用兜底坐标:', err.message);
       }
+      // geocode 完全失败时，用当前坐标兜底，至少不卡死用户
       if (location.lat && location.lng) {
         updateLocation({ name: newLocation.name, lat: location.lat, lng: location.lng });
         return { success: true, fallback: 'coordinates' };
@@ -91,17 +92,21 @@ function App() {
     setLastMembers(members);
     try {
     // LLM 增强解析：先跑规则引擎拿到 memberIntents，再用 LLM 重新解析（仅当文本非空时）
-    const memberIntents = members.map(m => parseMemberIntent(m.text, m.name));
+    const memberIntents = members.map(m => {
+      const memberLocation = (m.lat && m.lng) ? { lat: m.lat, lng: m.lng, address: m.address } : null;
+      return parseMemberIntent(m.text, m.name, memberLocation);
+    });
     // 尝试 LLM 增强（不阻塞，失败自动回退）
     const groupIntent = await mergeMemberIntentsWithLLM(members);
-    console.log('[handleSearch] members:', members.length, 'prefs:', groupIntent.preferences);
     if (!groupIntent.location && location.name) groupIntent.location = location.name;
     setLastIntent(groupIntent);
-    setSearchRadius(3000);
+    // 搜索半径动态化：根据成员距离偏好推导，而非硬编码 3000
+    const dynamicRadius = getSearchRadiusFromIntent(groupIntent);
+    setSearchRadius(dynamicRadius);
     const recommendations = await recommendRestaurants(groupIntent, location);
     setResults(recommendations);
     if (recommendations.length === 0) {
-      setEmptySuggestions(analyzeEmptyResult(groupIntent, 3000));
+      setEmptySuggestions(analyzeEmptyResult(groupIntent, dynamicRadius));
     } else {
       setEmptySuggestions([]);
     }
@@ -348,13 +353,13 @@ function App() {
 
   const getHeaderConfig = () => {
     switch (currentView) {
-      case 'home': return { title: t('app.title'), subtitle: t('app.subtitle'), showBack: false };
-      case 'solo-input': return { title: t('header.solo'), subtitle: t('header.soloSub'), showBack: true, onBack: handleBackToHome };
-      case 'group-input': return { title: t('header.group'), subtitle: t('header.groupSub'), showBack: true, onBack: handleBackToHome };
-      case 'solo-results': case 'group-results': return { title: t('header.recommendResult'), subtitle: '', showBack: true, onBack: handleBack };
-      case 'vote': return { title: t('header.vote'), subtitle: '', showBack: true, onBack: () => setCurrentView('group-results') };
-      case 'history': return { title: t('header.favorites'), subtitle: '', showBack: true, onBack: handleBackToHome };
-      default: return { title: t('app.title'), subtitle: t('app.subtitle'), showBack: false };
+      case 'home': return { title: '吃什么', subtitle: 'AI 用餐决策助手', showBack: false };
+      case 'solo-input': return { title: '一人食', subtitle: 'AI 帮你做决定', showBack: true, onBack: handleBackToHome };
+      case 'group-input': return { title: '多人聚餐', subtitle: '综合所有人的需求', showBack: true, onBack: handleBackToHome };
+      case 'solo-results': case 'group-results': return { title: '推荐结果', subtitle: '', showBack: true, onBack: handleBack };
+      case 'vote': return { title: '投票页', subtitle: '', showBack: true, onBack: () => setCurrentView('group-results') };
+      case 'history': return { title: '我的收藏', subtitle: '', showBack: true, onBack: handleBackToHome };
+      default: return { title: '吃什么', subtitle: 'AI 用餐决策助手', showBack: false };
     }
   };
 
@@ -367,14 +372,14 @@ function App() {
       {IS_MOCK_MODE && (
         <div className="bg-amber-50 border-b border-amber-200 px-4 py-2 text-center">
           <p className="text-sm text-amber-800">
-            🎯 <strong>{t('demo.badge')}</strong> · {t('demo.hint')}
+            🎯 <strong>演示模式</strong> · 当前使用模拟数据，配置高德 API Key 后可获取真实推荐
             <span className="ml-2 text-amber-600">
               （
               <button
                 onClick={() => alert('1. 访问 https://console.amap.com/dev/key/app\n2. 创建「Web端(JS API)」应用\n3. 创建「Web服务」应用\n4. 复制 .env.example 为 .env 并填入 Key')}
                 className="underline hover:text-amber-900"
               >
-                {t('demo.howTo')}
+                如何配置？
               </button>
               ）
             </span>
@@ -397,11 +402,11 @@ function App() {
       }} /></main>}
       {currentView === 'solo-input' && <main className="py-8"><SoloInput onSearch={handleSoloSearch} onFortune={handleSoloFortune} isLoading={isLoading} /></main>}
       {currentView === 'group-input' && <main className="py-8"><GroupInput onSearch={handleGroupSearch} onRandomExplore={handleGroupExplore} isLoading={isLoading} /></main>}
-      {(currentView === 'solo-results' || currentView === 'group-results') && <main className="py-8"><ResultList results={results} onBack={handleBack} onRefresh={handleRefresh} isLoading={isLoading} isExploreMode={isExploreMode} isSolo={currentView === 'solo-results'} location={location} onVote={handleVote} showVote={showVote} cuisineVote={lastIntent?.cuisineVote} memberCount={lastMembers.length} conflicts={lastIntent?.conflicts} emptySuggestions={emptySuggestions} onApplySuggestion={handleApplySuggestion} onFeedback={handleFeedback} /></main>}
+      {(currentView === 'solo-results' || currentView === 'group-results') && <main className="py-8"><ResultList results={results} onBack={handleBack} onRefresh={handleRefresh} isLoading={isLoading} isExploreMode={isExploreMode} isSolo={currentView === 'solo-results'} location={location} onVote={handleVote} showVote={showVote} cuisineVote={lastIntent?.cuisineVote} memberCount={lastMembers.length} conflicts={lastIntent?.conflicts} emptySuggestions={emptySuggestions} onApplySuggestion={handleApplySuggestion} onFeedback={handleFeedback} budgetCompromise={lastIntent?.budgetCompromise} /></main>}
       {currentView === 'vote' && <main className="py-8"><VoteView restaurants={results} members={lastMembers} onBack={() => setCurrentView('group-results')} onSelect={handleVoteSelect} /></main>}
       {currentView === 'history' && <main className="py-8"><HistoryView onBack={handleBackToHome} onReselect={handleHistoryReselect} /></main>}
       <footer className="text-center py-10 mt-auto">
-        <p className="text-xs text-ink-tertiary">{t('app.footer')}</p>
+        <p className="text-xs text-ink-tertiary">吃什么 · AI 用餐决策助手</p>
       </footer>
     </div>
   );

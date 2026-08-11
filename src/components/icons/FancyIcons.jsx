@@ -609,3 +609,25 @@ export function IconPerfectFusion({ className = '' }) {
     </svg>
   );
 }
+
+export function IconWalking({ className = '' }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="4.5" r="2" />
+      <path d="M12 6.5 L12 13" />
+      <path d="M12 9 L8.5 10.5" />
+      <path d="M12 9 L15.5 8" />
+      <path d="M12 13 L9.5 18" />
+      <path d="M12 13 L16 16.5" />
+    </svg>
+  );
+}
+
+export function IconShieldCheck({ className = '' }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 3 L19 5.5 V12 C19 16 16 19.5 12 21 C8 19.5 5 16 5 12 V5.5 L12 3 Z" />
+      <path d="M9 12 L11 14 L15 10" strokeWidth="2" />
+    </svg>
+  );
+}
