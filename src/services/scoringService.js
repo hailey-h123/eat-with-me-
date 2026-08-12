@@ -2633,14 +2633,21 @@ function jaccardSimilarity(setA, setB) {
  *
  * @param {Array} scoredRestaurants 已按 tier+matchScore 排序的候选
  * @param {object} intent
- * @param {number} lambda 相关性 vs 多样性权衡（0.6 = 偏重相关性）
+ * @param {object|number} options { lambda, skipFirstN, enableForSolo } 或旧式 lambda 数值
  */
-export function mmrRerank(scoredRestaurants, intent, lambda = 0.6) {
+export function mmrRerank(scoredRestaurants, intent, options = {}) {
+  const {
+    lambda = 0.6,
+    skipFirstN = 0,
+    enableForSolo = false,
+  } = typeof options === 'number' ? { lambda: options } : options;
+
   if (!scoredRestaurants || scoredRestaurants.length <= 1) {
     return scoredRestaurants || [];
   }
-  // 单人模式 / 无成员信息 → 直接返回原排序（MMR 主要服务于多人多样性）
-  if (!intent || !intent.members || intent.members.length < 2) {
+  // 单人模式 / 无成员信息：仅当显式启用时才走 MMR
+  const isSolo = !intent || !intent.members || intent.members.length < 2;
+  if (isSolo && !enableForSolo) {
     return scoredRestaurants;
   }
 
@@ -2659,8 +2666,10 @@ export function mmrRerank(scoredRestaurants, intent, lambda = 0.6) {
     c.relNorm = relRange > 0.001 ? (c.rel - relMin) / relRange : 0.8;
   });
 
+  // 前 skipFirstN 个保持原排序（保 Top1 相关性），但仍参与相似度计算
+  const skipped = candidates.splice(0, Math.min(skipFirstN, candidates.length));
   const remaining = [...candidates];
-  const selected = [];
+  const selected = [...skipped];
 
   // 首选：相关性最高（且 tier 最低已在排序里体现）
   remaining.sort((a, b) => b.relNorm - a.relNorm);

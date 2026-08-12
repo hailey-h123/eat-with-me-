@@ -4,7 +4,7 @@
  */
 import { mockRestaurants } from '../data/mockRestaurants';
 import { CUISINE_KEYWORDS_FOR_FILTER } from '../data/cuisineMap';
-import { searchPOI, searchPOIByDistanceRanges } from './amapService';
+import { searchPOI, IS_MOCK_MODE, haversineDistance } from './amapService';
 import { applyFeedbackToScore } from './feedbackService';
 import {
   calculateSoloFriendly,
@@ -93,134 +93,107 @@ export function calculateGroupFriendly(restaurant) {
 /**
  * 探索隐藏宝藏店
  */
-export async function exploreHiddenTreasures(location, radius = 3000, applyPrefFilter = null, mode = null, excludeIds = [], hardFilters = null) {
+export async function exploreHiddenTreasures(location, radius = 3000, applyPrefFilter = null, mode = null, excludeIds = [], hardFilters = null, priceRange = null) {
   let candidates = [];
   const radiusKm = radius / 1000;
 
   let targetMinMeters = 0;
   let targetMaxMeters = radius;
 
-  if (radiusKm <= 0.5) {
-    targetMinMeters = 100;
-    targetMaxMeters = 500;
-  } else if (radiusKm <= 1) {
-    targetMinMeters = 500;
-    targetMaxMeters = 1000;
-  } else if (radiusKm <= 3) {
-    targetMinMeters = 1000;
-    targetMaxMeters = 3000;
-  } else if (radiusKm <= 5) {
-    targetMinMeters = 3000;
-    targetMaxMeters = 5000;
-  } else {
-    targetMinMeters = 5000;
-    targetMaxMeters = Math.max(radius, 8000);
-  }
-
-  const minMinutes = Math.ceil(targetMinMeters / 80);
-  const maxMinutes = Math.ceil(targetMaxMeters / 80);
-
-  const filterByDistance = (list) => {
-    return list.filter(r => {
-      const d = r.distance || 0;
-      const dm = r.distanceMeters || 0;
-      if (dm > 0) {
-        return dm >= targetMinMeters && dm <= targetMaxMeters;
-      }
-      return d >= minMinutes && d <= maxMinutes;
-    });
-  };
+  if (radiusKm <= 0.5)      { targetMinMeters = 100;  targetMaxMeters = 500; }
+  else if (radiusKm <= 1)   { targetMinMeters = 500;  targetMaxMeters = 1000; }
+  else if (radiusKm <= 3)   { targetMinMeters = 1000; targetMaxMeters = 3000; }
+  else if (radiusKm <= 5)   { targetMinMeters = 3000; targetMaxMeters = 5000; }
+  else                      { targetMinMeters = 5000; targetMaxMeters = Math.max(radius, 8000); }
 
   const filterByExcludeIds = (list) => {
     if (!excludeIds || excludeIds.length === 0) return list;
     return list.filter(r => !excludeIds.includes(r.id));
   };
 
-  const applyAllFilters = (list) => {
-    let result = filterByExcludeIds(list);
-    result = filterByDistance(result);
-    return result;
-  };
-
   if (location) {
-    const ranges = [
-      { min: targetMinMeters, max: Math.min(targetMinMeters + 1000, targetMaxMeters) },
-      { min: Math.min(targetMinMeters + 1000, targetMaxMeters), max: Math.min(targetMinMeters + 2000, targetMaxMeters) },
-      { min: Math.min(targetMinMeters + 2000, targetMaxMeters), max: targetMaxMeters },
-    ].filter(r => r.min < r.max);
+    let searchCenter = location;
+    let searchRadius = targetMaxMeters;
 
-    const results = await searchPOIByDistanceRanges('餐厅', location, ranges);
+    // 有最小距离要求时：偏移搜索中心到目标带中点
+    // AMap 永远从最近排，不提供 skip/offset —— 偏移中心 1 次 API 即可命中目标带
+    // 例外：用户已选口味标签时（hardFilters非空），标签本身就是"探索感"的来源，
+    //       此时不偏移，全半径搜以保证候选数量
+    if (targetMinMeters > 500 && !hardFilters) {
+      const offsetMeters = (targetMinMeters + targetMaxMeters) / 2;  // 目标带中点偏移
+      searchRadius = Math.min(Math.ceil((targetMaxMeters - targetMinMeters) / 2 + 800), 2000);
+      const dirs = [0, 90, 180, 270]; // N E S W，随机方向
+      const angle = dirs[Math.floor(Math.random() * dirs.length)];
+      const rad = (angle * Math.PI) / 180;
+      const latOffset = (offsetMeters / 111320) * Math.cos(rad);
+      const lngOffset = (offsetMeters / (111320 * Math.cos((location.lat * Math.PI) / 180))) * Math.sin(rad);
+      searchCenter = { name: location.name, lat: location.lat + latOffset, lng: location.lng + lngOffset };
+    }
 
-    if (results && results.length > 0) {
-      candidates = results.map(r => ({ ...r, isMock: false }));
-    } else {
-      const allResults = await searchPOI('餐厅', location, radius);
-      if (allResults && allResults.length > 0) {
-        candidates = allResults.map(r => ({ ...r, isMock: false }));
-      }
+    // 翻 3 页搜
+    for (let page = 1; page <= 3; page++) {
+      if (page > 1) await new Promise(r => setTimeout(r, 350));
+      const results = await searchPOI('餐厅', searchCenter, searchRadius, 0, 0, page);
+      if (!results || results.length === 0) break;
+      candidates.push(...results.map(r => ({ ...r, isMock: false })));
     }
   }
 
-  // 排除已探索/指定排除的餐厅（主路径之前漏了这步）
-  candidates = filterByExcludeIds(candidates);
+  // 用 haversine 重算真实距离（偏移搜索中心的 distanceMeters 无效），再过滤距离带
+  if (candidates.length > 0) {
+    candidates.forEach(r => {
+      const realMeters = haversineDistance(location.lng, location.lat, r.lng, r.lat);
+      r.distanceMeters = realMeters;
+      r.distance = Math.max(1, Math.round(realMeters / 80));
+    });
+    candidates = filterByExcludeIds(candidates);
+    // 口味标签模式：不偏移，全半径搜，只过滤上限不设下限
+    if (!hardFilters && targetMinMeters > 500) {
+      candidates = candidates.filter(r => {
+        const dm = r.distanceMeters || 0;
+        return dm >= targetMinMeters && dm <= targetMaxMeters + 1000;
+      });
+    } else {
+      candidates = candidates.filter(r => (r.distanceMeters || 0) <= targetMaxMeters);
+    }
+  }
 
+  // fallback：距离带为空时退化为半径搜（无下限），保证不死
   if (candidates.length === 0) {
-    // 先尝试扩大半径搜真实数据，搜不到再用 mock
     if (location) {
-      const largerRadius = Math.min(radius * 2, 10000);
-      const allResults = await searchPOI('餐厅', location, largerRadius);
-      if (allResults && allResults.length > 0) {
-        candidates = filterByExcludeIds(allResults.map(r => ({ ...r, isMock: false })));
+      const fbResults = await searchPOI('餐厅', location, targetMaxMeters, 0, 0, 1);
+      if (fbResults && fbResults.length > 0) {
+        candidates = filterByExcludeIds(fbResults.map(r => ({ ...r, isMock: false })));
       }
     }
-    if (candidates.length === 0) {
-      candidates = [...mockRestaurants].map(r => ({ ...r, isMock: true }));
+    if (candidates.length === 0 && IS_MOCK_MODE) {
+      candidates = filterByExcludeIds([...mockRestaurants].map(r => ({ ...r, isMock: true })));
     }
   }
 
   if (applyPrefFilter) {
     candidates = applyPrefFilter(candidates);
     if (candidates.length === 0) {
-      // 过滤后为空：重新搜索候选，但仍应用 hardFilters（口味标签等不可回退过滤）
-      // 价格和距离过滤可放宽，但口味标签必须保持
       if (location) {
-        const allResults = await searchPOI('餐厅', location, radius, targetMinMeters, targetMaxMeters);
-        if (allResults && allResults.length > 0) {
-          let newCandidates = allResults.map(r => ({ ...r, isMock: false }));
+        const fbResults = await searchPOI('餐厅', location, Math.max(targetMaxMeters, 10000), 0, 0, 1);
+        if (fbResults && fbResults.length > 0) {
+          let newCandidates = fbResults.map(r => ({ ...r, isMock: false }));
           if (hardFilters) newCandidates = hardFilters(newCandidates);
           candidates = filterByExcludeIds(newCandidates);
         }
       }
-      if (candidates.length === 0) {
-        if (location) {
-          const largerRadius = Math.min(radius * 2, 10000);
-          const allResults = await searchPOI('餐厅', location, largerRadius);
-          if (allResults && allResults.length > 0) {
-            let newCandidates = allResults.map(r => ({ ...r, isMock: false }));
-            if (hardFilters) newCandidates = hardFilters(newCandidates);
-            candidates = applyAllFilters(newCandidates);
-          }
-        }
+      if (candidates.length === 0 && IS_MOCK_MODE) {
+        candidates = filterByExcludeIds([...mockRestaurants].map(r => ({ ...r, isMock: true })));
+        if (hardFilters) candidates = hardFilters(candidates);
       }
-      if (candidates.length === 0) {
-        let mockFiltered = applyAllFilters([...mockRestaurants].map(r => ({ ...r, isMock: true })));
-        if (hardFilters) mockFiltered = hardFilters(mockFiltered);
-        if (mockFiltered.length > 0) {
-          candidates = mockFiltered;
-        } else {
-          // 如果连 mock 数据都不满足 hardFilters，返回空，让上层显示空结果建议
-          return null;
-        }
-      }
+      if (candidates.length === 0) return null;
     }
   }
 
   const hiddenTreasures = candidates.filter(r => {
     const reviewCount = r.reviewCount || 0;
     const rating = r.rating || 0;
-    if (r.isMock || reviewCount === 0) {
-      return rating >= 4.0;
-    }
+    if (r.isMock || reviewCount === 0) return rating >= 4.0;
     return reviewCount < 500 && reviewCount > 0 && rating >= 4.0;
   });
 
@@ -247,15 +220,28 @@ export async function exploreHiddenTreasures(location, radius = 3000, applyPrefF
     if (distance === 0) {
       distanceScore = 15;
     } else {
-      const idealDist = Math.round((maxMinutes + minMinutes) / 2);
-      const sigma = (maxMinutes - minMinutes) / 3;
+      const idealDist = Math.round((targetMaxMeters + targetMinMeters) / 2 / 80);
+      const sigma = Math.max((targetMaxMeters - targetMinMeters) / 3 / 80, 1);
       distanceScore = Math.exp(-Math.pow(distance - idealDist, 2) / (2 * Math.pow(sigma, 2))) * 100;
     }
 
-    // 3. 价格合理性（15%）
+    // 3. 价格合理性（15%）—— 有用户预算时按超预算比例扣分
     let priceScore;
     if (price && price > 0) {
-      if (price <= 150 && price >= 30) {
+      if (priceRange) {
+        const [minP, maxP] = priceRange;
+        if (price < minP) {
+          priceScore = 60;
+        } else if (maxP === null || maxP >= 200) {
+          priceScore = 100;
+        } else {
+          const ratio = price / maxP;
+          if (ratio <= 1) priceScore = 100;
+          else if (ratio <= 1.2) priceScore = 80;
+          else if (ratio <= 1.5) priceScore = 55;
+          else priceScore = 30;
+        }
+      } else if (price <= 150 && price >= 30) {
         priceScore = 100;
       } else if (price < 30) {
         priceScore = 70;
@@ -318,18 +304,33 @@ export async function exploreHiddenTreasures(location, radius = 3000, applyPrefF
     displayRangeShort = '全城';
     displayRangeDetail = '全城';
   } else {
-    displayRangeShort = `${(targetMaxMeters / 1000).toFixed(0)}km内`;
-    displayRangeDetail = `${(targetMinMeters / 1000).toFixed(1)}-${(targetMaxMeters / 1000).toFixed(1)}km`;
+    displayRangeShort = `${(radius / 1000).toFixed(0)}km内`;
+    displayRangeDetail = `${(radius / 1000).toFixed(0)}km内`;
   }
 
-  const distanceText = selected.distance <= 5 ? '很近' : selected.distance <= 15 ? '距离适中' : '稍远';
+  // 距离分层：按真实米数推荐交通方式
+  const meters = selected.distanceMeters || 0;
+  let transitLabel, transitMins, vibeLabel;
+  if (meters < 800) {
+    transitLabel = '步行'; transitMins = Math.max(1, Math.round(meters / 80));
+    vibeLabel = transitMins <= 5 ? '很近' : transitMins <= 12 ? '散个步' : '走一走';
+  } else if (meters < 3000) {
+    transitLabel = '骑行'; transitMins = Math.max(1, Math.round(meters / 250));
+    vibeLabel = transitMins <= 8 ? '骑一小段' : '骑车逛逛';
+  } else if (meters < 10000) {
+    transitLabel = '驾车'; transitMins = Math.max(1, Math.round(meters / 400));
+    vibeLabel = transitMins <= 15 ? '开车很快' : '开车可达';
+  } else {
+    transitLabel = '公交/地铁'; transitMins = Math.max(1, Math.round(meters / 400));
+    vibeLabel = '搭公交可达';
+  }
   const exploreMessage = `发现一家${displayRangeShort}范围内的宝藏小店，评价不多但口碑很棒！`;
 
   return {
     ...selected,
     matchScore: selected.matchScore,
     reasons: [
-      { type: 'match', text: `步行${selected.distance}分钟 — ${distanceText}` },
+      { type: 'match', text: `${transitLabel}${transitMins}分钟 — ${vibeLabel}` },
       { type: 'match', text: `探索发现：${displayRangeDetail} 范围内的宝藏店` }
     ],
     soloFriendly: calculateSoloFriendly(selected),

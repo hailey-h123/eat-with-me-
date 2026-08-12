@@ -20,6 +20,7 @@ import {
 vi.mock('../services/amapService', () => ({
   searchPOI: vi.fn(),
   searchPOIByDistanceRanges: vi.fn(),
+  IS_MOCK_MODE: true,
 }));
 
 vi.mock('../services/feedbackService', () => ({

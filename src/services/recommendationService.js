@@ -942,13 +942,8 @@ export async function recommendByMode(mode, location, extraIntent = null, fortun
   } : null;
   const applyPrefFilter = (candidates) => {
     let filtered = candidates;
-    // 价格范围过滤
-    if (priceRange) {
-      const [minP, maxP] = priceRange;
-      filtered = filtered.filter(r => isPriceInRange(r.price, minP, maxP));
-    }
-    // 距离范围过滤
-    if (distRange) {
+    // 探索模式：距离由搜索半径控制，预算由探索评分软约束，不硬过滤
+    if (distRange && !isExploreMode) {
       const [minKm, maxKm] = distRange;
       const minMin = minKm * 12;
       const maxMin = maxKm >= 5 ? Infinity : maxKm * 12;
@@ -968,7 +963,7 @@ export async function recommendByMode(mode, location, extraIntent = null, fortun
 
   if (isExploreMode) {
     const radius = getExploreRadius(mode);
-    const treasure = await exploreHiddenTreasures(location, radius, applyPrefFilter, mode, excludeIds, hardFilters);
+    const treasure = await exploreHiddenTreasures(location, radius, applyPrefFilter, mode, excludeIds, hardFilters, priceRange);
     if (treasure) {
       const modeConfig = getSoloModes()[mode];
       return [{
@@ -981,6 +976,7 @@ export async function recommendByMode(mode, location, extraIntent = null, fortun
         exploreMessage: treasure.exploreMessage || `${modeConfig?.description || '被埋没的宝藏店'}`,
       }];
     }
+    return [];
   }
 
   if (mode === SOLO_MODES.FORTUNE) {
@@ -993,5 +989,21 @@ export async function recommendByMode(mode, location, extraIntent = null, fortun
   if (priceRange || distRange || prefTags.length > 0) {
     results = applyPrefFilter(results);
   }
+
+  // 按心情选场景：MMR 多样性重排（保 Top1 相关性，后续打散同质菜系）
+  const SOLO_MMR_LAMBDA = {
+    [SOLO_MODES.INDULGE]: 0.45,
+    [SOLO_MODES.COLD]: 0.48,
+    [SOLO_MODES.LIGHT]: 0.55,
+    [SOLO_MODES.TIRED]: 0.6,
+  };
+  if (SOLO_MMR_LAMBDA[mode] && results.length > 3) {
+    results = mmrRerank(results, mergedIntent, {
+      lambda: SOLO_MMR_LAMBDA[mode],
+      skipFirstN: 1,
+      enableForSolo: true,
+    });
+  }
+
   return results;
 }
