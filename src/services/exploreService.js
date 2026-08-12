@@ -161,28 +161,20 @@ export async function exploreHiddenTreasures(location, radius = 3000, applyPrefF
     }
   }
 
-  if (candidates.length === 0) {
-    candidates = [...mockRestaurants].map(r => ({ ...r, isMock: true }));
-  }
-
-  candidates = applyAllFilters(candidates);
+  // 排除已探索/指定排除的餐厅（主路径之前漏了这步）
+  candidates = filterByExcludeIds(candidates);
 
   if (candidates.length === 0) {
+    // 先尝试扩大半径搜真实数据，搜不到再用 mock
     if (location) {
       const largerRadius = Math.min(radius * 2, 10000);
       const allResults = await searchPOI('餐厅', location, largerRadius);
       if (allResults && allResults.length > 0) {
-        const newCandidates = allResults.map(r => ({ ...r, isMock: false }));
-        candidates = applyAllFilters(newCandidates);
+        candidates = filterByExcludeIds(allResults.map(r => ({ ...r, isMock: false })));
       }
     }
     if (candidates.length === 0) {
-      const mockFiltered = applyAllFilters([...mockRestaurants].map(r => ({ ...r, isMock: true })));
-      if (mockFiltered.length > 0) {
-        candidates = mockFiltered;
-      } else {
-        candidates = filterByExcludeIds([...mockRestaurants].map(r => ({ ...r, isMock: true })));
-      }
+      candidates = [...mockRestaurants].map(r => ({ ...r, isMock: true }));
     }
   }
 

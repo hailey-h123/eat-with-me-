@@ -142,7 +142,8 @@ describe('calculateSingleScore', () => {
       allergies: [],
       priceRange: [50, 100],
     });
-    expect(result.reasons.some(r => r.text.includes('预算范围'))).toBe(true);
+    // calculateSingleScore 重构后委托 calculateMemberScore，预算文案变为"预算内"
+    expect(result.reasons.some(r => r.text.includes('预算内'))).toBe(true);
   });
 
   it('价格范围过滤：priceRange [50,100] + 人均150 → 超出范围', () => {
@@ -152,7 +153,8 @@ describe('calculateSingleScore', () => {
       allergies: [],
       priceRange: [50, 100],
     });
-    expect(result.reasons.some(r => r.text.includes('超出预算范围'))).toBe(true);
+    // calculateSingleScore 重构后委托 calculateMemberScore，预算文案变为"超预算"
+    expect(result.reasons.some(r => r.text.includes('超预算'))).toBe(true);
   });
 });
 
@@ -319,6 +321,61 @@ describe('calculateGroupScore', () => {
     });
     expect(result.reasons.some(r => r.type === 'fusion')).toBe(false);
   });
+
+  it('烤涮一体：一人想吃火锅 + 一人想吃烧烤 + cuisine只标烧烤 → 仍有融合', () => {
+    const grillHotpotRestaurant = {
+      ...baseRestaurant,
+      name: '京元盛烤涮一体',
+      cuisine: '烧烤',
+      tags: ['烧烤', '火锅', '烤涮一体'],
+      features: ['涮', '烤'],
+    };
+    const result = calculateGroupScore(grillHotpotRestaurant, {
+      members: [
+        { name: 'A', preferences: ['火锅'], allergies: [] },
+        { name: 'B', preferences: ['烧烤'], allergies: [] },
+      ],
+      preferences: ['火锅', '烧烤'],
+      allergies: [],
+      conflicts: [],
+    });
+    expect(result.reasons.some(r => r.type === 'fusion')).toBe(true);
+  });
+
+  it('烤涮一体得分 > 日料居酒屋伪融合：同一组偏好下真融合分更高', () => {
+    const realGrillHotpot = {
+      ...baseRestaurant,
+      id: 'real-001',
+      name: '京元盛烤涮一体',
+      cuisine: '烧烤',
+      tags: ['烧烤', '火锅', '烤涮一体'],
+      features: ['涮', '烤'],
+    };
+    const pseudoJpIzakaya = {
+      ...baseRestaurant,
+      id: 'pseudo-001',
+      name: '竹の日本料理居酒屋',
+      cuisine: '日料',
+      tags: ['日料', '寿喜烧', '烧鸟', '烤串'],
+      features: ['涮', '烤'],
+    };
+    const intent = {
+      members: [
+        { name: 'A', preferences: ['火锅'], allergies: [] },
+        { name: 'B', preferences: ['烧烤'], allergies: [] },
+      ],
+      preferences: ['火锅', '烧烤'],
+      allergies: [],
+      conflicts: [],
+    };
+    const realResult = calculateGroupScore(realGrillHotpot, intent);
+    const pseudoResult = calculateGroupScore(pseudoJpIzakaya, intent);
+    // 两者都应有融合
+    expect(realResult.reasons.some(r => r.type === 'fusion')).toBe(true);
+    expect(pseudoResult.reasons.some(r => r.type === 'fusion')).toBe(true);
+    // 真·烤涮一体得分应高于日料居酒屋伪融合
+    expect(realResult.score).toBeGreaterThan(pseudoResult.score);
+  });
 });
 
 // ============ filterByAllergies 测试 ============
@@ -338,10 +395,15 @@ describe('filterByAllergies', () => {
     expect(result.length).toBeLessThan(restaurants.length);
   });
 
-  it('清真忌口：只保留清真餐厅', () => {
+  it('清真忌口：只踢明确非清真的餐厅，其余放行（软处理）', () => {
+    // 无任何餐厅有"猪肉/红烧肉/大肉/回锅肉/非清真"等明确非清真信号 → 全部保留
     const result = filterByAllergies(restaurants, ['清真']);
-    expect(result.every(r => r.tags.includes('清真'))).toBe(true);
-    expect(result.length).toBe(1);
+    expect(result.length).toBe(restaurants.length);
+    // 添加一个明确非清真的餐厅
+    const nonHalal = { id: '6', name: '红烧肉馆', cuisine: '中餐', tags: ['红烧肉'], features: [], price: 50 };
+    const result2 = filterByAllergies([...restaurants, nonHalal], ['清真']);
+    expect(result2.some(r => r.id === '6')).toBe(false);
+    expect(result.length).toBe(restaurants.length);
   });
 
   it('无忌口：返回全部', () => {

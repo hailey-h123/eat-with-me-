@@ -16,21 +16,29 @@ export function getFeedback() {
   }
 }
 
-export function addLike(restaurant) {
+export function makeProfileFingerprint(profile = {}) {
+  const prefs = [...(profile.preferences || [])].sort().join(',');
+  const allergies = [...(profile.allergies || [])].sort().join(',');
+  const budget = profile.budget ?? '';
+  return `prefs:${prefs}|allergies:${allergies}|budget:${budget}`;
+}
+
+export function addLike(restaurant, profileFingerprint = '') {
   try {
     const feedback = getFeedback();
     const cuisine = restaurant.cuisine || '';
     const tags = restaurant.tags || [];
     const features = restaurant.features || [];
     const allTags = [...tags, ...features, cuisine].filter(Boolean);
-    
+
     feedback.likes.unshift({
       id: restaurant.id,
       name: restaurant.name,
       cuisine,
       tags: allTags,
       price: restaurant.price || 0,
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      profileFingerprint,
     });
     
     feedback.likes = feedback.likes.slice(0, MAX_FEEDBACK_ITEMS);
@@ -38,21 +46,22 @@ export function addLike(restaurant) {
   } catch {}
 }
 
-export function addDislike(restaurant) {
+export function addDislike(restaurant, profileFingerprint = '') {
   try {
     const feedback = getFeedback();
     const cuisine = restaurant.cuisine || '';
     const tags = restaurant.tags || [];
     const features = restaurant.features || [];
     const allTags = [...tags, ...features, cuisine].filter(Boolean);
-    
+
     feedback.dislikes.unshift({
       id: restaurant.id,
       name: restaurant.name,
       cuisine,
       tags: allTags,
       price: restaurant.price || 0,
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      profileFingerprint,
     });
     
     feedback.dislikes = feedback.dislikes.slice(0, MAX_FEEDBACK_ITEMS);
@@ -86,7 +95,7 @@ export function removeDislike(restaurantId) {
   } catch {}
 }
 
-export function getFeedbackWeights() {
+export function getFeedbackWeights(profileFingerprint) {
   const feedback = getFeedback();
   const weights = {
     cuisineBoost: {},
@@ -95,7 +104,15 @@ export function getFeedbackWeights() {
     tagPenalty: {}
   };
 
-  feedback.likes.forEach(item => {
+  const matchFingerprint = (item) => {
+    // 无指纹的历史数据：通用反馈，对所有人生效
+    if (!item.profileFingerprint) return true;
+    // 有指纹：仅匹配相同画像
+    if (!profileFingerprint) return false;
+    return item.profileFingerprint === profileFingerprint;
+  };
+
+  feedback.likes.filter(matchFingerprint).forEach(item => {
     if (item.cuisine) {
       weights.cuisineBoost[item.cuisine] = (weights.cuisineBoost[item.cuisine] || 0) + 1;
     }
@@ -106,7 +123,7 @@ export function getFeedbackWeights() {
     });
   });
 
-  feedback.dislikes.forEach(item => {
+  feedback.dislikes.filter(matchFingerprint).forEach(item => {
     if (item.cuisine) {
       weights.cuisinePenalty[item.cuisine] = (weights.cuisinePenalty[item.cuisine] || 0) + 1;
     }
@@ -120,8 +137,8 @@ export function getFeedbackWeights() {
   return weights;
 }
 
-export function applyFeedbackToScore(restaurant, baseScore) {
-  const weights = getFeedbackWeights();
+export function applyFeedbackToScore(restaurant, baseScore, profileFingerprint) {
+  const weights = getFeedbackWeights(profileFingerprint);
   let adjustedScore = baseScore;
   const cuisine = restaurant.cuisine || '';
   const tags = [...(restaurant.tags || []), ...(restaurant.features || [])];

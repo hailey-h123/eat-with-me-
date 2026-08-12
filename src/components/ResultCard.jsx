@@ -8,7 +8,7 @@ import {
 } from './icons/FancyIcons';
 import { FoodDecor } from './Mascot';
 import Lightbox from './Lightbox';
-import { hasLiked, hasDisliked, removeLike, removeDislike, addLike, addDislike } from '../services/feedbackService';
+import { hasLiked, hasDisliked, removeLike, removeDislike } from '../services/feedbackService';
 import { isFavorited, toggleFavorite, isVisited, toggleVisited } from '../services/historyService';
 import { trackFavorite, trackNavigate } from '../services/analyticsService';
 
@@ -357,10 +357,9 @@ export default function ResultCard({ restaurant, showExploreMessage = false, isS
       return;
     }
     setLiked(true);
-    setDisliked(false);
-    // 优先走 onFeedback（App 侧会附偏好指纹后写入 feedbackService）
-    if (onFeedback) onFeedback('like', restaurant);
-    else addLike(restaurant);
+    if (disliked) { setDisliked(false); }
+    // onFeedback 始终存在：App 侧负责 removeDislike + addLike（带偏好指纹）
+    onFeedback('like', restaurant);
   };
 
   const handleDislike = (e) => {
@@ -371,9 +370,9 @@ export default function ResultCard({ restaurant, showExploreMessage = false, isS
       return;
     }
     setDisliked(true);
-    setLiked(false);
-    if (onFeedback) onFeedback('dislike', restaurant);
-    else addDislike(restaurant);
+    if (liked) { setLiked(false); }
+    // onFeedback 始终存在：App 侧负责 removeLike + addDislike（带偏好指纹）
+    onFeedback('dislike', restaurant);
   };
 
   const handleFavorite = (e) => {
@@ -604,8 +603,8 @@ export default function ResultCard({ restaurant, showExploreMessage = false, isS
           )}
         </div>
 
-        {/* 📊 个人满足度：每个成员的维度分解 + 综合分（多人模式才显示）*/}
-        {restaurant.memberScores && restaurant.memberScores.length >= 2 && (
+        {/* 📊 个人满足度：每个成员的维度分解 + 综合分 */}
+        {restaurant.memberScores && restaurant.memberScores.length >= 1 && (
           <div
             className="mb-3.5 p-2.5 rounded-xl border-2"
             style={{ borderColor: 'var(--color-ink)', background: 'rgba(124,92,255,0.04)' }}
@@ -701,12 +700,13 @@ export default function ResultCard({ restaurant, showExploreMessage = false, isS
 
         {/* === 底部统一框：总结 + 融合 + 成员明细（动态维度）+ 妥协点 === */}
         {(restaurant.reasons && restaurant.reasons.length > 0) && (() => {
-          const hasMemberReasons = restaurant.memberScores && restaurant.memberScores.length >= 2
+          const hasMemberReasons = restaurant.memberScores && restaurant.memberScores.length >= 1
             && restaurant.memberScores.some(ms => ms.reasons && ms.reasons.length > 0);
           // 有成员级 reasons 时，成员级 reason（带 category）从平铺列表中移除，改由成员区块展示
+          // 融合标题/详情也移除，成员卡片已展示各自偏好匹配结果
           const flatReasons = hasMemberReasons
-            ? restaurant.reasons.filter(r => !r.category)
-            : restaurant.reasons;
+            ? restaurant.reasons.filter(r => !r.category && r.type !== 'fusion' && r.type !== 'fusion-detail')
+            : restaurant.reasons.filter(r => r.type !== 'fusion' && r.type !== 'fusion-detail');
 
           // 角色映射：从 compromiseDetails 提取忌口方/偏好方
           const allergyMemberMap = new Map();
@@ -734,34 +734,8 @@ export default function ResultCard({ restaurant, showExploreMessage = false, isS
               {flatReasons.map((reason, index) => {
                 let icon;
                 let iconColor = '';
-                let isDetail = false;
-                let isFusionHeader = false;
 
-                if (reason.type === 'fusion') {
-                  isFusionHeader = true;
-                  if (reason.fusionType === 'perfect') {
-                    icon = <IconPerfectFusion className="w-3 h-3" />;
-                    iconColor = 'text-secondary';
-                  } else if (reason.fusionType === 'flavor') {
-                    icon = <IconFlavorFusion className="w-3 h-3" />;
-                    iconColor = 'text-accent-dark';
-                  } else {
-                    icon = <IconStyleFusion className="w-3 h-3" />;
-                    iconColor = 'text-accent-dark';
-                  }
-                } else if (reason.type === 'fusion-detail') {
-                  isDetail = true;
-                  if (reason.fusionType === 'perfect') {
-                    icon = <IconCheck className="w-3 h-3" />;
-                    iconColor = 'text-secondary';
-                  } else if (reason.fusionType === 'flavor') {
-                    icon = <IconHalfCheck className="w-3 h-3" />;
-                    iconColor = 'text-accent-dark';
-                  } else {
-                    icon = <IconHalfCheck className="w-3 h-3" />;
-                    iconColor = 'text-accent-dark';
-                  }
-                } else if (reason.type === 'group') {
+                if (reason.type === 'group') {
                   const satisfied = reason.satisfiedCount || 0;
                   const total = reason.totalCount || 1;
                   if (satisfied === total) {
@@ -799,29 +773,6 @@ export default function ResultCard({ restaurant, showExploreMessage = false, isS
                   }
                 }
 
-                if (isDetail) {
-                  const prefix = reason.memberName ? `${reason.memberName}：` : '';
-                  return (
-                    <div key={index} className="text-sm flex items-start gap-2 text-text pl-5" style={{ fontFamily: 'var(--font-display)' }}>
-                      {icon && (
-                        <span className={`flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center bg-white border-2 border-ink ${iconColor} text-[12px] leading-none`} style={{ borderColor: 'var(--color-ink)' }}>
-                          {icon}
-                        </span>
-                      )}
-                      <span className="leading-relaxed font-medium">{prefix}{reason.text}</span>
-                    </div>
-                  );
-                }
-                if (isFusionHeader) {
-                  return (
-                    <div key={index} className="text-sm flex items-start gap-2.5 text-text pt-1" style={{ fontFamily: 'var(--font-display)' }}>
-                      <span className={`flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center bg-white border-2 border-ink ${iconColor} text-[12px] leading-none`} style={{ borderColor: 'var(--color-ink)' }}>
-                        {icon}
-                      </span>
-                      <span className="leading-relaxed font-medium">{reason.text}</span>
-                    </div>
-                  );
-                }
                 return (
                   <div key={index} className="text-sm flex items-start gap-2.5 text-text" style={{ fontFamily: 'var(--font-display)' }}>
                     <span className={`flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center bg-white border-2 border-ink ${iconColor} text-[12px] leading-none`} style={{ borderColor: 'var(--color-ink)' }}>
@@ -840,20 +791,24 @@ export default function ResultCard({ restaurant, showExploreMessage = false, isS
                 const prefCd = prefMemberMap.get(name);
 
                 // 按维度顺序构建展示列表（动态：有偏好才显示菜系，有忌口才显示忌口...）
+                // 化解 tier → 显示类型：tier1=match(绿勾)，tier2/3=partial(半勾)
+                const compromiseType = (cd) => cd?.tier === 1 ? 'match' : 'partial';
                 const dims = [];
-                // 菜系
+                // 菜系（一条或多条：可能多个偏好）
                 if (prefCd) {
-                  dims.push({ type: 'match', category: 'preference', text: prefCd.prefSide });
+                  dims.push({ type: compromiseType(prefCd), category: 'preference', text: prefCd.prefSide });
                 } else {
-                  const r = memberReasons.find(r => r.category === 'preference');
-                  if (r) dims.push({ type: r.type, category: 'preference', text: stripName(r.text, name) });
+                  memberReasons
+                    .filter(r => r.category === 'preference')
+                    .forEach(r => dims.push({ type: r.type, category: 'preference', text: stripName(r.text, name) }));
                 }
-                // 忌口
+                // 忌口（一条或多条：可能多个忌口如辣+海鲜）
                 if (allergyCd) {
-                  dims.push({ type: 'match', category: 'allergy', text: allergyCd.allergySide });
+                  dims.push({ type: compromiseType(allergyCd), category: 'allergy', text: allergyCd.allergySide });
                 } else {
-                  const r = memberReasons.find(r => r.category === 'allergy');
-                  if (r) dims.push({ type: r.type, category: 'allergy', text: stripName(r.text, name) });
+                  memberReasons
+                    .filter(r => r.category === 'allergy')
+                    .forEach(r => dims.push({ type: r.type, category: 'allergy', text: stripName(r.text, name) }));
                 }
                 // 预算（有预算要求才显示）
                 const budgetR = memberReasons.find(r => r.category === 'budget');
@@ -865,7 +820,10 @@ export default function ResultCard({ restaurant, showExploreMessage = false, isS
                 const genR = memberReasons.find(r => r.category === 'general');
                 if (genR) dims.push({ type: genR.type, category: 'general', text: stripName(genR.text, name) });
 
-                if (dims.length === 0) return null;
+                if (dims.length === 0) {
+                  // 兜底：至少显示一条，避免成员"消失"
+                  dims.push({ type: 'match', category: 'general', text: '无特殊偏好或忌口' });
+                }
 
                 return (
                   <div key={idx} className="rounded-lg p-2.5 border" style={{ borderColor: 'rgba(0,0,0,0.1)', background: 'rgba(255,255,255,0.5)' }}>

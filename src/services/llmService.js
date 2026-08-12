@@ -426,6 +426,10 @@ const ALLERGY_TRAIT_MAP = {
 };
 
 function detectConflicts(members) {
+  // 确保每个成员有 _memberId，用于全链路去重（避免重名）
+  members.forEach((m, i) => { if (!m._memberId) m._memberId = `m${i}`; });
+
+
   const conflicts = [];
 
   const isCuisineKeyword = (word) => {
@@ -499,7 +503,7 @@ function detectConflicts(members) {
 
           if (isConflict && !conflicts.some(c =>
             c.preference === pref && c.allergy === allergy &&
-            c.members[0] === memberA.name && c.members[1] === memberB.name
+            c._memberIdA === memberA._memberId && c._memberIdB === memberB._memberId
           )) {
             conflicts.push({
               preference: pref,
@@ -507,6 +511,8 @@ function detectConflicts(members) {
               type: allergyInfo.type,
               resolution,
               altKeyword,
+              _memberIdA: memberA._memberId,
+              _memberIdB: memberB._memberId,
               members: [memberA.name, memberB.name],
               prefMemberName: memberA.name,  // 提偏好的这个人（soft偏好可以妥协）
               memberName: memberB.name,       // 提忌口的这个人（硬约束优先级高）

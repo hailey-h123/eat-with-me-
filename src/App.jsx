@@ -8,7 +8,8 @@ import ResultList from './components/ResultList';
 import VoteView from './components/VoteView';
 import HistoryView from './components/HistoryView';
 import { useLocation } from './hooks/useLocation';
-import { parseMemberIntent, mergeMemberIntents, parseIntent, mergeMemberIntentsWithLLM, parseSoloIntentWithLLM } from './services/llmService';
+import { addLike, addDislike, removeLike, removeDislike, makeProfileFingerprint } from './services/feedbackService';
+import { parseIntent, mergeMemberIntentsWithLLM, parseSoloIntentWithLLM } from './services/llmService';
 import { recommendRestaurants, randomExplore, recommendByMode, drawFortuneCard, analyzeEmptyResult, getSearchRadiusFromIntent } from './services/recommendationService';
 import { geocode, IS_MOCK_MODE } from './services/amapService';
 import { calculateSingleScore, calculateSoloFriendly } from './services/scoringService';
@@ -92,10 +93,6 @@ function App() {
     setLastMembers(members);
     try {
     // LLM 增强解析：先跑规则引擎拿到 memberIntents，再用 LLM 重新解析（仅当文本非空时）
-    const memberIntents = members.map(m => {
-      const memberLocation = (m.lat && m.lng) ? { lat: m.lat, lng: m.lng, address: m.address } : null;
-      return parseMemberIntent(m.text, m.name, memberLocation);
-    });
     // 尝试 LLM 增强（不阻塞，失败自动回退）
     const groupIntent = await mergeMemberIntentsWithLLM(members);
     if (!groupIntent.location && location.name) groupIntent.location = location.name;
@@ -249,6 +246,21 @@ function App() {
   const handleBackToHome = () => { setCurrentView('home'); setResults([]); setLastIntent(null); setEmptySuggestions([]); };
 
   const handleFeedback = (type, restaurant) => {
+    // 带当前画像指纹写入 feedbackService，避免不同场景反馈互相污染
+    // 多人：lastIntent.preferences/allergies/budget；单人：lastIntent.extraIntent 下；抽签：兜底 []
+    const prefsSource = lastIntent?.extraIntent || lastIntent;
+    const fingerprint = makeProfileFingerprint({
+      preferences: prefsSource?.preferences || [],
+      allergies: prefsSource?.allergies || [],
+      budget: prefsSource?.budget ?? null,
+    });
+    if (type === 'like') {
+      removeDislike(restaurant.id);
+      addLike(restaurant, fingerprint);
+    } else if (type === 'dislike') {
+      removeLike(restaurant.id);
+      addDislike(restaurant, fingerprint);
+    }
     trackFeedback(type, {
       cuisine: restaurant.cuisine || '',
       price: restaurant.price || 0,

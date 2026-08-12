@@ -3,9 +3,9 @@
  * 包含: 单人模式配置、群体推荐主流程、recommendByMode 调度
  */
 import { mockRestaurants } from '../data/mockRestaurants';
-import { CUISINE_KEYWORDS_FOR_FILTER, CUISINE_SEMANTIC_MAP } from '../data/cuisineMap';
+import { CUISINE_KEYWORDS_FOR_FILTER } from '../data/cuisineMap';
 import { searchPOI, haversineDistance } from './amapService';
-import { applyFeedbackToScore } from './feedbackService';
+import { applyFeedbackToScore, makeProfileFingerprint } from './feedbackService';
 import {
   checkPrefMatch,
   countSafeSignals,
@@ -16,6 +16,7 @@ import {
   filterByAllergies,
   getCuisineSearchKeys,
   getFusionSearchKeywords,
+  CUISINE_SYNONYMS,
   getExpandedSearchKeyword,
   filterExpansionsByAllergies,
   mmrRerank,
@@ -45,6 +46,12 @@ const MAX_RESULTS = 5;
 const TIER_SCORE_GAP = 5;
 /** 价格过滤后候选不足阈值，触发补充搜索 */
 const MIN_CANDIDATES_AFTER_PRICE = 5;
+
+function isPriceInRange(price, minP, maxP) {
+  if (price == null || price <= 0 || isNaN(price)) return true;
+  const noCap = (maxP === null || maxP >= 200);
+  return noCap ? price >= minP : (price >= minP && price <= maxP);
+}
 
 // ============ 单人模式配置 ============
 
@@ -304,7 +311,16 @@ export async function recommendRestaurants(intent, location, excludeIds = []) {
         if (intent.allergies) searchKeyword = filterExpansionsByAllergies(searchKeyword, intent.allergies);
         if (!searchKeyword) return []; // 过敏过滤后为空
         const results = await searchPOI(searchKeyword, searchCenter, searchRadius);
-        return (results && results.length > 0) ? results.slice(0, 15) : [];
+        if (!results || results.length === 0) return [];
+        // 按名字匹配度排序：名字直接包含菜系同义词（如"涮肉""烧烤"）的排前面
+        // 高德 API 返回顺序按距离/热度，名字含关键词的店不一定排前，直接 slice 会丢掉
+        const synonyms = CUISINE_SYNONYMS[key] || [key];
+        const sorted = [...results].sort((a, b) => {
+          const aMatch = synonyms.some(s => (a.name || '').includes(s)) ? 1 : 0;
+          const bMatch = synonyms.some(s => (b.name || '').includes(s)) ? 1 : 0;
+          return bMatch - aMatch;
+        });
+        return sorted.slice(0, 25);
       } catch (e) {
         return [];
       }
@@ -340,7 +356,7 @@ export async function recommendRestaurants(intent, location, excludeIds = []) {
         if (intent.allergies) safeKeyword = filterExpansionsByAllergies(safeKeyword, intent.allergies);
         if (!safeKeyword) return { fusionKey, results: [] }; // 过滤后为空则跳过该融合词
         const results = await searchPOI(safeKeyword, searchCenter, Math.max(searchRadius * 2, 5000));
-        return { fusionKey, results: (results && results.length > 0) ? results.slice(0, 8) : [] };
+        return { fusionKey, results: (results && results.length > 0) ? results.slice(0, 25) : [] };
       } catch (e) {
         return { fusionKey, results: [] };
       }
@@ -437,6 +453,20 @@ export async function recommendRestaurants(intent, location, excludeIds = []) {
         return allSearchTerms.some(term => searchText.includes(term));
       });
     }
+    // 第二层：非融合搜索来的候选，需在 cuisine/name/tags 中匹配到菜系同义词
+    // AMap 语义匹配可能返回无关餐厅（如搜"烧烤"→新疆菜），用同义词库兜底过滤
+    const allCuisineSyns = new Set();
+    cuisineKeys.forEach(k => {
+      (CUISINE_SYNONYMS[k] || [k]).forEach(s => allCuisineSyns.add(s));
+    });
+    if (allCuisineSyns.size > 0) {
+      candidates = candidates.filter(r => {
+        // 融合关键词来的不过滤（如涮烤自助→伍棵煋）
+        if (r._fusionKeyword) return true;
+        const searchText = [r.cuisine || '', r.name || '', ...(r.tags || [])].join('');
+        return [...allCuisineSyns].some(syn => searchText.includes(syn));
+      });
+    }
   }
 
   const activeConflicts = intent.conflicts || [];
@@ -489,13 +519,7 @@ export async function recommendRestaurants(intent, location, excludeIds = []) {
   //    只把明确已知超出预算的剔除
   if (effectivePriceRange) {
     const [minP, maxP] = effectivePriceRange;
-    candidates = candidates.filter(r => {
-      const price = r.price;
-      if (price == null || price <= 0 || isNaN(price)) return true; // 保留：价格未知，不硬踢
-      const noCap = (maxP === null || maxP >= 200);
-      const inRange = noCap ? price >= minP : (price >= minP && price <= maxP);
-      return inRange;
-    });
+    candidates = candidates.filter(r => isPriceInRange(r.price, minP, maxP));
 
     // 候选不足时，扩大搜索范围
     if (candidates.length < MIN_CANDIDATES_AFTER_PRICE && searchCenter) {
@@ -508,12 +532,7 @@ export async function recommendRestaurants(intent, location, excludeIds = []) {
       if (keyword) page2 = await searchPOI(keyword, searchCenter, 5000, 0, 0, 2);
       if (page2 && page2.length > 0) {
         const newOnes = page2.filter(r => !excludeIds.includes(r.id) && !candidates.some(c => c.id === r.id));
-        const filtered = newOnes.filter(r => {
-          const price = r.price;
-          if (price == null || price <= 0 || isNaN(price)) return true; // 保留：价格未知，不硬踢
-          const noCap = (maxP === null || maxP >= 200);
-          return noCap ? price >= minP : (price >= minP && price <= maxP);
-        });
+        const filtered = newOnes.filter(r => isPriceInRange(r.price, minP, maxP));
         candidates.push(...filtered);
       }
       // 仍然不足，用通用"餐厅"搜索 + 更大半径
@@ -521,12 +540,7 @@ export async function recommendRestaurants(intent, location, excludeIds = []) {
         const broad = await searchPOI('餐厅', searchCenter, 5000);
         if (broad && broad.length > 0) {
           const newOnes = broad.filter(r => !excludeIds.includes(r.id) && !candidates.some(c => c.id === r.id));
-          const filtered = newOnes.filter(r => {
-            const price = r.price;
-            if (price == null || price <= 0 || isNaN(price)) return true; // 保留：价格未知，不硬踢
-            const noCap = (maxP === null || maxP >= 200);
-          return noCap ? price >= minP : (price >= minP && price <= maxP);
-          });
+          const filtered = newOnes.filter(r => isPriceInRange(r.price, minP, maxP))
           candidates.push(...filtered);
         }
       }
@@ -552,59 +566,60 @@ export async function recommendRestaurants(intent, location, excludeIds = []) {
   if (needsExpand) {
     candidates.forEach(r => { expandedSeenIds.add(r.id); r._isExpanded = false; });
 
-    async function expandWith(keyword, radius) {
-      const results = await searchPOI(keyword, searchCenter, radius);
-      if (!results || results.length === 0) return;
-      let batch = results.filter(r => !excludeIds.includes(r.id) && !expandedSeenIds.has(r.id));
-      if (batch.length === 0) return;
-      batch = filterByAllergies(batch, intent.allergies, intent.conflicts || []);
-      // 相关性验证：结合 cuisine + name + tags 综合判断
-      {
-        const terms = keyword.split('|').filter(Boolean);
-        if (terms.length > 0) {
-          batch = batch.filter(r => {
-            const searchText = [r.cuisine || '', r.name || '', ...(r.tags || []), ...(r.features || []), ...(r.featureTags || [])].join('');
-            return terms.some(t => searchText.includes(t));
-          });
-        }
-      }
-      if (cuisinePrefs.length > 0) {
-        batch = batch.filter(r => {
-          const cuisine = (r.cuisine || '').trim();
-          if (IRRELEVANT_CUISINES.some(c => cuisine.includes(c))) {
-            const allFeatures = [...(r.tags || []), ...(r.features || [])].join('');
-            return cuisinePrefs.some(pref => {
-              const keywords = CUISINE_KEYWORDS_FOR_FILTER[pref];
-              return keywords ? keywords.some(kw => allFeatures.includes(kw)) : allFeatures.includes(pref);
+    async function expandWith(keyword, radius, isExpanded = true) {
+      try {
+        const results = await searchPOI(keyword, searchCenter, radius);
+        if (!results || results.length === 0) return;
+        let batch = results.filter(r => !excludeIds.includes(r.id) && !expandedSeenIds.has(r.id));
+        if (batch.length === 0) return;
+        batch = filterByAllergies(batch, intent.allergies, intent.conflicts || []);
+        // 相关性验证：结合 cuisine + name + tags 综合判断
+        {
+          const terms = keyword.split('|').filter(Boolean);
+          if (terms.length > 0) {
+            batch = batch.filter(r => {
+              const searchText = [r.cuisine || '', r.name || '', ...(r.tags || []), ...(r.features || []), ...(r.featureTags || [])].join('');
+              return terms.some(t => searchText.includes(t));
             });
           }
-          return true;
-        });
+        }
+        if (cuisinePrefs.length > 0) {
+          batch = batch.filter(r => {
+            const cuisine = (r.cuisine || '').trim();
+            if (IRRELEVANT_CUISINES.some(c => cuisine.includes(c))) {
+              const allFeatures = [...(r.tags || []), ...(r.features || [])].join('');
+              return cuisinePrefs.some(pref => {
+                const keywords = CUISINE_KEYWORDS_FOR_FILTER[pref];
+                return keywords ? keywords.some(kw => allFeatures.includes(kw)) : allFeatures.includes(pref);
+              });
+            }
+            return true;
+          });
+        }
+        if (effectivePriceRange) {
+          const [minP, maxP] = effectivePriceRange;
+          batch = batch.filter(r => {
+            return isPriceInRange(r.price, minP, maxP);
+          });
+        }
+        const fresh = batch.slice(0, MAX_RESULTS);
+        fresh.forEach(r => { r._isExpanded = isExpanded; expandedSeenIds.add(r.id); });
+        candidates.push(...fresh);
+      } catch (e) {
+        // QPS 超限等 API 错误不中断整个推荐流程
       }
-      if (effectivePriceRange) {
-        const [minP, maxP] = effectivePriceRange;
-        batch = batch.filter(r => {
-          const price = r.price;
-          if (price == null || price <= 0 || isNaN(price)) return true;
-          const noCap = (maxP === null || maxP >= 200);
-          return noCap ? price >= minP : (price >= minP && price <= maxP);
-        });
-      }
-      const fresh = batch.slice(0, MAX_RESULTS);
-      fresh.forEach(r => { r._isExpanded = true; expandedSeenIds.add(r.id); });
-      candidates.push(...fresh);
     }
 
     const expandRadius = Math.max(searchRadius * 2, 5000);
 
     // 分批并行：高德免费版 QPS≈5，每批最多 2 个并发 + 批间 300ms 间隔，避免 10021 超限
-    async function expandBatch(keywords) {
+    async function expandBatch(keywords, isExpanded = true) {
       const BATCH_SIZE = 2;
       const BATCH_DELAY = 300;
       const expandedKeywords = keywords.map(kw => getExpandedSearchKeyword(kw));
       for (let i = 0; i < expandedKeywords.length; i += BATCH_SIZE) {
         const batch = expandedKeywords.slice(i, i + BATCH_SIZE);
-        await Promise.all(batch.map(kw => expandWith(kw, expandRadius)));
+        await Promise.all(batch.map(kw => expandWith(kw, expandRadius, isExpanded)));
         if (i + BATCH_SIZE < expandedKeywords.length) {
           await new Promise(resolve => setTimeout(resolve, BATCH_DELAY));
         }
@@ -623,7 +638,7 @@ export async function recommendRestaurants(intent, location, excludeIds = []) {
       '低卡': new Set(['轻食', '沙拉', '日料', '健康餐', '素食']),
     };
     const EXPANSION_MAP = {
-      '辣': ['火锅', '湘菜', '贵州菜', '云南菜', '江西菜', '粤菜', '江浙菜'],
+      '辣': ['火锅', '串串', '麻辣烫', '冒菜', '湘菜', '贵州菜', '云南菜', '江西菜'],
       '素食': ['火锅', '粤菜', '江浙菜', '日料', '西餐', '云南菜', '东北菜', '川菜', '湘菜'],
       '海鲜': ['火锅', '东北菜', '北京菜', '鲁菜', '西北菜', '川菜', '湘菜', '韩餐', '西餐', '贵州菜', '江西菜', '云南菜', '新疆菜'],
       '减肥': ['日料', '粤菜', '江浙菜', '轻食', '沙拉', '健康餐', '火锅', '云南菜', '东南亚', '西餐', '韩餐'],
@@ -633,31 +648,25 @@ export async function recommendRestaurants(intent, location, excludeIds = []) {
     const selfSet = SELF_RESOLVING[conflictAllergy];
     if (selfSet && selfSet.has(pref)) {
       // 自化解品类：只扩半径搜自己（子品类通过 getExpandedSearchKeyword 自然覆盖）
-      await expandBatch([pref]);
+      // 归入原桶（_isExpanded=false），因为 pref 是用户原始偏好不是跨菜系扩张
+      await expandBatch([pref], false);
     } else if (EXPANSION_MAP[conflictAllergy]) {
-      await expandBatch(EXPANSION_MAP[conflictAllergy]);
+      // 偏好菜系扩大半径重搜（保持 _isExpanded=false，归入原桶）
+      await expandBatch([pref], false);
+      // 跨菜系扩张（_isExpanded=true，归入扩展桶）
+      await expandBatch(EXPANSION_MAP[conflictAllergy], true);
     }
   }
 
   // 群体评分
+  const feedbackFingerprint = makeProfileFingerprint({
+    preferences: intent.preferences || [],
+    allergies: intent.allergies || [],
+    budget: intent.budget || null,
+  });
   const scoredRestaurants = candidates.map(restaurant => {
     const { score, reasons, _groupMin, _groupAvg, solutionTier, compromiseDetails, memberScores } = calculateGroupScore(restaurant, intent);
-    let adjustedScore = applyFeedbackToScore(restaurant, score);
-
-    // 扩张补偿：扩张来的关联菜系 +8，原始菜系但没信号 -8
-    // 同义词保护：寿喜烧等子品类（featuresMatchPreference命中）不扣分
-    if (needsExpand && conflictAllergy) {
-      if (restaurant._isExpanded) {
-        adjustedScore += 8;
-      } else {
-        const sig = countSafeSignals(restaurant, conflictAllergy);
-        if (sig === 0) {
-          const allTags = [...(restaurant.tags||[]), ...(restaurant.features||[]), restaurant.cuisine||'', restaurant.name||''];
-          const isSynonym = featuresMatchPreference(allTags, activeConflicts[0]?.preference || '');
-          if (!isSynonym) adjustedScore -= 8;
-        }
-      }
-    }
+    let adjustedScore = applyFeedbackToScore(restaurant, score, feedbackFingerprint);
 
     return {
       ...restaurant,
@@ -763,14 +772,49 @@ export async function recommendRestaurants(intent, location, excludeIds = []) {
     const TOP_ORIGINAL = Math.min(2, original.length);
     const TOP_EXPANDED = Math.min(MAX_RESULTS - TOP_ORIGINAL, expanded.length);
 
-    const originalRanked = applyTierRanking(original, TOP_ORIGINAL);
-    const expandedRanked = applyTierRanking(expanded, TOP_EXPANDED);
+    // 子品类去重：火锅系最多 2 个槽位，同子品类最多 1 个（原桶和扩展桶共用）
+    const HOTPOT_SUBTYPES = {
+      '火锅': ['火锅', '涮锅', '涮肉', '铜锅', '打边炉', '锅物'],
+      '麻辣烫': ['麻辣烫'],
+      '串串': ['串串'],
+      '冒菜': ['冒菜'],
+    };
+    const getHotpotSubtype = (r) => {
+      const text = [r.cuisine || '', ...(r.tags || []), ...(r.features || [])].join('');
+      for (const [sub, kws] of Object.entries(HOTPOT_SUBTYPES)) {
+        if (kws.some(kw => text.includes(kw))) return sub;
+      }
+      return null;
+    };
+    const dedupeBySubtype = (list, topN, maxHotpot) => {
+      const result = [];
+      let hotpotCount = 0;
+      const seenSubtypes = new Set();
+      for (const r of list) {
+        if (result.length >= topN) break;
+        const subtype = getHotpotSubtype(r);
+        if (subtype) {
+          if (hotpotCount >= maxHotpot) continue;
+          if (seenSubtypes.has(subtype)) continue;
+          hotpotCount++;
+          seenSubtypes.add(subtype);
+        }
+        result.push(r);
+      }
+      return result;
+    };
 
-    balancedResults = [...originalRanked, ...expandedRanked];
+    const originalMMR = mmrRerank([...original].sort((a, b) => {
+      const aSat = satisfiedCount(a); const bSat = satisfiedCount(b);
+      if (aSat !== bSat) return bSat - aSat;
+      const aT = a.solutionTier ?? 3; const bT = b.solutionTier ?? 3;
+      if (aT !== bT) return aT - bT;
+      return getScore(b) - getScore(a);
+    }), intent);
+    // 原桶：川菜本身，火锅系最多 0 个（不应出现，但兜底）
+    const originalRanked = dedupeBySubtype(originalMMR, TOP_ORIGINAL, 0);
 
-    // 分轨拼接后全局再按满意人数 → tier → score 排序
-    // 避免原始菜系里只满足1人的餐厅排在关联菜系里满足2人的前面
-    balancedResults.sort((a, b) => {
+    const expandedSorted = [...expanded].sort((a, b) => {
       const aSat = satisfiedCount(a);
       const bSat = satisfiedCount(b);
       if (aSat !== bSat) return bSat - aSat;
@@ -779,21 +823,38 @@ export async function recommendRestaurants(intent, location, excludeIds = []) {
       if (aT !== bT) return aT - bT;
       return getScore(b) - getScore(a);
     });
+    const expandedMMR = mmrRerank(expandedSorted, intent);
+    // 扩展桶：火锅系最多 2 个，同子品类最多 1 个
+    const expandedRanked = dedupeBySubtype(expandedMMR, TOP_EXPANDED, 2);
+
+    balancedResults = [...originalRanked, ...expandedRanked];
+
+    // 分轨拼接后仅按满意人数重排，保留原始菜系优先的分层顺序
+    // dedupeBySubtype 已在上层按 tier+score 排好，跨桶比 tier 会导致茶餐厅(T1)反杀川菜(T3)
+    balancedResults.sort((a, b) => {
+      const aSat = satisfiedCount(a);
+      const bSat = satisfiedCount(b);
+      if (aSat !== bSat) return bSat - aSat; // 满足更多人时才跨越分层
+      return 0; // 否则保留 original 优先的分层顺序
+    });
 
     // 不足补齐
     if (balancedResults.length < MAX_RESULTS) {
       const used = new Set(balancedResults.map(r => r.id));
       for (const r of original) {
         if (balancedResults.length >= MAX_RESULTS) break;
-        if (!used.has(r.id)) { balancedResults.push(r); }
+        if (!used.has(r.id)) { balancedResults.push(r); used.add(r.id); }
       }
       for (const r of expanded) {
         if (balancedResults.length >= MAX_RESULTS) break;
-        if (!used.has(r.id)) { balancedResults.push(r); }
+        if (!used.has(r.id)) { balancedResults.push(r); used.add(r.id); }
       }
     }
   } else {
-    // 无冲突：全体跑 MMR + tier
+    // 无冲突：直接按 matchScore 排序（已包含融合加分）
+    // 不用 _fusionKeyword 排序：通过"火锅烧烤"搜来的纯火锅店有标记但不是真融合，
+    // 而通过"火锅"搜来的烤涮一体店无标记但 matchScore 更高（有融合加分）
+    scoredRestaurants.sort((a, b) => getScore(b) - getScore(a));
     balancedResults = applyTierRanking(scoredRestaurants, MAX_RESULTS);
   }
 
@@ -884,15 +945,7 @@ export async function recommendByMode(mode, location, extraIntent = null, fortun
     // 价格范围过滤
     if (priceRange) {
       const [minP, maxP] = priceRange;
-      filtered = filtered.filter(r => {
-        const price = r.price;
-        if (price == null || price <= 0 || isNaN(price)) {
-          return true;
-        }
-        const noCap = (maxP === null || maxP >= 200);
-        const inRange = noCap ? price >= minP : (price >= minP && price <= maxP);
-        return inRange;
-      });
+      filtered = filtered.filter(r => isPriceInRange(r.price, minP, maxP));
     }
     // 距离范围过滤
     if (distRange) {
