@@ -45,6 +45,18 @@ export function IconLogo({ className = '' }) {
   );
 }
 
+// 首页 Tab 图标：描边盘子+刀叉，与 IconHistory/IconUser 同风格（24×24, stroke 1.7），保证底部 Tab 视觉对齐
+export function IconHome({ className = '' }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="M9.5 6.5v3a1.5 1.5 0 0 0 3 0v-3" />
+      <path d="M11 9.5v4" />
+      <path d="M14.5 6.5c-1 0-1.5 1.3-1.5 2.8s.5 2.8 1.5 2.8v4.4" />
+    </svg>
+  );
+}
+
 export function IconSolo({ className = '' }) {
   return (
     <svg className={className} viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">

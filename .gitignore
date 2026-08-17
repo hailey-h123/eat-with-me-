@@ -28,3 +28,11 @@ dist-ssr
 *.sln
 *.sw?
 .vite
+.debug-render/
+.debug-service/
+debug_fonts.js
+debug_render.mjs
+debug_service.mjs
+browser_*.mjs
+verify_*.png
+view_*.png

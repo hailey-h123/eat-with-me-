@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Header from './components/Header';
 import LocationBar from './components/LocationBar';
 import TabBar from './components/TabBar';
@@ -23,6 +23,41 @@ import {
 
 const LAST_MODE_KEY = 'eatwithme_last_mode';
 const CURRENT_VIEW_KEY = 'eatwithme_current_view';
+
+// ErrorBoundary: 捕获新 Tab 页面的渲染错误，显示调试信息而不是白屏
+class TabErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error, info) {
+    console.error('[TabErrorBoundary] 捕获到渲染错误:', error, info);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="max-w-lg mx-auto px-6 py-16 text-center">
+          <div className="text-4xl mb-4">😵</div>
+          <h3 className="font-bold text-text mb-2">页面加载出错了</h3>
+          <p className="text-text-muted text-sm mb-4">{this.state.error?.message}</p>
+          <pre className="text-xs text-left bg-bg-soft p-3 rounded-lg overflow-auto max-h-40 text-text-muted">
+            {this.state.error?.stack?.split('\n').slice(0, 5).join('\n')}
+          </pre>
+          <button
+            onClick={() => this.setState({ hasError: false, error: null })}
+            className="mt-4 px-4 py-2 bg-brand-700 text-white rounded-xl font-bold text-sm"
+          >
+            重试
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 function App() {
   const { location, isLocating, error, debugInfo, retryLocate, updateLocation } = useLocation();
@@ -522,10 +557,12 @@ function App() {
   const headerConfig = getHeaderConfig();
 
   return (
+    <TabErrorBoundary>
     <div className="min-h-screen">
       {!headerConfig.hidden && (
         <Header title={headerConfig.title} subtitle={headerConfig.subtitle} showBack={headerConfig.showBack} onBack={headerConfig.onBack} />
       )}
+      <LocationBar location={location} isLocating={isLocating} error={error} debugInfo={debugInfo} onLocationChange={handleLocationChange} onRetry={retryLocate} />
       {IS_MOCK_MODE && (
         <div className="bg-amber-50 border-b border-amber-200 px-4 py-2 text-center">
           <p className="text-sm text-amber-800">
@@ -543,7 +580,6 @@ function App() {
           </p>
         </div>
       )}
-      <LocationBar location={location} isLocating={isLocating} error={error} debugInfo={debugInfo} onLocationChange={handleLocationChange} onRetry={retryLocate} />
       {currentView === 'home' && <main className="py-4"><HomeView
         onSelectSolo={handleSelectSolo}
         onSelectGroup={handleSelectGroup}
@@ -571,13 +607,14 @@ function App() {
       {currentView === 'group-input' && <main className="py-8 pb-24"><GroupInput onSearch={handleGroupSearch} onRandomExplore={handleGroupExplore} isLoading={isLoading} /></main>}
       {(currentView === 'solo-results' || currentView === 'group-results') && <main className="py-8"><ResultList results={results} onBack={handleBack} onRefresh={handleRefresh} isLoading={isLoading} isExploreMode={isExploreMode} isSolo={currentView === 'solo-results'} location={location} onVote={handleVote} showVote={showVote} cuisineVote={lastIntent?.cuisineVote} memberCount={lastMembers.length} conflicts={lastIntent?.conflicts} emptySuggestions={emptySuggestions} onApplySuggestion={handleApplySuggestion} onFeedback={handleFeedback} budgetCompromise={lastIntent?.budgetCompromise} /></main>}
       {currentView === 'vote' && <main className="py-8"><VoteView restaurants={results} members={lastMembers} onBack={() => setCurrentView('group-results')} onSelect={handleVoteSelect} /></main>}
-      {currentView === 'footprint' && <main className="py-8 pb-24"><FootprintView onReselect={handleHistoryReselect} /></main>}
-      {currentView === 'profile' && <main className="py-8 pb-24"><ProfileView location={location} onOpenFootprint={() => setCurrentView('footprint')} /></main>}
+      {currentView === 'footprint' && <main className="py-8 pb-24"><TabErrorBoundary><FootprintView onReselect={handleHistoryReselect} /></TabErrorBoundary></main>}
+      {currentView === 'profile' && <main className="py-8 pb-24"><TabErrorBoundary><ProfileView location={location} onOpenFootprint={() => setCurrentView('footprint')} /></TabErrorBoundary></main>}
       <footer className={`text-center py-10 mt-auto ${showTabBar ? 'pb-24' : ''}`}>
         <p className="text-xs text-ink-tertiary">吃什么 · AI 用餐决策助手</p>
       </footer>
       {showTabBar && <TabBar activeView={currentView} onChange={handleTabChange} />}
     </div>
+    </TabErrorBoundary>
   );
 }
 

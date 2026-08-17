@@ -105,8 +105,8 @@ export default {
         error: '#E8552A',
       },
       fontFamily: {
-        display: ['Baloo 2', 'Inter', 'sans-serif'],
-        sans: ['Inter', 'PingFang SC', 'system-ui', '-apple-system', 'sans-serif'],
+        display: ['PingFang SC', 'Hiragino Sans GB', 'Heiti SC', 'Microsoft YaHei', 'Baloo 2', 'Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'sans-serif'],
+        sans: ['PingFang SC', 'Hiragino Sans GB', 'Heiti SC', 'Microsoft YaHei', 'Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'sans-serif'],
       },
       borderRadius: {
         'apple': '16px',

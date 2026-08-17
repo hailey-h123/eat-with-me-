@@ -49,75 +49,7 @@
   border: 0;
 }
 
-@font-face {
-  font-family: 'Fredoka';
-  src: url('https://fonts.gstatic.com/s/fredoka/v14/X7nP4b87HvSqjb_WIi2yDCRwoQ_k7367_B-i2yQag0-mac3O8DLNF6oRkA.woff2') format('woff2');
-  font-weight: 400 700;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: 'Baloo 2';
-  src: url('https://fonts.gstatic.com/s/baloo2/v20/wXKrE3kTposypRyd76v_JsKqA1JViu5RJTLrcQ.woff2') format('woff2');
-  font-weight: 400;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: 'Baloo 2';
-  src: url('https://fonts.gstatic.com/s/baloo2/v20/wXKrE3kTposypRyd76v_JsKqA1JViuxRJTLrcQ.woff2') format('woff2');
-  font-weight: 500;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: 'Baloo 2';
-  src: url('https://fonts.gstatic.com/s/baloo2/v20/wXKrE3kTposypRyd76v_JsKqA1JViu1PJTLrcQ.woff2') format('woff2');
-  font-weight: 600;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: 'Baloo 2';
-  src: url('https://fonts.gstatic.com/s/baloo2/v20/wXKrE3kTposypRyd76v_JsKqA1JViu0xJTLrcQ.woff2') format('woff2');
-  font-weight: 700;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: 'Baloo 2';
-  src: url('https://fonts.gstatic.com/s/baloo2/v20/wXKrE3kTposypRyd76v_JsKqA1JViu9FJTLrcQ.woff2') format('woff2');
-  font-weight: 800;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: 'Inter';
-  src: url('https://fonts.gstatic.com/s/inter/v18/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuLyfAZ9hjp-Ek-_EeA.woff2') format('woff2');
-  font-weight: 400;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: 'Inter';
-  src: url('https://fonts.gstatic.com/s/inter/v18/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuI6fAZ9hjp-Ek-_EeA.woff2') format('woff2');
-  font-weight: 500;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: 'Inter';
-  src: url('https://fonts.gstatic.com/s/inter/v18/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuGKYAZ9hjp-Ek-_EeA.woff2') format('woff2');
-  font-weight: 600;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: 'Inter';
-  src: url('https://fonts.gstatic.com/s/inter/v18/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuFuYAZ9hjp-Ek-_EeA.woff2') format('woff2');
-  font-weight: 700;
-  font-display: swap;
-}
+/* 远程字体URL已失效，直接使用系统字体栈（避免404导致FOIT） */
 
 :root {
   --color-primary: #FF6B3D;
@@ -140,13 +72,13 @@
   --color-success: #6BCB77;
   --color-warning: #F0A818;
   --color-error: #E8552A;
-  --font-display: 'Baloo 2', 'Inter', sans-serif;
-  --font-body: 'Inter', sans-serif;
-  --font-num: 'Fredoka', 'Inter', sans-serif;
+  --font-display: 'Baloo 2', 'Inter', 'PingFang SC', 'Hiragino Sans GB', 'Heiti SC', 'Microsoft YaHei', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-body: 'Inter', 'PingFang SC', 'Hiragino Sans GB', 'Heiti SC', 'Microsoft YaHei', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-num: 'Fredoka', 'Inter', 'PingFang SC', -apple-system, sans-serif;
 }
 
 body {
-  font-family: var(--font-body);
+  font-family: 'PingFang SC', 'Hiragino Sans GB', 'Heiti SC', 'Microsoft YaHei', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   background: #FFFBF0;
   background-image:
     radial-gradient(circle at 12% 18%, rgba(255,107,61,0.10) 0%, transparent 32%),
@@ -155,8 +87,21 @@ body {
     radial-gradient(circle at 25% 75%, rgba(107,203,119,0.06) 0%, transparent 28%);
   background-attachment: fixed;
   min-height: 100vh;
-  color: var(--color-text);
+  color: #2A2520;
   overflow-x: hidden;
+}
+
+/* 全局兜底：确保所有文本元素在字体/颜色异常时仍可见 */
+*, *::before, *::after {
+  color: inherit;
+}
+
+p, span, h1, h2, h3, h4, h5, h6, div, li, button, input, textarea, label {
+  -webkit-text-fill-color: initial;
+}
+
+#root {
+  color: #2A2520;
 }
 
 /* 全页面背景小点纹理（低透明度，增加质感） */

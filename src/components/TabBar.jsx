@@ -1,11 +1,12 @@
-import { IconLogo, IconHistory, IconUser } from './icons/FancyIcons';
+import { IconHome, IconHistory, IconUser } from './icons/FancyIcons';
 
 /**
  * 3 Tab 底部导航：首页 / 足迹 / 我的
  * 受控组件：activeView + onChange，由 App.jsx 持有路由状态
+ * 三个图标统一为 24×24 描边风格（strokeWidth 1.7），保证视觉对齐
  */
 const TABS = [
-  { id: 'home', label: '首页', icon: IconLogo },
+  { id: 'home', label: '首页', icon: IconHome },
   { id: 'footprint', label: '足迹', icon: IconHistory },
   { id: 'profile', label: '我的', icon: IconUser },
 ];
@@ -13,8 +14,16 @@ const TABS = [
 export default function TabBar({ activeView, onChange }) {
   return (
     <nav
-      className="fixed bottom-0 left-0 right-0 z-40 glass-header border-t-2"
-      style={{ borderColor: 'var(--color-ink)' }}
+      className="fixed bottom-0 left-0 right-0 z-40 border-t-2"
+      style={{
+        borderColor: 'var(--color-ink)',
+        // 玻璃拟态内联实现（不复用 glass-header：它带 position:sticky + top:0，
+        // 与 fixed bottom-0 叠加会把 nav 拉成全屏高，半透明背景盖住整页 → 白屏）
+        background: 'rgba(255,251,240,0.92)',
+        backdropFilter: 'blur(20px) saturate(180%)',
+        WebkitBackdropFilter: 'blur(20px) saturate(180%)',
+        paddingBottom: 'env(safe-area-inset-bottom)',
+      }}
       aria-label="主导航"
     >
       <div className="max-w-2xl mx-auto flex items-stretch">
