@@ -102,9 +102,9 @@ export async function recommendFortune(location, fortuneCard = null, applyPrefFi
   };
 
   const scoredCandidates = candidates.map(r => {
-    const { score } = calculateSingleScore(r, fortuneIntent);
+    const { score, reasons } = calculateSingleScore(r, fortuneIntent);
     const adjustedScore = applyFeedbackToScore(r, score);
-    return { ...r, matchScore: adjustedScore };
+    return { ...r, matchScore: adjustedScore, _allReasons: reasons };
   });
 
   scoredCandidates.sort((a, b) => b.matchScore - a.matchScore);
@@ -120,6 +120,11 @@ export async function recommendFortune(location, fortuneCard = null, applyPrefFi
   const exploreMessage = `${card.label} — ${card.message}`;
   const distanceText = finalChoice.distance <= 5 ? '很近' : finalChoice.distance <= 15 ? '距离适中' : '稍远';
 
+  // 保留评分阶段的忌口 reason，合并到最终展示
+  const allergyReasons = (finalChoice._allReasons || [])
+    .filter(r => r.category === 'allergy')
+    .map(r => ({ ...r, text: r.text.replace(/^我：/, '') }));
+
   return {
     ...finalChoice,
     soloFriendly: calculateSoloFriendly(finalChoice),
@@ -129,6 +134,7 @@ export async function recommendFortune(location, fortuneCard = null, applyPrefFi
     exploreMode: 'fortune',
     reasons: [
       { type: 'match', text: `步行${finalChoice.distance}分钟 — ${distanceText}` },
+      ...allergyReasons,
       { type: 'match', text: `${card.label}：${card.message}` }
     ],
   };

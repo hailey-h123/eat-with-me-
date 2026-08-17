@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import ResultCard from './ResultCard';
 import MapView from './MapView';
 import Mascot from './Mascot';
@@ -29,6 +29,25 @@ export default function ResultList({
   budgetCompromise
 }) {
   const [showMap, setShowMap] = useState(false);
+  // 手机端横滑缩略导航的当前选中索引
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const thumbRefs = useRef([]);
+
+  // 换一批/重新搜索后重置到第一家
+  useEffect(() => {
+    setSelectedIndex(0);
+  }, [results]);
+
+  // 选中项变化时，自动滚动缩略卡到可视区中间
+  useEffect(() => {
+    thumbRefs.current[selectedIndex]?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+  }, [selectedIndex]);
+
+  // 缩略卡评分：与 ResultCard 的 displayScore 逻辑一致
+  const thumbScore = (r) => {
+    const s = r?.matchScore;
+    return (typeof s === 'number' && !isNaN(s)) ? Math.round(s * 10) / 10 : 75;
+  };
 
   const getSuggestionIcon = (type) => {
     switch (type) {
@@ -47,7 +66,7 @@ export default function ResultList({
 
   if (!results || results.length === 0) {
     return (
-      <div className="max-w-lg mx-auto px-6 text-center py-12 fade-in relative">
+      <div className="max-w-lg mx-auto px-4 sm:px-6 text-center py-12 fade-in relative">
         <div className="relative inline-block mb-4">
           <Mascot mood="thinking" size={96} />
           <FoodDecor type="star" size={14} className="pointer-events-none absolute -top-2 -left-3 float-animation opacity-60" style={{ animationDelay: '0.5s' }} />
@@ -84,7 +103,7 @@ export default function ResultList({
   }
 
   return (
-    <div className="max-w-lg mx-auto px-6">
+    <div className="max-w-lg mx-auto px-4 sm:px-6">
       <div className="flex items-center justify-between mb-5 fade-in">
         <button onClick={onBack} className="text-primary text-sm font-medium flex items-center gap-1">
           <IconArrowLeft className="w-4 h-4" /> {'返回修改'}
@@ -190,11 +209,49 @@ export default function ResultList({
             </div>
           )}
           <p className="text-xs text-text-muted mb-4">{`为你找到 ${results.length} 家匹配的餐厅`}</p>
-          {results.map((restaurant, i) => (
-            <div key={restaurant.id} className="slide-up" style={{ animationDelay: `${i * 80}ms`, animationFillMode: 'both' }}>
-              <ResultCard restaurant={restaurant} isSolo={isSolo} onFeedback={onFeedback} />
+
+          {/* 手机端：横滑缩略导航 + 单卡详情 */}
+          <div className="sm:hidden">
+            <div className="-mx-4 px-4 overflow-x-auto flex gap-3 pb-2 snap-x snap-mandatory">
+              {results.map((r, i) => (
+                <button
+                  key={r.id}
+                  ref={el => { thumbRefs.current[i] = el; }}
+                  onClick={() => setSelectedIndex(i)}
+                  className="snap-start shrink-0 w-40 text-left rounded-xl border-2 bg-white overflow-hidden transition-all"
+                  style={{ borderColor: i === selectedIndex ? 'var(--color-primary)' : 'var(--color-ink)' }}>
+                  <div className="h-20 w-full bg-bg-soft flex items-center justify-center">
+                    {r.photos?.[0]?.url
+                      ? <img src={r.photos[0].url} alt={r.name} className="w-full h-full object-cover" loading="lazy" />
+                      : <span className="text-text-muted text-xs">无图</span>}
+                  </div>
+                  <div className="p-2">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[11px] font-extrabold text-primary">{i + 1}</span>
+                      <span className="text-xs font-bold text-text truncate flex-1">{r.name}</span>
+                    </div>
+                    <div className="flex items-center justify-between mt-1">
+                      <span className="text-[10px] text-text-secondary truncate">{r.cuisine} · ¥{r.price}</span>
+                      <span className="text-[11px] font-extrabold text-secondary flex-shrink-0">{thumbScore(r)}分</span>
+                    </div>
+                  </div>
+                </button>
+              ))}
             </div>
-          ))}
+
+            {results[selectedIndex] && (
+              <ResultCard restaurant={results[selectedIndex]} isSolo={isSolo} onFeedback={onFeedback} />
+            )}
+          </div>
+
+          {/* 桌面端：竖排（原样保留） */}
+          <div className="hidden sm:block">
+            {results.map((restaurant, i) => (
+              <div key={restaurant.id} className="slide-up" style={{ animationDelay: `${i * 80}ms`, animationFillMode: 'both' }}>
+                <ResultCard restaurant={restaurant} isSolo={isSolo} onFeedback={onFeedback} />
+              </div>
+            ))}
+          </div>
 
           {/* 低分/高折中场景协商建议卡：Tier 3 占比高或最低成员分偏低时提示 */}
           {(() => {

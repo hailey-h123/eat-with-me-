@@ -243,6 +243,67 @@ export async function clearRoom(roomId) {
 }
 
 /**
+ * 移除房间内某个受邀者的成员提交（不删除整个房间，不影响其他人）
+ * @param {string} roomId 房间 ID
+ * @param {string} memberId 要移除的成员 memberId
+ * @returns {Promise<boolean>}
+ */
+export async function removeMemberFromRoom(roomId, memberId) {
+  if (isFirebaseAvailable()) {
+    try {
+      const membersRef = ref(database, `rooms/${roomId}/members`);
+      const snapshot = await get(membersRef);
+      if (snapshot.exists()) {
+        const data = snapshot.val();
+        // 遍历子节点，删除该受邀者的所有提交（memberId 或其 `_序号` 后缀）
+        for (const [key, member] of Object.entries(data)) {
+          const id = member && member.memberId;
+          if (id === memberId || (typeof id === 'string' && id.startsWith(memberId + '_'))) {
+            await remove(ref(database, `rooms/${roomId}/members/${key}`));
+          }
+        }
+      }
+      return true;
+    } catch (error) {
+      console.error('Firebase 移除成员失败:', error);
+      return false;
+    }
+  }
+
+  // localStorage 模式（降级）
+  try {
+    const data = localStorage.getItem(ROOM_PREFIX + roomId);
+    if (!data) return false;
+    const parsed = JSON.parse(data);
+    parsed.members = (parsed.members || []).filter(m => {
+      const id = m && m.memberId;
+      return !(id === memberId || (typeof id === 'string' && id.startsWith(memberId + '_')));
+    });
+    localStorage.setItem(ROOM_PREFIX + roomId, JSON.stringify(parsed));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * 重置受邀者自己的「已提交」标记（用于修改填写）
+ * @param {string} roomId 房间 ID
+ */
+export async function resetSelfSubmitted(roomId) {
+  try {
+    if (isFirebaseAvailable()) {
+      const flagRef = ref(database, `rooms/${roomId}/selfSubmitted`);
+      await set(flagRef, false);
+    } else {
+      localStorage.removeItem(ROOM_PREFIX + roomId + SELF_FLAG);
+    }
+  } catch (error) {
+    console.error('重置已提交标记失败:', error);
+  }
+}
+
+/**
  * 检查房间是否存在
  */
 export async function checkRoomExists(roomId) {

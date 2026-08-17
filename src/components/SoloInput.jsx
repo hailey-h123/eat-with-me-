@@ -156,14 +156,14 @@ function FortuneSlotMachine({ onCardDrawn }) {
       </div>
       {isSpinning && <p className="text-sm text-primary font-bold animate-pulse" style={{ fontFamily: 'var(--font-display)' }}>命运之轮转动中...</p>}
       {showResult && finalCard && (
-        <div className="flex gap-3 fade-in">
+        <div className="flex flex-col sm:flex-row gap-3 fade-in w-full sm:w-auto">
           <button type="button" onClick={handleRedraw}
-            className="btn-secondary px-5 py-3 text-sm flex items-center gap-2">
+            className="btn-secondary px-5 py-3 text-sm flex items-center justify-center gap-2 w-full sm:w-auto">
             <IconRefreshCw className="w-4 h-4" />
             再抽一次
           </button>
           <button type="button" onClick={handleConfirm}
-            className="btn-primary px-7 py-3 text-sm">
+            className="btn-primary px-7 py-3 text-sm w-full sm:w-auto">
             就按这个来
           </button>
         </div>
@@ -324,7 +324,7 @@ export default function SoloInput({ onSearch, onFortune, isLoading }) {
   const showPreferenceTuner = selectedCategory && selectedCategory !== 'fortune' && !drawnCard;
 
   return (
-    <div className="relative max-w-2xl mx-auto px-6">
+    <div className="relative max-w-2xl mx-auto px-4 sm:px-6">
       <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
         <FoodDecor type="noodle" size={24} className="absolute left-[4%] top-[8%] opacity-25 float-animation hidden sm:block" style={{ animationDelay: '0.5s' }} />
         <FoodDecor type="chili" size={20} className="absolute right-[6%] top-[14%] opacity-25 float-animation hidden sm:block" style={{ animationDelay: '1.4s' }} />

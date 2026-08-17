@@ -3,7 +3,8 @@ import { IconSparkle, IconSearch, IconPlus, IconTrash2, IconUser, IconLoader2, I
 import { savePreference } from '../services/preferenceService';
 import {
   createRoom, getRoomMembers, submitMemberToRoom, buildShareUrl,
-  parseJoinFromUrl, markSelfSubmitted, isSelfSubmitted, generateMemberId, clearRoom,
+  parseJoinFromUrl, markSelfSubmitted, isSelfSubmitted, generateMemberId,
+  removeMemberFromRoom, resetSelfSubmitted,
   subscribeRoomMembers
 } from '../services/roomService';
 import { geocode } from '../services/amapService';
@@ -42,7 +43,7 @@ function MemberLocationInput({ address, lat, lng, onChange }) {
         onChange={(e) => { setLocalAddr(e.target.value); setResolved(false); }}
         onBlur={handleResolve}
         onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleResolve(); } }}
-        className="flex-1 bg-bg-soft text-xs text-text-secondary placeholder:text-text-muted focus:outline-none rounded-lg px-2 py-1 border border-border/30 focus:border-primary/30 transition-all"
+        className="flex-1 bg-bg-soft text-base text-text-secondary placeholder:text-text-muted focus:outline-none rounded-lg px-2 py-1 border border-border/30 focus:border-primary/30 transition-all"
         placeholder="位置（可选，如：三里屯）"
       />
       {resolving && <IconLoader2 className="w-3 h-3 text-primary animate-spin flex-shrink-0" />}
@@ -144,17 +145,20 @@ export default function GroupInput({ onSearch, onRandomExplore, isLoading }) {
     const valid = members.filter(m => m.text.trim());
     if (valid.length === 0) return;
 
-    // 提交所有成员
-    for (const m of valid) {
-      await submitMemberToRoom(roomState.roomId, { name: '', text: m.text.trim(), memberId: selfMemberId });
+    // 提交所有成员（每个成员唯一 memberId，避免 localStorage 去重覆盖）
+    for (let i = 0; i < valid.length; i++) {
+      await submitMemberToRoom(roomState.roomId, {
+        name: '', text: valid[i].text.trim(), memberId: `${selfMemberId}_${i}`,
+      });
     }
     await markSelfSubmitted(roomState.roomId);
     setSubmitted(true);
   };
 
-  // 受邀者提交后想修改
+  // 受邀者提交后想修改：只移除自己的提交并重置标记，不影响其他成员
   const handleEditJoin = async () => {
-    await clearRoom(roomState.roomId);
+    await removeMemberFromRoom(roomState.roomId, selfMemberId);
+    await resetSelfSubmitted(roomState.roomId);
     setSubmitted(false);
     setJoinMembers([]);
   };
@@ -195,7 +199,7 @@ export default function GroupInput({ onSearch, onRandomExplore, isLoading }) {
   // ===== 受邀加入模式 =====
   if (roomState.mode === 'join') {
     return (
-      <div className="max-w-2xl mx-auto px-6">
+      <div className="max-w-2xl mx-auto px-4 sm:px-6">
         <div className="fancy-card p-5 mb-4 flex items-start gap-3 slide-up">
           <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-primary/10 text-primary flex-shrink-0">
             <IconUsers className="w-5 h-5" />
@@ -232,7 +236,7 @@ export default function GroupInput({ onSearch, onRandomExplore, isLoading }) {
                       <textarea
                         value={member.text}
                         onChange={(e) => handleMemberChange(member.id, 'text', e.target.value)}
-                        className="w-full h-[64px] bg-bg-soft text-sm text-text placeholder:text-text-muted resize-none focus:outline-none leading-relaxed rounded-xl px-3 py-2 border border-border/50 focus:border-primary/30 focus:ring-2 focus:ring-primary/10 transition-all"
+                        className="w-full h-[64px] bg-bg-soft text-base text-text placeholder:text-text-muted resize-none focus:outline-none leading-relaxed rounded-xl px-3 py-2 border border-border/50 focus:border-primary/30 focus:ring-2 focus:ring-primary/10 transition-all"
                         placeholder={getMemberPlaceholder(index)}
                       />
                       <MemberLocationInput
@@ -277,7 +281,7 @@ export default function GroupInput({ onSearch, onRandomExplore, isLoading }) {
   // ===== 房主协同模式 =====
   if (roomState.mode === 'host') {
     return (
-      <div className="max-w-2xl mx-auto px-6">
+      <div className="max-w-2xl mx-auto px-4 sm:px-6">
         {/* 分享链接卡片 */}
         <div className="fancy-card p-5 mb-4 slide-up">
           <div className="flex items-center gap-2 mb-3">
@@ -334,7 +338,7 @@ export default function GroupInput({ onSearch, onRandomExplore, isLoading }) {
                     <textarea
                       value={member.text}
                       onChange={(e) => handleMemberChange(member.id, 'text', e.target.value)}
-                      className="w-full h-[64px] bg-bg-soft text-sm text-text placeholder:text-text-muted resize-none focus:outline-none leading-relaxed rounded-xl px-3 py-2 border border-border/50 focus:border-primary/30 focus:ring-2 focus:ring-primary/10 transition-all"
+                      className="w-full h-[64px] bg-bg-soft text-base text-text placeholder:text-text-muted resize-none focus:outline-none leading-relaxed rounded-xl px-3 py-2 border border-border/50 focus:border-primary/30 focus:ring-2 focus:ring-primary/10 transition-all"
                       placeholder={getMemberPlaceholder(index)}
                     />
                     <MemberLocationInput
@@ -362,9 +366,9 @@ export default function GroupInput({ onSearch, onRandomExplore, isLoading }) {
             添加成员 {members.length >= 8 && '（最多 8 人）'}
           </button>
 
-          <div className="flex gap-3 mt-6">
+          <div className="flex flex-col sm:flex-row gap-3 mt-6">
             <button type="submit" disabled={isLoading || !hasAnyInput}
-              className="btn-primary flex-1 py-3.5 text-base disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+              className="btn-primary w-full sm:flex-1 py-3.5 text-base disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
               {isLoading ? (
                 <span className="flex items-center gap-2"><IconLoader2 className="w-5 h-5 animate-spin" /> 思考中...</span>
               ) : (
@@ -372,7 +376,7 @@ export default function GroupInput({ onSearch, onRandomExplore, isLoading }) {
               )}
             </button>
             <button type="button" onClick={handleRandomExplore} disabled={isLoading || !hasAnyInput}
-              className="btn-secondary px-6 py-3.5 text-primary text-base disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+              className="btn-secondary w-full sm:px-6 py-3.5 text-primary text-base disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
               <IconSparkle className="w-5 h-5" />
               尝鲜体验
             </button>
@@ -384,7 +388,7 @@ export default function GroupInput({ onSearch, onRandomExplore, isLoading }) {
 
   // ===== 默认本地模式 =====
   return (
-    <div className="max-w-2xl mx-auto px-6">
+    <div className="max-w-2xl mx-auto px-4 sm:px-6">
       <form onSubmit={handleLocalSubmit}>
         <div className="space-y-3">
           {members.map((member, index) => (
@@ -398,7 +402,7 @@ export default function GroupInput({ onSearch, onRandomExplore, isLoading }) {
                   <textarea
                     value={member.text}
                     onChange={(e) => handleMemberChange(member.id, 'text', e.target.value)}
-                    className="w-full h-[64px] bg-bg-soft text-sm text-text placeholder:text-text-muted resize-none focus:outline-none leading-relaxed rounded-xl px-3 py-2 border border-border/50 focus:border-primary/30 focus:ring-2 focus:ring-primary/10 transition-all"
+                    className="w-full h-[64px] bg-bg-soft text-base text-text placeholder:text-text-muted resize-none focus:outline-none leading-relaxed rounded-xl px-3 py-2 border border-border/50 focus:border-primary/30 focus:ring-2 focus:ring-primary/10 transition-all"
                     placeholder={getMemberPlaceholder(index)}
                     />
                   <MemberLocationInput
@@ -436,9 +440,9 @@ export default function GroupInput({ onSearch, onRandomExplore, isLoading }) {
             )}
           </button>
 
-          <div className="flex gap-3 mt-6">
+          <div className="flex flex-col sm:flex-row gap-3 mt-6">
             <button type="submit" disabled={isLoading || !hasAnyInput}
-              className="btn-primary flex-1 py-3.5 text-base disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+              className="btn-primary w-full sm:flex-1 py-3.5 text-base disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
               {isLoading ? (
                 <span className="flex items-center gap-2"><IconLoader2 className="w-5 h-5 animate-spin" /> 思考中...</span>
               ) : (
@@ -446,7 +450,7 @@ export default function GroupInput({ onSearch, onRandomExplore, isLoading }) {
               )}
             </button>
             <button type="button" onClick={handleRandomExplore} disabled={isLoading || !hasAnyInput}
-              className="btn-secondary px-6 py-3.5 text-primary text-base disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+              className="btn-secondary w-full sm:px-6 sm:w-auto py-3.5 text-primary text-base disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
               <IconSparkle className="w-5 h-5" />
               尝鲜体验
             </button>

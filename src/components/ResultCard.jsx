@@ -4,7 +4,7 @@ import {
   IconNavigation, IconLightbulb, IconCheck, IconCross, IconHalfCheck,
   IconThumbsUp, IconThumbsDown, IconBookmark, IconCheckCircle,
   IconPerfectFusion, IconFlavorFusion, IconStyleFusion,
-  IconHeart, IconShieldCheck, IconWallet
+  IconHeart, IconShieldCheck, IconWallet, IconComment
 } from './icons/FancyIcons';
 import { FoodDecor } from './Mascot';
 import Lightbox from './Lightbox';
@@ -417,6 +417,11 @@ export default function ResultCard({ restaurant, showExploreMessage = false, isS
     }
   };
 
+  const handleViewReviews = (e) => {
+    e.stopPropagation();
+    window.open(`https://www.amap.com/search?query=${encodeURIComponent(restaurant.name)}`, '_blank');
+  };
+
   const getScoreStyle = (score) => {
     const safeScore = typeof score === 'number' && !isNaN(score) ? score : 75;
     if (safeScore >= 85) return 'text-secondary';
@@ -519,7 +524,7 @@ export default function ResultCard({ restaurant, showExploreMessage = false, isS
       )}
 
       {currentUrl && (
-        <div className="relative w-full h-48 overflow-hidden group" style={{ borderBottom: '2.5px solid var(--color-ink)' }}>
+        <div className="relative w-full h-36 sm:h-48 overflow-hidden group" style={{ borderBottom: '2.5px solid var(--color-ink)' }}>
           <img
             src={currentUrl}
             alt={restaurant.name}
@@ -542,12 +547,12 @@ export default function ResultCard({ restaurant, showExploreMessage = false, isS
             <>
               {/* 左右箭头 */}
               <button onClick={handlePrevPhoto}
-                className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/80 border-2 border-ink flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-[2px_2px_0_var(--color-ink)]"
+                className="absolute left-2 top-1/2 -translate-y-1/2 w-10 h-10 sm:w-8 sm:h-8 rounded-full bg-white/80 border-2 border-ink flex items-center justify-center opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity shadow-[2px_2px_0_var(--color-ink)]"
                 style={{ borderColor: 'var(--color-ink)' }}>
                 <IconChevronLeft className="w-4 h-4 text-text" />
               </button>
               <button onClick={handleNextPhoto}
-                className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/80 border-2 border-ink flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-[2px_2px_0_var(--color-ink)]"
+                className="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 sm:w-8 sm:h-8 rounded-full bg-white/80 border-2 border-ink flex items-center justify-center opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity shadow-[2px_2px_0_var(--color-ink)]"
                 style={{ borderColor: 'var(--color-ink)' }}>
                 <IconChevronRight className="w-4 h-4 text-text" />
               </button>
@@ -571,10 +576,10 @@ export default function ResultCard({ restaurant, showExploreMessage = false, isS
         </div>
       )}
 
-      <div className="p-6">
+      <div className="p-4 sm:p-6">
         <div className="flex justify-between items-start mb-4">
-          <div className="flex-1">
-            <h3 className="font-extrabold text-xl text-text pr-3" style={{ fontFamily: 'var(--font-display)' }}>{restaurant.name}</h3>
+          <div className="flex-1 min-w-0">
+            <h3 className="font-extrabold text-lg sm:text-xl text-text pr-3 break-words" style={{ fontFamily: 'var(--font-display)' }}>{restaurant.name}</h3>
             <div className="flex items-center gap-2 mt-1 flex-wrap">
               <span className="text-sm text-text-secondary">{restaurant.cuisine}</span>
               {restaurant.solutionTier && restaurant.solutionTier > 1 && (
@@ -622,14 +627,13 @@ export default function ResultCard({ restaurant, showExploreMessage = false, isS
               成员满足度
             </div>
             {/* 紧凑版：gap 从 2.5 减到 1.5，纵向再省一截 */}
+            {/* 窄屏 (<640px) 强制 1 列，sm 以上多成员 2 列，单成员始终 1 列 */}
             <div
-              className="grid gap-1.5"
-              style={{
-                gridTemplateColumns:
-                  restaurant.memberScores.length === 1
-                    ? 'minmax(0, 1fr)'
-                    : 'repeat(2, minmax(0, 1fr))',
-              }}
+              className={
+                restaurant.memberScores.length === 1
+                  ? 'grid grid-cols-1 gap-1.5'
+                  : 'grid grid-cols-1 sm:grid-cols-2 gap-1.5'
+              }
             >
               {restaurant.memberScores.map((ms, idx) => {
                 const dims = ms.dimensions || {};
@@ -907,7 +911,7 @@ export default function ResultCard({ restaurant, showExploreMessage = false, isS
         <div className="mt-3 flex items-center justify-center gap-1.5 sm:gap-3 flex-wrap">
           <button
             onClick={handleFavorite}
-            className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 rounded-full transition-all text-xs font-medium"
+            className="flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-2.5 sm:py-1.5 min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 rounded-full transition-all text-xs font-medium"
             style={favorited ? {
               background: 'rgba(255,201,60,0.15)',
               color: '#F0A818',
@@ -921,7 +925,7 @@ export default function ResultCard({ restaurant, showExploreMessage = false, isS
           <div className="w-px h-4 hidden sm:block" style={{ background: '#FDE6C8' }} />
           <button
             onClick={handleVisit}
-            className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 rounded-full transition-all text-xs font-medium"
+            className="flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-2.5 sm:py-1.5 min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 rounded-full transition-all text-xs font-medium"
             style={visited ? {
               background: 'rgba(107,203,119,0.15)',
               color: '#6BCB77',
@@ -935,7 +939,7 @@ export default function ResultCard({ restaurant, showExploreMessage = false, isS
           <div className="w-px h-4 hidden sm:block" style={{ background: '#FDE6C8' }} />
           <button
             onClick={handleLike}
-            className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 rounded-full transition-all text-xs font-medium whitespace-nowrap"
+            className="flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-2.5 sm:py-1.5 min-h-[44px] sm:min-h-0 rounded-full transition-all text-xs font-medium whitespace-nowrap"
             style={liked ? {
               background: '#2D9CDB',
               color: '#fff',
@@ -952,7 +956,7 @@ export default function ResultCard({ restaurant, showExploreMessage = false, isS
           <div className="w-px h-4 hidden sm:block" style={{ background: '#FDE6C8' }} />
           <button
             onClick={handleDislike}
-            className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 rounded-full transition-all text-xs font-medium whitespace-nowrap"
+            className="flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-2.5 sm:py-1.5 min-h-[44px] sm:min-h-0 rounded-full transition-all text-xs font-medium whitespace-nowrap"
             style={disliked ? {
               background: '#E8552A',
               color: '#fff',
@@ -971,25 +975,32 @@ export default function ResultCard({ restaurant, showExploreMessage = false, isS
         {expanded && (
           <div className="mt-5 pt-5 border-t-2 fade-in" style={{ borderColor: 'var(--color-border)' }}>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-              <div className="flex items-center gap-2 text-text-secondary bg-white border-2 border-ink px-3 py-2 rounded-xl" style={{ borderColor: 'var(--color-ink)' }}>
-                <IconMapPin className="w-4 h-4 text-primary" />
-                <span>{restaurant.address}</span>
+              <div className="flex items-start gap-2 text-text-secondary bg-white border-2 border-ink px-3 py-2 rounded-xl" style={{ borderColor: 'var(--color-ink)' }}>
+                <IconMapPin className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" />
+                <span className="min-w-0 break-words">{restaurant.address}</span>
               </div>
-              <div className="flex items-center gap-2 text-text-secondary bg-white border-2 border-ink px-3 py-2 rounded-xl" style={{ borderColor: 'var(--color-ink)' }}>
-                <IconClock className="w-4 h-4 text-primary" />
-                <span>{restaurant.businessHours}</span>
+              <div className="flex items-start gap-2 text-text-secondary bg-white border-2 border-ink px-3 py-2 rounded-xl" style={{ borderColor: 'var(--color-ink)' }}>
+                <IconClock className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" />
+                <span className="min-w-0 break-words">{restaurant.businessHours}</span>
               </div>
               {restaurant.phone && (
-                <div className="flex items-center gap-2 text-text-secondary bg-white border-2 border-ink px-3 py-2 rounded-xl" style={{ borderColor: 'var(--color-ink)' }}>
-                  <IconPhone className="w-4 h-4 text-primary" />
-                  <span>{restaurant.phone}</span>
+                <div className="flex items-start gap-2 text-text-secondary bg-white border-2 border-ink px-3 py-2 rounded-xl" style={{ borderColor: 'var(--color-ink)' }}>
+                  <IconPhone className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" />
+                  <span className="min-w-0 break-all">{restaurant.phone}</span>
                 </div>
               )}
             </div>
-            <button onClick={handleNavigate}
-              className="btn-primary w-full py-3 text-sm mt-4 flex items-center justify-center gap-2">
-              <IconNavigation className="w-4 h-4" /> 导航过去
-            </button>
+            <div className="flex gap-3 mt-4">
+              <button onClick={handleViewReviews}
+                className="flex-1 py-3 text-sm flex items-center justify-center gap-2 border-2 rounded-xl bg-white hover:bg-gray-50 transition-colors"
+                style={{ borderColor: 'var(--color-ink)' }}>
+                <IconComment className="w-4 h-4" /> 查看评论
+              </button>
+              <button onClick={handleNavigate}
+                className="flex-1 btn-primary py-3 text-sm flex items-center justify-center gap-2">
+                <IconNavigation className="w-4 h-4" /> 导航过去
+              </button>
+            </div>
           </div>
         )}
       </div>

@@ -15,29 +15,41 @@ export default function Lightbox({ photos, currentIndex, onClose, onPrev, onNext
     };
   }, [handleKeyDown]);
 
+  // 弹窗打开时锁定背景滚动，仅针对触摸设备（手机/平板），桌面端保留滚动
+  useEffect(() => {
+    const isTouchDevice = window.matchMedia('(hover: none) and (pointer: coarse)').matches;
+    if (!isTouchDevice) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, []);
+
   const photo = photos[currentIndex];
   if (!photo) return null;
 
   return (
-    <>
+    <div role="dialog" aria-modal="true" aria-label="图片预览">
       <div className="fixed inset-0 z-[99] bg-black/75" onClick={onClose} />
 
       {/* 关闭按钮 */}
       <button
         onClick={onClose}
-        className="fixed top-4 right-4 w-8 h-8 rounded-full bg-black/30 hover:bg-black/45 ring-1 ring-white/25 flex items-center justify-center z-[101] transition-all"
+        aria-label="关闭"
+        className="fixed top-4 right-4 w-11 h-11 rounded-full bg-black/30 hover:bg-black/45 ring-1 ring-white/25 flex items-center justify-center z-[101] transition-all"
       >
-        <IconCross className="w-4 h-4 text-white" />
+        <IconCross className="w-5 h-5 text-white" />
       </button>
 
       {/* 图片 */}
       <div
-        className="fixed inset-0 z-[100] flex items-center justify-center p-12 pointer-events-none"
+        className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-12 pointer-events-none"
       >
         <img
           src={photo.url}
           alt={photo.title || '餐厅图片'}
-          className="max-w-md max-h-[55vh] object-contain pointer-events-auto"
+          className="max-w-full max-h-[55vh] object-contain pointer-events-auto"
           draggable={false}
         />
       </div>
@@ -60,6 +72,7 @@ export default function Lightbox({ photos, currentIndex, onClose, onPrev, onNext
       {photos.length > 1 && (
         <button
           onClick={(e) => { e.stopPropagation(); onPrev(); }}
+          aria-label="上一张"
           className="fixed left-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/30 hover:bg-black/45 ring-1 ring-white/25 flex items-center justify-center z-[101] transition-all"
         >
           <IconChevronLeft className="w-5 h-5 text-white" />
@@ -69,11 +82,12 @@ export default function Lightbox({ photos, currentIndex, onClose, onPrev, onNext
       {photos.length > 1 && (
         <button
           onClick={(e) => { e.stopPropagation(); onNext(); }}
+          aria-label="下一张"
           className="fixed right-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/30 hover:bg-black/45 ring-1 ring-white/25 flex items-center justify-center z-[101] transition-all"
         >
           <IconChevronRight className="w-5 h-5 text-white" />
         </button>
       )}
-    </>
+    </div>
   );
 }

@@ -8,6 +8,10 @@ import {
   CUISINE_KEYWORDS_FOR_FILTER,
   CUISINE_SEMANTIC_MAP,
 } from '../data/cuisineMap';
+import {
+  CUISINE_FUSION_MATRIX,
+  DEMAND_BRIDGE_MATRIX,
+} from '../data/fusionMatrix';
 
 // 中文字典（直接内联，不再使用 i18n）
 const ZH_DICT = {
@@ -130,93 +134,20 @@ const CUISINE_FLAVOR_PROFILE = {
 };
 
 /**
- * 跨菜系融合关联矩阵
+ * 跨菜系融合关联矩阵（从 fusionMatrix.js 数据源派生）
  * 格式: { 菜系A: { 菜系B: '融合类型' } }
  * 融合类型: 'perfect'(完美融合) | 'flavor'(口味融合) | 'style'(形式融合) | 'none'(无法融合)
  */
-const FUSION_MATRIX = {
-  '川菜': {
-    '火锅': 'flavor',       // 共享麻辣，但重庆火锅≠川菜
-    '冒菜': 'perfect',      // 川式冒菜
-    '麻辣烫': 'flavor',     // 有麻辣元素
-    '串串': 'flavor',       // 有麻辣元素
-    '湘菜': 'flavor',       // 都偏辣
-    '烤鱼': 'flavor',       // 麻辣烤鱼
-    '烧烤': 'flavor',       // 麻辣烧烤/川式烤肉
-    '烤肉': 'flavor',       // 麻辣系烤肉
-  },
-  '火锅': {
-    '川菜': 'flavor',
-    '冒菜': 'style',        // 形式类似
-    '麻辣烫': 'style',      // 形式类似
-    '串串': 'style',        // 形式类似
-    '烤肉': 'style',        // 烤涮一体
-    '烧烤': 'style',        // 烤涮一体
-    '粤菜': 'style',        // 打边炉/粥底火锅
-    '湘菜': 'flavor',       // 湘味火锅
-    '韩餐': 'flavor',       // 部队锅
-    '日料': 'style',        // 寿喜烧/涮涮锅
-  },
-  '冒菜': {
-    '川菜': 'perfect',
-    '火锅': 'style',
-    '麻辣烫': 'style',
-    '串串': 'style',
-  },
-  '烤肉': {
-    '烧烤': 'style',        // 都是烤制
-    '韩式烤肉': 'perfect',  // 直接匹配
-    '烧鸟': 'style',        // 都是烤制
-    '火锅': 'style',        // 烤涮一体
-    '川菜': 'flavor',       // 麻辣系烤肉
-    '湘菜': 'flavor',       // 湖南烤肉
-  },
-  '烧烤': {
-    '烤肉': 'style',        // 都是烤制
-    '烧鸟': 'style',        // 都是烤制
-    '火锅': 'style',        // 烤涮一体
-    '韩餐': 'perfect',      // 韩式烧烤
-    '川菜': 'flavor',       // 麻辣烧烤
-    '湘菜': 'flavor',       // 湘味烧烤
-    '东北菜': 'style',      // 东北烧烤
-    '新疆菜': 'perfect',    // 新疆羊肉串
-    '粤菜': 'style',        // 烧腊/叉烧
-  },
-  '日料': {
-    '烧鸟': 'style',        // 都属日系
-    '韩餐': 'flavor',       // 东亚风味
-    '寿司': 'perfect',      // 直接匹配
-    '火锅': 'style',        // 寿喜烧/涮涮锅
-  },
-  '烧鸟': {
-    '日料': 'style',
-    '烤肉': 'style',
-    '烧烤': 'style',
-  },
-  '韩餐': {
-    '日料': 'flavor',
-    '烤肉': 'style',
-    '韩式烤肉': 'perfect',
-    '烧烤': 'perfect',      // 韩式烧烤
-    '火锅': 'flavor',       // 部队锅
-  },
-  '湘菜': {
-    '川菜': 'flavor',       // 都偏辣
-    '烧烤': 'flavor',       // 湘味烧烤
-    '火锅': 'flavor',       // 湘味火锅
-    '烤肉': 'flavor',       // 湖南烤肉
-  },
-  '东北菜': {
-    '烧烤': 'style',        // 东北烧烤
-  },
-  '新疆菜': {
-    '烧烤': 'perfect',      // 羊肉串
-  },
-  '粤菜': {
-    '火锅': 'style',        // 打边炉/粥底火锅
-    '烧烤': 'style',        // 烧腊/叉烧
-  },
-};
+function buildFusionMatrix() {
+  const m = {};
+  for (const [key, cfg] of Object.entries(CUISINE_FUSION_MATRIX)) {
+    const [a, b] = key.split('|');
+    (m[a] ||= {})[b] = cfg.type;
+    (m[b] ||= {})[a] = cfg.type;
+  }
+  return m;
+}
+const FUSION_MATRIX = buildFusionMatrix();
 
 /**
  * 菜系同义词扩展：用于 directMatch 时把子类/具体形式也视为偏好命中
@@ -256,17 +187,32 @@ const GENERIC_INGREDIENTS = new Set([
   '麻辣','香辣','酸辣','微辣','单人餐','双人餐','自助餐',
 ]);
 
-export function featuresMatchPreference(features, pref) {
+// 单个特征是否命中某偏好（featuresMatchPreference 与 extractMatchedFeatures 共用，保证判定/提取逻辑一致）
+function featureMatchesPref(f, pref) {
+  if (!f) return false;
   const synonyms = CUISINE_SYNONYMS[pref] || [pref];
-  return features.some(f => {
-    if (!f) return false;
-    for (const syn of synonyms) {
-      if (syn === f) return true;
-      if (f.includes(syn) && (f.length - syn.length) <= 4) return true;
-      if (syn.includes(f) && f.length >= 2 && !GENERIC_INGREDIENTS.has(f)) return true;
+  for (const syn of synonyms) {
+    if (syn === f) return true;
+    if (f.includes(syn) && (f.length - syn.length) <= 4) return true;
+    // 反向子串匹配：f 必须是 syn 的头部/尾部连续子词，且至少占 syn 一半长度
+    // 防止 "居酒屋".includes("酒馆") 把川菜馆误判为日料
+    if (syn.includes(f) && f.length >= 2 && !GENERIC_INGREDIENTS.has(f)) {
+      const minLen = Math.ceil(syn.length / 2);
+      const isHead = syn.startsWith(f);
+      const isTail = syn.endsWith(f);
+      if (f.length >= minLen && (isHead || isTail)) return true;
     }
-    return false;
-  });
+  }
+  return false;
+}
+
+export function featuresMatchPreference(features, pref) {
+  return features.some(f => featureMatchesPref(f, pref));
+}
+
+// 提取命中了某偏好的实际特征词（用于融合文案的证据展示）
+function extractMatchedFeatures(features, pref) {
+  return features.filter(f => featureMatchesPref(f, pref));
 }
 
 /**
@@ -293,14 +239,18 @@ function checkFusion(pref1, pref2, restaurantFeatures, cuisine = '', flavorFeatu
   const directMatch2 = featuresMatchPreference(flavorFeat, pref2);
 
   if (directMatch1 && directMatch2 && !isHotpotVsGrill) {
+    // 提取双方实际命中的特征词作为证据，生成带原因的融合文案（不再是写死的「完美契合XX」）
+    const matched1 = extractMatchedFeatures(flavorFeat, pref1);
+    const matched2 = extractMatchedFeatures(flavorFeat, pref2);
+    const reason = getFusionReason(pref1, pref2, 'perfect', { matched1, matched2 });
     return {
       canFusion: true,
       fusionType: 'perfect',
-      fusionReason: '同时契合两种偏好',
-      member1Reason: `完美契合${pref1}`,
-      member2Reason: `完美契合${pref2}`,
-      member1Matched: [pref1],
-      member2Matched: [pref2],
+      fusionReason: reason.fusionReason,
+      member1Reason: reason.member1Reason,
+      member2Reason: reason.member2Reason,
+      member1Matched: matched1,
+      member2Matched: matched2,
     };
   }
 
@@ -478,6 +428,7 @@ function areInSameCategory(pref1, pref2) {
       [jpkr, grill],       // 韩式烤肉/日式烧肉
       [jpkr, hotpot],      // 部队锅/寿喜烧
       [jiangnan, hotpot],  // 打边炉
+      [spicy, jpkr],       // 辣系×日韩系：泡菜/辣酱等口味有交集
     ];
     const isCross = crossAllowed.some(([a, b]) =>
       (a.includes(pref1) && b.includes(pref2)) ||
@@ -924,12 +875,6 @@ const CONFLICT_PAIRS = [
   { preference: '火锅', allergy: '素食' },
 ];
 
-// 软约束：不否决，但降分
-const SOFT_ALLERGIES = ['辣', '麻辣', '香菜', '减肥', '低卡', '素食'];
-
-// 强力软约束：不否决，但大幅降分（如素食，肉餐厅也有素菜可选）
-const STRONG_SOFT_ALLERGIES = ['素食'];
-
 const ALLERGY_PENALTY = {
   '辣': 15,
   '麻辣': 15,
@@ -937,6 +882,19 @@ const ALLERGY_PENALTY = {
   '素食': 25,
   '减肥': 10,
   '低卡': 10,
+  // 菜系类忌口：身份确定（韩餐店就是韩餐店），扣分高于一般口味忌口
+  // 与海鲜忌口（12-15分）相当，略高 14 分，避免忌口菜系仍因高分排前面
+  '韩餐': 14, '日料': 14, '川菜': 14, '湘菜': 14,
+  '火锅': 14, '烧烤': 14, '烤肉': 14,
+  '串串': 14, '麻辣烫': 14,
+  '粤菜': 14, '江浙菜': 14, '东北菜': 14, '西北菜': 14,
+  '云南菜': 14, '贵州菜': 14, '北京菜': 14, '鲁菜': 14,
+  '江西菜': 14, '福建菜': 14, '广西菜': 14, '新疆菜': 14,
+  '西餐': 14, '意面': 14, '披萨': 14,
+  '东南亚菜': 14, '泰菜': 14, '越南菜': 14,
+  '面馆': 14, '饺子': 14, '包子': 14, '粥': 14, '汤': 14,
+  '快餐': 14, '轻食': 14, '自助': 14,
+  '甜品': 14, '咖啡': 14, '烧腊': 14, '卤味': 14,
 };
 
 // 冲突化解加分已改为信号数分级制（0信号+2 / 1-2信号+6 / 3+信号+10）
@@ -947,18 +905,160 @@ const ALLERGY_TRAIT_MAP = {
   '香菜': 'cilantro',
   '减肥': 'heavy',
   '低卡': 'heavy',
+  '海鲜': 'seafood',
+  '素食': 'meat',
+  '韩餐': 'korean',
+  '日料': 'japanese',
+  '川菜': 'sichuan',
+  '湘菜': 'hunan',
+  '火锅': 'hotpot',
+  '烧烤': 'grill',
+  '烤肉': 'grill',
+  '串串': 'chuanchuan',
+  '麻辣烫': 'malatang',
+  '粤菜': 'cantonese',
+  '江浙菜': 'jiangzhe',
+  '东北菜': 'northeast',
+  '西北菜': 'northwest',
+  '云南菜': 'yunnan',
+  '贵州菜': 'guizhou',
+  '北京菜': 'beijing',
+  '鲁菜': 'shandong',
+  '江西菜': 'jiangxi',
+  '福建菜': 'fujian',
+  '广西菜': 'guangxi',
+  '新疆菜': 'xinjiang',
+  '西餐': 'western',
+  '意面': 'pasta',
+  '披萨': 'pizza',
+  '东南亚菜': 'southeast_asian',
+  '泰菜': 'thai',
+  '越南菜': 'vietnamese',
+  '面馆': 'noodles',
+  '饺子': 'dumplings',
+  '包子': 'baozi',
+  '粥': 'porridge',
+  '汤': 'soup',
+  '快餐': 'fastfood',
+  '轻食': 'light',
+  '自助': 'buffet',
+  '甜品': 'dessert',
+  '咖啡': 'coffee',
+  '烧腊': 'roast',
+  '卤味': 'braised',
+};
+
+// 忌口展示 profile：统一管理每个忌口的 pass/fail/partial 文案
+const ALLERGY_REASON_PROFILE = {
+  // 标准忌口（有 trait 映射）
+  '辣':    { pass: '避开辣，餐厅适合',     fail: '含辣相关，扣分' },
+  '麻辣':  { pass: '避开麻辣，餐厅适合',   fail: '含麻辣相关，扣分' },
+  '香菜':  { pass: '避开香菜，餐厅适合',   fail: '含香菜，扣分' },
+  '海鲜':  { pass: '避开海鲜，餐厅适合',   fail: '含海鲜相关，扣分' },
+  '素食':  { pass: '避开肉食，餐厅适合',   fail: '以肉食为主，扣分', partial: '有素菜可选，扣分较少' },
+  '减肥':  { pass: '避开重口，餐厅适合',   fail: '偏重口，扣分' },
+  '低卡':  { pass: '避开高卡，餐厅适合',   fail: '偏高卡，扣分' },
+  // 菜系类忌口
+  '韩餐':  { pass: '避开韩餐，餐厅适合',   fail: '韩餐餐厅，不符合忌口' },
+  '日料':  { pass: '避开日料，餐厅适合',   fail: '日料餐厅，不符合忌口' },
+  '川菜':  { pass: '避开川菜，餐厅适合',   fail: '川菜餐厅，不符合忌口' },
+  '湘菜':  { pass: '避开湘菜，餐厅适合',   fail: '湘菜餐厅，不符合忌口' },
+  '火锅':  { pass: '避开火锅，餐厅适合',   fail: '火锅店，不符合忌口' },
+  '烧烤':  { pass: '避开烧烤，餐厅适合',   fail: '烧烤店，不符合忌口' },
+  '烤肉':  { pass: '避开烤肉，餐厅适合',   fail: '烤肉店，不符合忌口' },
+  '串串':  { pass: '避开串串，餐厅适合',   fail: '串串店，不符合忌口' },
+  '麻辣烫': { pass: '避开麻辣烫，餐厅适合', fail: '麻辣烫店，不符合忌口' },
+  '粤菜':  { pass: '避开粤菜，餐厅适合',   fail: '粤菜餐厅，不符合忌口' },
+  '江浙菜': { pass: '避开江浙菜，餐厅适合', fail: '江浙菜餐厅，不符合忌口' },
+  '东北菜': { pass: '避开东北菜，餐厅适合', fail: '东北菜餐厅，不符合忌口' },
+  '西北菜': { pass: '避开西北菜，餐厅适合', fail: '西北菜餐厅，不符合忌口' },
+  '云南菜': { pass: '避开云南菜，餐厅适合', fail: '云南菜餐厅，不符合忌口' },
+  '贵州菜': { pass: '避开贵州菜，餐厅适合', fail: '贵州菜餐厅，不符合忌口' },
+  '北京菜': { pass: '避开北京菜，餐厅适合', fail: '北京菜餐厅，不符合忌口' },
+  '鲁菜':  { pass: '避开鲁菜，餐厅适合',   fail: '鲁菜餐厅，不符合忌口' },
+  '江西菜': { pass: '避开江西菜，餐厅适合', fail: '江西菜餐厅，不符合忌口' },
+  '福建菜': { pass: '避开福建菜，餐厅适合', fail: '福建菜餐厅，不符合忌口' },
+  '广西菜': { pass: '避开广西菜，餐厅适合', fail: '广西菜餐厅，不符合忌口' },
+  '新疆菜': { pass: '避开新疆菜，餐厅适合', fail: '新疆菜餐厅，不符合忌口' },
+  '西餐':  { pass: '避开西餐，餐厅适合',   fail: '西餐厅，不符合忌口' },
+  '意面':  { pass: '避开意面，餐厅适合',   fail: '意面餐厅，不符合忌口' },
+  '披萨':  { pass: '避开披萨，餐厅适合',   fail: '披萨店，不符合忌口' },
+  '东南亚菜': { pass: '避开东南亚菜，餐厅适合', fail: '东南亚菜餐厅，不符合忌口' },
+  '泰菜':  { pass: '避开泰菜，餐厅适合',   fail: '泰菜餐厅，不符合忌口' },
+  '越南菜': { pass: '避开越南菜，餐厅适合', fail: '越南菜餐厅，不符合忌口' },
+  '面馆':  { pass: '避开面馆，餐厅适合',   fail: '面馆，不符合忌口' },
+  '饺子':  { pass: '避开饺子，餐厅适合',   fail: '饺子馆，不符合忌口' },
+  '包子':  { pass: '避开包子，餐厅适合',   fail: '包子铺，不符合忌口' },
+  '粥':    { pass: '避开粥品，餐厅适合',   fail: '粥店，不符合忌口' },
+  '汤':    { pass: '避开汤品，餐厅适合',   fail: '汤馆，不符合忌口' },
+  '快餐':  { pass: '避开快餐，餐厅适合',   fail: '快餐店，不符合忌口' },
+  '轻食':  { pass: '避开轻食，餐厅适合',   fail: '轻食店，不符合忌口' },
+  '自助':  { pass: '避开自助，餐厅适合',   fail: '自助餐，不符合忌口' },
+  '甜品':  { pass: '避开甜品，餐厅适合',   fail: '甜品店，不符合忌口' },
+  '咖啡':  { pass: '避开咖啡，餐厅适合',   fail: '咖啡店，不符合忌口' },
+  '烧腊':  { pass: '避开烧腊，餐厅适合',   fail: '烧腊店，不符合忌口' },
+  '卤味':  { pass: '避开卤味，餐厅适合',   fail: '卤味店，不符合忌口' },
+};
+
+// 冲突化解定制文案：按忌口类型定制，统一签名 (name, allergy, tags, tip)
+const RESOLVED_REASON_PROFILE = {
+  '辣':   (name, _a, tags, tip) => `${name}：辣冲突已化解${tags ? `，有不辣的菜可选：【${tags}】` : (tip ? `，${tip}` : '')}`,
+  '海鲜': (name, _a, tags, tip) => `${name}：海鲜冲突已化解${tags ? `，有非海鲜选择：【${tags}】` : (tip ? `，${tip}` : '')}`,
+  '素食': (name, _a, tags, tip) => `${name}：素食冲突已化解${tags ? `，有素菜可选：【${tags}】` : (tip ? `，${tip}` : '')}`,
+  _default: (name, allergy, tags, tip) => `${name}：${allergy}冲突已化解${tags ? `，可选：【${tags}】` : (tip ? `，${tip}` : '')}`,
 };
 
 const RESTAURANT_TRAIT_MAP = {
-  'spicy': ['辣', '麻辣', '川菜', '四川菜', '川味', '湘菜', '湖南菜', '湘味', '重庆', '串串', '冒菜', '麻辣烫', '剁椒', '水煮', '红油', '泡椒', '香辣', '冬阴功', '麻辣香锅'],
-  'seafood': ['海鲜', '水产', '渔港', '鱼港', '寿司', '刺身', '海鲜自助', '海鲜酒楼', '大排档', '日式料理', '日本料理'],
+  'spicy': ['辣', '麻辣', '川菜', '四川菜', '川味', '湘菜', '湖南菜', '湘味', '重庆', '贵州菜', '黔菜', '贵州', '江西菜', '赣菜', '江西', '串串', '冒菜', '麻辣烫', '剁椒', '水煮', '红油', '泡椒', '香辣', '酸辣', '冬阴功', '麻辣香锅'],
+  'seafood': ['海鲜', '水产', '渔港', '鱼港', '寿司', '刺身', '海鲜自助', '海鲜酒楼'],
   'meat': ['烤肉', '烧烤', '烤串', '撸串', '牛排', '汉堡', '炸鸡', '韩式烤肉', '日式烤肉', '烧肉', '德国咸猪手', '炭烤', '美式烧烤'],
   'heavy': ['烤肉', '烧烤', '自助', '汉堡', '炸鸡', '甜品', '蛋糕', '披萨'],
-  'vegetarian_friendly': ['素食', '素菜', '沙拉', '轻食', '健康餐', '菌菇', '豆制品', '蔬菜', '素食馆', '素菜馆', '素斋', '纯素', '全素', '素食自助'],
+  'vegetarian_friendly': ['素食', '素菜', '沙拉', '轻食', '健康餐', '菌菇', '豆制品', '蔬菜', '素食馆', '素菜馆', '素斋', '纯素', '全素', '素食自助', '素食餐厅', '藜麦碗', '波奇饭', 'poke', '低碳水', '生酮', '健身餐', '低卡餐'],
   'fast': ['快餐', '面馆', '米线', '拉面', '小吃', '便当', '定食'],
   'slow': ['火锅', '烤肉', '西餐', '日料', '自助餐'],
   'hot': ['砂锅', '麻辣烫', '冒菜', '串串', '热汤', '炖菜', '煲仔', '锅物', '热锅', '火锅'],
   'cold': ['沙拉', '轻食', '冷面', '冰淇淋', '甜品', '刺身', '寿司', '凉面', '冰沙'],
+  'korean': ['韩餐', '韩国料理', '韩式', '韩料', '韩国菜', '韩国烤肉', '石锅拌饭', '部队锅', '韩式炸鸡'],
+  'japanese': ['日料', '日式', '日本料理', '日本菜', '日餐', '和食', '寿司', '刺身', '居酒屋', '烧鸟', '日式烤肉'],
+  'sichuan': ['川菜', '四川菜', '川味', '重庆菜', '蜀菜', '川渝'],
+  'hunan': ['湘菜', '湖南菜', '湘味'],
+  'hotpot': ['火锅', '涮锅', '涮肉', '铜锅', '打边炉', '锅物', '寿喜烧', '寿喜锅', '涮涮锅', '涮羊肉', '小火锅', '椰子鸡'],
+  'grill': ['烤肉', '烧烤', '烤串', '撸串', '烧肉', '韩式烤肉', '日式烤肉', '羊肉串', '串烤', '炙烤'],
+  'chuanchuan': ['串串', '串串香', '冷锅串串'],
+  'malatang': ['麻辣烫', '冒菜', '钵钵鸡'],
+  'cantonese': ['粤菜', '广东菜', '广式', '潮汕菜', '潮汕', '早茶', '茶餐厅', '港式'],
+  'jiangzhe': ['江浙菜', '杭帮菜', '上海菜', '本帮菜', '江南菜', '淮扬菜', '无锡菜', '宁波菜', '苏帮菜'],
+  'northeast': ['东北菜', '东北', '锅包肉', '小鸡炖蘑菇', '杀猪菜', '乱炖', '大拉皮', '地三鲜', '酸菜炖'],
+  'northwest': ['西北菜', '陕西', '西安', '兰州', '羊肉泡馍', '肉夹馍', '凉皮', '烤馕', '西北'],
+  'yunnan': ['云南菜', '滇菜', '云南', '过桥米线', '汽锅鸡', '宣威火腿'],
+  'guizhou': ['贵州菜', '黔菜', '贵州', '酸汤鱼', '丝娃娃', '折耳根'],
+  'beijing': ['北京菜', '京菜', '北京', '烤鸭', '炸酱面', '卤煮', '涮羊肉'],
+  'shandong': ['鲁菜', '山东菜', '山东', '孔府菜', '九转大肠', '葱烧海参'],
+  'jiangxi': ['江西菜', '赣菜', '江西', '南昌炒粉', '瓦罐汤'],
+  'fujian': ['福建菜', '闽菜', '福建', '福州菜', '佛跳墙', '沙茶面', '厦门'],
+  'guangxi': ['广西菜', '桂菜', '广西', '螺蛳粉', '桂林米粉', '酸嘢'],
+  'xinjiang': ['新疆菜', '新疆', '大盘鸡', '烤包子', '手抓饭', '新疆菜馆'],
+  'western': ['西餐', '西式', '牛排', '意大利菜', '法式', '意式', '美式', '西餐厅'],
+  'pasta': ['意面', '意大利面', 'pasta', '通心粉', '意大利面馆'],
+  'pizza': ['披萨', '比萨', 'pizza', '披萨店'],
+  'southeast_asian': ['东南亚菜', '泰国菜', '越南菜', '新加坡', '马来西亚', '冬阴功', '东南亚'],
+  'thai': ['泰菜', '泰国', '冬阴功', '咖喱', '青木瓜沙拉', '泰式'],
+  'vietnamese': ['越南菜', '越南', '河粉', '春卷', '法棍', '越式'],
+  'noodles': ['面馆', '米线', '粉', '拉面', '嗦面', '拌面', '汤面', '面食'],
+  'dumplings': ['饺子', '水饺', '煎饺', '蒸饺', '锅贴', '饺子馆'],
+  'baozi': ['包子', '小笼包', '汤包', '叉烧包', '包子铺'],
+  'porridge': ['粥', '稀饭', '粥铺', '砂锅粥', '海鲜粥', '粥店'],
+  'soup': ['汤', '炖汤', '煲汤', '老火汤', '靓汤', '汤馆', '汤品'],
+  'fastfood': ['快餐', '汉堡', '炸鸡', '麦当劳', '肯德基', '便当', '盒饭', '快餐店'],
+  'light': ['轻食', '沙拉', '健康餐', '低卡', '素食', '轻食店', '超级碗', '藜麦碗', '波奇饭', 'poke', '蔬果汁', '冷压果汁', 'Brunch', '早午餐', '素食餐厅', '低碳水', '生酮', '轻食餐厅', '健身餐', '低卡餐', '减脂餐', '简餐', '轻食主义'],
+  'buffet': ['自助', '自助餐', '自助料理'],
+  'dessert': ['甜品', '蛋糕', '冰淇淋', '奶茶', '甜品店', '甜点'],
+  'coffee': ['咖啡', '拿铁', '美式', '手冲', 'Espresso', '咖啡店', '咖啡馆'],
+  'roast': ['烧腊', '叉烧', '烧鹅', '烤鸭', '烧腊店'],
+  'braised': ['卤味', '卤肉', '卤菜', '卤水', '卤味店'],
+  'cilantro': ['香菜', '芫荽'],
+  'dairy': ['牛奶', '芝士', '奶酪', '乳酪', '黄油', '奶油', '奶茶', '乳糖', '奶昔', '酸奶', '冰淇淋', '双皮奶', '芝士奶盖', '起司'],
+  'nuts': ['坚果', '花生', '杏仁', '腰果', '核桃', '榛子', '芝麻酱', '花生酱'],
 };
 
 function restaurantHasTrait(restaurant, trait) {
@@ -987,6 +1087,9 @@ const SAFE_SIGNAL_DISPLAY = {
       '椰香', '咸鲜', '酸甜', '糖醋', '黑椒', '咖喱',
       '改良', '新派', '融合', '创意', '新式',
       '宝宝', '儿童', '清淡餐', '滋补', '养胃',
+      // 菜品级不辣信号（高德 business.tag 返回菜品名，从这里识别不辣菜）
+      '粉蒸', '清炖', '白灼', '凉拌', '清炒', '清汤', '汤清', '蒸菜',
+      '不辣', '免辣', '少辣', '微辣',
     ],
   },
   '素食': {
@@ -1021,6 +1124,13 @@ const SAFE_SIGNAL_DISPLAY = {
   },
 };
 
+// 辣菜排除：这些是"辣菜"信号，含这些词的菜品名不算"不辣安全信号"
+// 防止「蒸辣子」「水煮牛肉」等被 weak 里的「蒸」「白灼」等词误判成不辣
+function isSpicyDish(tag) {
+  const SPICY_DISH_KEYS = ['水煮', '辣子', '麻婆', '麻辣', '香辣', '红油', '剁椒', '毛血旺', '火爆', '椒麻', '藤椒', '辣炒', '辣拌', '泡椒', '酸辣', '干锅', '辣子鸡', '跳跳蛙', '冒菜', '串串'];
+  return SPICY_DISH_KEYS.some(s => tag.includes(s));
+}
+
 // 饮品/甜点过滤器：这些标签跟冲突化解无关，即使命中了白名单也不展示不计分
 function isDrinkOrDessert(tag) {
   const DRINK_SUFFIX = ['茶', '饮', '汁', '酒', '啤', '奶', '咖', '啡', '冰'];
@@ -1047,7 +1157,7 @@ function extractSafeTags(restaurant, allergy) {
 
   return uniqueTags.filter(tag =>
     strongSet.has(tag) || signals.weak.some(s => tag.includes(s))
-  ).filter(tag => !isDrinkOrDessert(tag))
+  ).filter(tag => !isDrinkOrDessert(tag) && !isSpicyDish(tag))
   .sort((a, b) => {
     const aStrong = strongSet.has(a) ? 0 : 1;
     const bStrong = strongSet.has(b) ? 0 : 1;
@@ -1076,6 +1186,9 @@ function inferCuisineName(restaurant) {
     '云南菜', '贵州菜', '江西菜', '湘菜', '川菜', '粤菜', '江浙菜',
     '东北菜', '北京菜', '鲁菜', '西北菜', '新疆菜', '福建菜', '广西菜',
     '东南亚菜', '韩餐', '日料', '西餐', '火锅', '麻辣烫', '串串', '冒菜',
+    // 补全菜系名（避免 actualName 回退到 cuisine 字段导致 whichCircle 落空）
+    '客家菜', '烧烤', '烤肉', '烤串', '铁板烧', '韩式烤肉', '日式烧肉', '烤涮一体',
+    '寿喜烧', '韩式炸鸡', '韩式石锅拌饭', '日式拉面', '日式定食', '日式炸猪排',
   ];
   for (const name of CUISINE_NAMES) {
     if (text.includes(name)) return name;
@@ -1111,6 +1224,8 @@ function getFallbackTip(restaurant, allergy) {
         return '可选越南河粉/海南鸡饭等不辣东南亚菜';
       if (is(['云南菜', '滇菜', '云南']))
         return '有过桥米线/汽锅鸡等经典不辣云南菜';
+      if (is(['贵州菜', '黔菜', '贵州']))
+        return '有酸汤鱼/丝娃娃/豆腐圆子等经典不辣贵州菜';
       if (is(['新疆菜', '新疆']))
         return '大盘鸡/手抓饭等一般不辣或微辣';
       if (is(['东北菜', '东北']))
@@ -1287,18 +1402,20 @@ const COMPROMISE_RULES = [
       // isMatch 兜底：偏好是 trait 级（如 '辣'）时 checkPrefMatch 难命中，用 hasSpicy 补
       // 扩展结果（_isExpanded）虽不匹配原始偏好菜系，但同为辣系 → 需要生成化解文案
       const isExpandedSpicy = restaurant._isExpanded && hasSpicy;
+      // Tier 2 优先：火锅/串串/冒菜等有场景化解能力，给出详细兜底文案
+      // 提前定义：火锅（鸳鸯锅）能化解辣忌口，即使 hasSpicy=false 也应通过 isMatch 守卫
+      const isHotpotType = allFeatures.includes('火锅') || allFeatures.includes('涮锅') || allFeatures.includes('涮肉') || allFeatures.includes('铜锅') || allFeatures.includes('打边炉') || allFeatures.includes('锅物');
+      const isMalaType = allFeatures.includes('麻辣烫') || allFeatures.includes('串串') || allFeatures.includes('冒菜');
       const isMatch = !conflict?.preference
         || checkPrefMatch(conflict.preference, featureList)
         || (conflict.preference === '辣' && restaurantHasTrait(restaurant, 'spicy'))
-        || isExpandedSpicy;
+        || isExpandedSpicy
+        || isHotpotType
+        || (restaurant._isExpanded && !hasSpicy);
       if (!isMatch) return { resolved: false };
       const prefCuisine = conflict?.preference || '川菜';
       const isMildKeyword = allFeatures.includes('不辣') || allFeatures.includes('微辣') || allFeatures.includes('清汤') || allFeatures.includes('鸳鸯') || allFeatures.includes('菌汤') || allFeatures.includes('番茄') || allFeatures.includes('骨汤') || allFeatures.includes('养生') || allFeatures.includes('新派') || allFeatures.includes('改良') || allFeatures.includes('去辣') || allFeatures.includes('清淡');
 
-      // Tier 2 优先：火锅/串串/冒菜等有场景化解能力，给出详细兜底文案
-      // 避免被 Tier 1 的空 allergySide 吞掉
-      const isHotpotType = allFeatures.includes('火锅') || allFeatures.includes('涮锅') || allFeatures.includes('涮肉') || allFeatures.includes('铜锅') || allFeatures.includes('打边炉') || allFeatures.includes('锅物');
-      const isMalaType = allFeatures.includes('麻辣烫') || allFeatures.includes('串串') || allFeatures.includes('冒菜');
       if (isHotpotType || isMalaType) {
         return {
           resolved: true, tier: 2,
@@ -1329,8 +1446,27 @@ const COMPROMISE_RULES = [
         };
       }
 
-      // Tier 1：有明确标签证据（不辣/微辣/清汤等标注，或安全信号标签）展示具体证据
+      // 有明确标签证据（不辣/微辣/清汤等标注，或安全信号标签）
       if (!hasSpicy || isMildKeyword || safeTags.length > 0) {
+        // 扩张菜系（云南菜/贵州菜等）有不辣tag：虽非原始偏好菜系，但有明确不辣证据
+        // 不和原始菜系（川菜）同 tier，降为 Tier 2，文案强调跨菜系替代
+        if (restaurant._isExpanded) {
+          const expandedName = inferCuisineName(restaurant);
+          return {
+            resolved: true, tier: 2,
+            text: safeText
+              ? `这家${expandedName}店有${safeText}，不吃辣也能放心点`
+              : `这家${expandedName}店${!hasSpicy ? '无明显辣元素' : '有不辣/微辣选项'}，可化解冲突`,
+            allergySide: safeText
+              ? `店铺标注了${safeText}，不吃辣的需求已满足`
+              : (isMildKeyword
+                ? '不吃辣的需求已满足，店铺标注了不辣/微辣/清汤等选项'
+                : '这家店无明显辣元素，不吃辣的需求已满足'),
+            prefSide: `虽非${prefCuisine}，但${expandedName}风味相近，有不辣选项可选`,
+            compromise: `${expandedName}非${prefCuisine}，但有不辣标注，辣度可控`,
+          };
+        }
+        // 原始偏好菜系（川菜本身）有不辣tag：Tier 1 最优
         return {
           resolved: true, tier: 1,
           text: safeText
@@ -1338,23 +1474,30 @@ const COMPROMISE_RULES = [
             : `这家${prefCuisine}店${!hasSpicy ? '无明显辣元素' : '有不辣/微辣选项'}，可化解冲突`,
           allergySide: safeText
             ? `店铺标注了${safeText}，不吃辣的需求已满足`
-            : `不吃辣的需求已满足${isMildKeyword ? '，店铺标注了不辣/微辣/清汤等选项' : ''}`,
+            : (isMildKeyword
+              ? '不吃辣的需求已满足，店铺标注了不辣/微辣/清汤等选项'
+              : '这家店无明显辣元素，不吃辣的需求已满足'),
           prefSide: `想吃${prefCuisine}的需求已满足，同时照顾了同伴`,
           compromise: null,
         };
       }
 
-      // Tier 3：纯菜系特性推断（川菜/湘菜没明确不辣标签）
+      // Tier 3：纯菜系特性推断（原始偏好菜系是辣系圈且没明确不辣标签）
+      // 辣系圈 = 川/湘/贵/赣/云；getFallbackTip 已为各菜系备好不辣菜品描述
       const isSichuanType = allFeatures.includes('川菜') || allFeatures.includes('川') || allFeatures.includes('四川') || allFeatures.includes('重庆');
       const isHunanType = allFeatures.includes('湘菜') || allFeatures.includes('湘') || allFeatures.includes('湖南');
-      if (isSichuanType || isHunanType) {
-        const actual = isSichuanType ? '川菜' : '湘菜';
-        const fallbackDishes = isSichuanType ? '开水白菜/粉蒸肉/蒸菜' : '蒸菜/炖菜/汤菜';
+      const isGuizhouType = allFeatures.includes('贵州菜') || allFeatures.includes('黔') || allFeatures.includes('贵州');
+      const isJiangxiType = allFeatures.includes('江西菜') || allFeatures.includes('赣') || allFeatures.includes('江西');
+      const isYunnanType = allFeatures.includes('云南菜') || allFeatures.includes('滇') || allFeatures.includes('云南');
+      // 仅原始菜系走 tier3；扩张菜系（_isExpanded）的辣菜归 tier4 处理
+      if (!restaurant._isExpanded && (isSichuanType || isHunanType || isGuizhouType || isJiangxiType || isYunnanType)) {
+        const actual = isSichuanType ? '川菜' : isHunanType ? '湘菜' : isGuizhouType ? '贵州菜' : isJiangxiType ? '江西菜' : '云南菜';
+        const fallback = getFallbackTip(restaurant, '辣');
         return {
           resolved: true, tier: 3,
           text: safeText
             ? `${actual}馆有${safeText}等非辣选项可点`
-            : `${actual}馆可能有不辣菜品（如${fallbackDishes}等），建议到店确认`,
+            : `${actual}馆${fallback}，建议到店确认`,
           allergySide: safeText
             ? `这家店有${safeText}，不吃辣也有得选`
             : `${actual}馆一般有不辣的蒸菜/炖菜/汤菜，但无法确定，建议看菜单或询问店员`,
@@ -1386,8 +1529,8 @@ const COMPROMISE_RULES = [
   },
   {
     // 冲突：一人想吃 烧烤/烤肉/火锅，另一人素食
-    // Tier 1：标签有明确素/菌菇/豆制品/沙拉/蔬菜 关键词
-    // Tier 2：火锅/烤肉 → 有素菜配菜
+    // Tier 1：标签有明确素/菌菇/豆制品/沙拉/蔬菜 关键词（原始偏好菜系）
+    // Tier 2：扩张菜系（火锅/川菜/云南菜）有素菜证据；火锅/烤肉场景化解
     // Tier 3：其他中餐厅 → 有点素菜
     match: (conflict) => conflict.allergy === '素食',
     resolve: (restaurant, conflict) => {
@@ -1395,6 +1538,22 @@ const COMPROMISE_RULES = [
       const prefCuisine = conflict?.preference || '偏好菜系';
 
       const hasVeg = allFeatures.includes('素') || allFeatures.includes('素菜') || allFeatures.includes('菌菇') || allFeatures.includes('豆制品') || allFeatures.includes('轻食') || allFeatures.includes('沙拉') || allFeatures.includes('蔬菜');
+      const isHotpot = allFeatures.includes('火锅') || allFeatures.includes('涮');
+      const isBBQ = allFeatures.includes('烤肉') || allFeatures.includes('烧烤') || allFeatures.includes('烤串');
+
+      // 扩张菜系（火锅/川菜/云南菜等）有素菜证据 → Tier 2，不和原始菜系同 Tier 1
+      if (restaurant._isExpanded && hasVeg) {
+        const expandedName = inferCuisineName(restaurant);
+        return {
+          resolved: true, tier: 2,
+          text: `这家${expandedName}店有素菜/菌菇/豆制品等素食选项`,
+          allergySide: '素食需求已满足，店铺有素菜/菌菇/豆制品标注',
+          prefSide: `虽非${prefCuisine}，但${expandedName}素菜选项丰富`,
+          compromise: `${expandedName}非${prefCuisine}，但素食选择较多`,
+        };
+      }
+
+      // 原始偏好菜系（烧烤/烤肉本身）有素菜证据 → Tier 1
       if (hasVeg) {
         return {
           resolved: true, tier: 1,
@@ -1405,8 +1564,6 @@ const COMPROMISE_RULES = [
         };
       }
 
-      const isHotpot = allFeatures.includes('火锅') || allFeatures.includes('涮');
-      const isBBQ = allFeatures.includes('烤肉') || allFeatures.includes('烧烤') || allFeatures.includes('烤串');
       if (isHotpot) {
         return {
           resolved: true, tier: 2,
@@ -1427,11 +1584,14 @@ const COMPROMISE_RULES = [
       }
       const isChinese = allFeatures.includes('中餐') || allFeatures.includes('中式') || allFeatures.includes('川菜') || allFeatures.includes('粤菜') || allFeatures.includes('湘菜') || allFeatures.includes('江浙菜') || allFeatures.includes('东北菜') || allFeatures.includes('北京菜') || allFeatures.includes('鲁菜') || allFeatures.includes('西北菜');
       if (isChinese) {
+        // 扩张来的中餐厅无素菜证据 → Tier 3（比原始菜系 Tier 3 低，但已有 tier 3 不再降）
         return {
           resolved: true, tier: 3,
           text: '中餐厅通常有素菜可点（如炒时蔬/地三鲜等）',
           allergySide: '普通中餐厅会有炒时蔬/地三鲜/素菜煲等，点单时明确说明即可',
-          prefSide: `${prefCuisine}偏好已满足`,
+          prefSide: restaurant._isExpanded
+            ? `虽非${prefCuisine}，但${inferCuisineName(restaurant)}一般有素菜可选`
+            : `${prefCuisine}偏好已满足`,
           compromise: '无独立素食菜单，需从普通菜单里挑选',
         };
       }
@@ -1441,8 +1601,9 @@ const COMPROMISE_RULES = [
   },
   {
     // 冲突：一人想吃日料/粤菜，另一人海鲜过敏
-    // Tier 1：明确不含海鲜/鱼/虾/蟹等 → 完全安全
-    // Tier 2：日料非寿司专营 / 粤菜非海鲜酒楼 → 有非海鲜选项
+    // Tier 1：原始偏好菜系（日料/粤菜）明确不含海鲜 → 完全安全
+    // Tier 2：扩张菜系（韩餐/客家菜）天然海鲜少 → 安全替代
+    //         日料非寿司专营 / 粤菜非海鲜酒楼 → 有非海鲜选项
     // Tier 3：其他菜系非海鲜
     match: (conflict) => conflict.allergy === '海鲜',
     resolve: (restaurant, conflict) => {
@@ -1457,6 +1618,19 @@ const COMPROMISE_RULES = [
       const isCantonese = allFeatures.includes('粤菜') || allFeatures.includes('广式') || allFeatures.includes('广东') || allFeatures.includes('潮汕');
       const noSeafoodTrace = !(allFeatures.includes('鱼') || allFeatures.includes('虾') || allFeatures.includes('蟹') || allFeatures.includes('贝') || allFeatures.includes('海') || allFeatures.includes('鳗'));
 
+      // 扩张菜系（韩餐/客家菜等）天然海鲜少 → Tier 2 安全替代
+      if (restaurant._isExpanded && noSeafoodTrace) {
+        const expandedName = inferCuisineName(restaurant);
+        return {
+          resolved: true, tier: 2,
+          text: `这家${expandedName}店无海鲜元素，海鲜过敏者安全`,
+          allergySide: '未检测到海鲜/鱼/虾/蟹等元素，海鲜过敏可放心',
+          prefSide: `虽非${prefCuisine}，但${expandedName}做法相近，海鲜少`,
+          compromise: `${expandedName}非${prefCuisine}，但海鲜风险低`,
+        };
+      }
+
+      // 原始偏好菜系（日料/粤菜本身）明确不含海鲜 → Tier 1
       if ((isJapanese || isCantonese) && noSeafoodTrace) {
         return {
           resolved: true, tier: 1,
@@ -1490,7 +1664,9 @@ const COMPROMISE_RULES = [
           resolved: true, tier: 3,
           text: '这家店以非海鲜为主，安全可选',
           allergySide: '菜品不含海鲜元素，可放心',
-          prefSide: `${prefCuisine}风味基本保持`,
+          prefSide: restaurant._isExpanded
+            ? `虽非${prefCuisine}，但${inferCuisineName(restaurant)}海鲜少`
+            : `${prefCuisine}风味基本保持`,
           compromise: null,
         };
       }
@@ -1499,14 +1675,34 @@ const COMPROMISE_RULES = [
   },
   {
     // 冲突：减肥/低卡 vs 高热量菜系
-    // Tier 1：标签有明确低卡/轻食/减脂 关键词
-    // Tier 2：日料/粤菜/江浙菜/火锅 → 菜系里有低卡做法
+    // Tier 1：标签有明确低卡/轻食/减脂 关键词（原始偏好菜系）
+    // Tier 2：扩张菜系（云南菜/粤菜/江浙菜/日料）有低卡做法 → 安全替代
+    //         日料/粤菜/江浙菜/火锅 → 菜系里有低卡做法
     match: (conflict) => conflict.allergy === '减肥' || conflict.allergy === '低卡',
     resolve: (restaurant, conflict) => {
       const allFeatures = [...(restaurant.tags || []), ...(restaurant.features || []), restaurant.cuisine || '', restaurant.name || ''].join('');
       const prefCuisine = conflict?.preference || '偏好菜系';
 
       const isLight = allFeatures.includes('轻食') || allFeatures.includes('低卡') || allFeatures.includes('健康') || allFeatures.includes('素') || allFeatures.includes('沙拉') || allFeatures.includes('少糖') || allFeatures.includes('低脂') || allFeatures.includes('清淡');
+      const isJapanese = allFeatures.includes('日料') || allFeatures.includes('日式') || allFeatures.includes('日本料理');
+      const isCantonese = allFeatures.includes('粤菜') || allFeatures.includes('广式') || allFeatures.includes('广东');
+      const isJiangzhe = allFeatures.includes('江浙菜') || allFeatures.includes('本帮') || allFeatures.includes('杭帮') || allFeatures.includes('淮扬');
+      const isHotpot = allFeatures.includes('火锅') || allFeatures.includes('涮');
+      const isYunnan = allFeatures.includes('云南菜') || allFeatures.includes('滇菜');
+
+      // 扩张菜系有低卡标签证据 → Tier 2（和原始菜系低卡标签同 tier，但文案区分）
+      if (restaurant._isExpanded && isLight) {
+        const expandedName = inferCuisineName(restaurant);
+        return {
+          resolved: true, tier: 2,
+          text: `这家${expandedName}店有低卡/健康选项`,
+          allergySide: '有明确低卡/轻食/减脂餐单，可直接选择',
+          prefSide: `虽非${prefCuisine}，但${expandedName}做法清淡，低卡可选`,
+          compromise: `${expandedName}非${prefCuisine}，但低卡选项充足`,
+        };
+      }
+
+      // 原始偏好菜系有低卡标签 → Tier 1
       if (isLight) {
         return {
           resolved: true, tier: 1,
@@ -1516,10 +1712,23 @@ const COMPROMISE_RULES = [
           compromise: null,
         };
       }
-      const isJapanese = allFeatures.includes('日料') || allFeatures.includes('日式') || allFeatures.includes('日本料理');
-      const isCantonese = allFeatures.includes('粤菜') || allFeatures.includes('广式') || allFeatures.includes('广东');
-      const isJiangzhe = allFeatures.includes('江浙菜') || allFeatures.includes('本帮') || allFeatures.includes('杭帮') || allFeatures.includes('淮扬');
-      const isHotpot = allFeatures.includes('火锅') || allFeatures.includes('涮');
+
+      // 扩张菜系无低卡标签，但菜系本身清淡（云南/粤菜/江浙/日料）→ Tier 2
+      if (restaurant._isExpanded && (isYunnan || isCantonese || isJiangzhe || isJapanese)) {
+        const expandedName = inferCuisineName(restaurant);
+        const tip = isYunnan ? '蒸/煮/香草调味，油少'
+          : isCantonese ? '白灼/蒸菜/煲汤，油少'
+          : isJiangzhe ? '清蒸/凉拌/汤羹，油少'
+          : '生食/烤物，油少';
+        return {
+          resolved: true, tier: 2,
+          text: `${expandedName}做法偏清淡（${tip}），有低卡选项`,
+          allergySide: `可选${tip}等低卡做法`,
+          prefSide: `虽非${prefCuisine}，但${expandedName}清淡低卡`,
+          compromise: `${expandedName}非${prefCuisine}，但热量较低`,
+        };
+      }
+
       if (isJapanese) {
         return { resolved: true, tier: 2,
           text: '日料有蒸物/煮物/沙拉等清淡低卡选项',
@@ -1552,6 +1761,150 @@ const COMPROMISE_RULES = [
           compromise: '锅底选清汤/菌汤，麻酱/沙茶酱要少',
         };
       }
+      return { resolved: false };
+    }
+  },
+  {
+    // 冲突：一人想吃某菜系，另一人忌口该菜系（如想吃韩餐 + 忌口韩餐）
+    // Tier 2a：忌口菜系的"非典型形态"（忌口韩餐但韩式烤肉一般接受）
+    // Tier 2b：同圈扩张菜系（忌口云南菜但推荐川菜，同辣系圈风味相近）
+    // Tier 3：典型忌口菜系（传统韩餐/传统日料刺身店）→ 硬冲突，沉底
+    // 餐厅 NOT 忌口菜系且非同圈 → resolved:false（无冲突，安全，自然排在前面）
+    match: (conflict) => conflict.type === 'cuisine_avoid',
+    resolve: (restaurant, conflict) => {
+      const allergy = conflict.allergy;
+      const prefCuisine = conflict.preference || '偏好菜系';
+      const trait = ALLERGY_TRAIT_MAP[allergy];
+      const isAvoidedCuisine = trait && restaurantHasTrait(restaurant, trait);
+      const allText = [...(restaurant.tags || []), ...(restaurant.features || []), restaurant.cuisine || '', restaurant.name || ''].join('');
+
+      // 圈组定义：同圈菜系视为"风味相近，Tier 2 化解"
+      // 客家菜统一归清淡圈（避免辣系/清淡圈归属冲突）
+      const SPICY_CIRCLE = new Set(['川菜', '湘菜', '贵州菜', '江西菜', '云南菜']);
+      const LIGHT_CIRCLE = new Set(['粤菜', '江浙菜', '客家菜', '福建菜']);
+      const BBQ_CIRCLE = new Set(['烧烤', '烤肉', '烤串', '铁板烧', '韩式烤肉', '日式烧肉']);
+      // 火锅自身也加入 HOTPOT_CIRCLE（否则 whichCircle('火锅')=null）
+      const HOTPOT_CIRCLE = new Set(['火锅', '烤涮一体', '麻辣烫', '串串', '冒菜']);
+      function whichCircle(x) {
+        if (SPICY_CIRCLE.has(x)) return '辣系';
+        if (LIGHT_CIRCLE.has(x)) return '清淡';
+        if (BBQ_CIRCLE.has(x)) return '烧烤';
+        if (HOTPOT_CIRCLE.has(x)) return '火锅';
+        if (x === '韩餐' || x === '韩国料理') return '韩餐';
+        if (x === '日料' || x === '日本料理') return '日料';
+        return null;
+      }
+      function sameCircle(a, b) {
+        const ga = whichCircle(a), gb = whichCircle(b);
+        return ga && gb && ga === gb;
+      }
+
+      // 同菜系"非典型形态"定义：忌口方通常只排斥"传统形态"不排斥这些
+      const KOREAN_ATYPICAL = ['韩式烤肉', '韩式炸鸡', '韩式烤串', '韩式石锅拌饭', '韩式拌饭', '韩式煎饼'];
+      const JAPANESE_ATYPICAL = ['日式烧肉', '寿喜烧', '日式烤串', '铁板烧', '日式拉面', '日式定食', '日式炸猪排', '日式煎饺', '照烧鸡', '日式咖喱'];
+      const HOTPOT_ATYPICAL = ['烤涮一体', '麻辣烫', '串串', '冒菜'];
+      const isKoreanAtypical = KOREAN_ATYPICAL.some(k => allText.includes(k));
+      const isJapaneseAtypical = JAPANESE_ATYPICAL.some(k => allText.includes(k));
+      const isHotpotAtypical = HOTPOT_ATYPICAL.some(k => allText.includes(k));
+      const bbqAtypicalCheck = () => {
+        const circle = whichCircle(allergy);
+        if (circle !== '烧烤') return false;
+        // 烧烤圈"非典型"=圈组内其他成员（忌口烧烤但推荐日式烧肉通常接受）
+        return BBQ_CIRCLE.has(inferCuisineName(restaurant)) || BBQ_CIRCLE.has(allergy);
+      };
+
+      const actualName = inferCuisineName(restaurant);
+
+      // ========== Tier 2a：忌口菜系的非典型形态（餐厅 IS 忌口菜系，但是非典型）==========
+      if (isAvoidedCuisine) {
+        if ((allergy === '韩餐' || allergy === '韩国料理') && isKoreanAtypical) {
+          const atypTag = KOREAN_ATYPICAL.find(k => allText.includes(k)) || '韩式独立品类';
+          return {
+            resolved: true, tier: 2,
+            text: `虽算韩餐，但${atypTag}是独立类型，忌口韩餐一般不排斥`,
+            allergySide: `这家主打${atypTag}，不是传统汤饭/部队锅，忌口韩餐通常接受`,
+            prefSide: `${conflict.prefMemberName}的${prefCuisine}氛围保留，是韩餐里的独立品类`,
+            compromise: `属于韩餐品类，若忌口方极度排斥韩餐风格仍需商量`,
+          };
+        }
+        if ((allergy === '日料' || allergy === '日本料理') && isJapaneseAtypical) {
+          const atypTag = JAPANESE_ATYPICAL.find(k => allText.includes(k)) || '日式非刺身品类';
+          return {
+            resolved: true, tier: 2,
+            text: `虽算日料，但${atypTag}不含刺身/生海鲜，忌口日料通常接受`,
+            allergySide: `这家主打${atypTag}，不含刺身/寿司/生海鲜，忌口日料一般没问题`,
+            prefSide: `${conflict.prefMemberName}的${prefCuisine}氛围保留，是日料里的非刺身品类`,
+            compromise: `属于日料品类，若忌口方极度排斥日式风格仍需商量`,
+          };
+        }
+        if (allergy === '火锅' && isHotpotAtypical) {
+          const atypTag = HOTPOT_ATYPICAL.find(k => allText.includes(k)) || '火锅衍生品类';
+          return {
+            resolved: true, tier: 2,
+            text: `${atypTag}是火锅的衍生形式，忌口火锅通常接受`,
+            allergySide: `${atypTag}是火锅独立品类，忌口传统火锅通常能接受`,
+            prefSide: `${conflict.prefMemberName}的${prefCuisine}氛围保留，是火锅衍生形态`,
+            compromise: null,
+          };
+        }
+        // 烧烤圈内部：忌口烧烤 → 但推荐的是日式烧肉/韩式烤肉/铁板烧等
+        if (bbqAtypicalCheck() && (actualName !== allergy)) {
+          return {
+            resolved: true, tier: 2,
+            text: `虽同属烧烤系，但${actualName}是${allergy}的独立分支，通常接受`,
+            allergySide: `${actualName}和${allergy}形式不同，忌口${allergy}一般不排斥${actualName}`,
+            prefSide: `${conflict.prefMemberName}的烧烤氛围保留，是烧烤系的${actualName}`,
+            compromise: null,
+          };
+        }
+
+        // ========== Tier 3：典型忌口菜系（传统形态，不可化解）==========
+        return {
+          resolved: false,
+          tier: 3,
+          text: `${conflict.memberName}忌口${allergy}，这家是传统${allergy}店不适合；已优先推荐同圈替代或非${allergy}餐厅`,
+          allergySide: `这家是传统${allergy}餐厅，不符合${conflict.memberName}的忌口要求`,
+          prefSide: `${conflict.prefMemberName}的${prefCuisine}偏好已满足，但需照顾忌口同伴`,
+          compromise: `建议选前面同圈的非典型/替代菜系，或让忌口方决定`,
+        };
+      }
+
+      // ========== Tier 2b：餐厅不是忌口菜系，但和忌口菜系同圈，风味相近 ==========
+      if (restaurant._isExpanded && sameCircle(allergy, actualName)) {
+        const circleName = whichCircle(allergy);
+        return {
+          resolved: true, tier: 2,
+          text: `虽非${allergy}，但${actualName}和${allergy}同属${circleName}饮食圈，风味相近`,
+          allergySide: `这家不是${allergy}餐厅，可放心`,
+          prefSide: `${conflict.prefMemberName}想吃${prefCuisine}的需求基本满足，${actualName}同${circleName}系风味相近`,
+          compromise: `${actualName}非${allergy}，但${circleName}系风格接近`,
+        };
+      }
+
+      // ========== Tier 2c：跨菜系扩张（韩餐→日式烧肉，日料→韩式烤肉等）==========
+      // 这些餐厅是忌口方通常能接受的替代选择，虽不同圈但风味有交集
+      if (restaurant._isExpanded) {
+        return {
+          resolved: true, tier: 2,
+          text: `虽非${allergy}，但${actualName}是${allergy}的常见替代选择`,
+          allergySide: `这家不是${allergy}餐厅，${actualName}通常不触发${allergy}忌口`,
+          prefSide: `${conflict.prefMemberName}想吃${prefCuisine}的需求部分满足，${actualName}风味有交集`,
+          compromise: `${actualName}非${allergy}，但作为替代选择双方都能接受`,
+        };
+      }
+
+      // ========== 兜底：非忌口菜系、非扩张来的餐厅（原桶/通用搜索）==========
+      // 这些餐厅和忌口菜系无关，是安全选择
+      if (!isAvoidedCuisine) {
+        return {
+          resolved: true, tier: 1,
+          text: `${actualName}和${allergy}完全不同，双方需求都能满足`,
+          allergySide: `这家是${actualName}，和${allergy}无关，可以放心`,
+          prefSide: `虽非${prefCuisine}，但${actualName}也是不错的好选择`,
+          compromise: null,
+        };
+      }
+
       return { resolved: false };
     }
   },
@@ -1660,12 +2013,12 @@ export function filterByAllergies(restaurants, allergies, conflicts = []) {
           // 放行，评分阶段加 reason 提示用户确认
           violates = false;
         }
-      } else if (allergy === '坚果') {
-        const allTags = [...(restaurant.tags || []), ...(restaurant.features || []), restaurant.cuisine || ''].join('');
-        violates = allTags.includes('坚果');
-      } else if (allergy === '花生') {
-        const allTags = [...(restaurant.tags || []), ...(restaurant.features || []), restaurant.cuisine || ''].join('');
-        violates = allTags.includes('花生');
+      } else if (allergy === '坚果' || allergy === '花生') {
+        // 用 trait 检测（含店名），如「陈记花生汤」这类店名含坚果信号也能命中
+        violates = restaurantHasTrait(restaurant, 'nuts');
+      } else if (allergy === '牛奶' || allergy === '乳糖不耐') {
+        // 硬过滤：含奶制品信号（芝士/奶茶/奶油/冰淇淋等）的餐厅
+        violates = restaurantHasTrait(restaurant, 'dairy');
       }
 
       if (violates) return false;
@@ -1734,6 +2087,9 @@ export function calculateMemberScore(restaurant, member, groupConflicts = []) {
 
   // 1. 偏好匹配
   if (preferences && preferences.length > 0) {
+    // weightedHits：评分计算用的质量加权累加（精确1.0 / 语义0.85 / 部分0.7）
+    // exactMatches/semanticMatches/partialMatches：仅用于展示层判断是否展示契合理由，不参与评分
+    let weightedHits = 0;
     let exactMatches = 0;
     let partialMatches = 0;
     let semanticMatches = 0;
@@ -1747,23 +2103,48 @@ export function calculateMemberScore(restaurant, member, groupConflicts = []) {
         (f.includes(pref) && (f.length - pref.length) <= 4) ||
         (pref.includes(f) && f.length >= 2)
       );
-      // 语义匹配：菜系等价（如"外国餐厅"≡"西餐"），视为完整命中
+      // 语义匹配：菜系等价（如"外国餐厅"≡"西餐"）
       const semanticMatch = !exactMatch && !synonymMatch && !substringMatch && checkSemanticMatch(pref, allFeatures);
+      // 部分匹配：兜底 checkPrefMatch
       const partialMatch = !exactMatch && !synonymMatch && !substringMatch && checkPrefMatch(pref, allFeatures);
-      if (exactMatch || synonymMatch) exactMatches++;
-      else if (semanticMatch) semanticMatches++;
-      else if (partialMatch || substringMatch) partialMatches++;
+
+      if (exactMatch || synonymMatch) {
+        weightedHits += 1.0;
+        exactMatches++;
+      } else if (semanticMatch) {
+        // 语义匹配：评分按 0.85 略低于精确命中，展示层仍记为语义命中数
+        weightedHits += 0.85;
+        semanticMatches++;
+      } else if (partialMatch || substringMatch) {
+        weightedHits += 0.7;
+        partialMatches++;
+      }
     });
 
-    // 语义匹配是菜系等价关系，按完整权重计入 matchRate
-    const matchRate = (exactMatches + semanticMatches + partialMatches * 0.7) / preferences.length;
+    // matchRate 和 specificityFactor 统一使用 weightedHits 口径
+    const matchRate = weightedHits / preferences.length;
+    const specificityFactor = Math.min(1, weightedHits / Math.max(1, preferences.length));
     // 🔧 修复：完全未命中时(matchRate=0)基准分必须**低于无偏好**的45分
     // 有明确想吃川菜却给你推荐沙拉，这种情况应该比"随便吃点"分更低
     const baseScore = matchRate === 0 ? 25 : 55;
-    const bonusScore = 45 * powerScale(matchRate, 1.8);
+    const bonusScore = 45 * powerScale(matchRate, 1.8) * specificityFactor;
     const cuisineScore = baseScore + bonusScore;
     score += cuisineScore * WEIGHTS.cuisine;
     dimensionScores.cuisine = Math.round(cuisineScore);
+
+    // 轻食偏好场景惩罚：偏好含[轻食/沙拉/健康餐/低卡/素食]但餐厅是咖啡/甜品/奶茶店时，软扣分8分
+    // 不硬排除，只降低排名（真·轻食店不命中，纯咖啡店距离极近仍可上榜）
+    const LIGHT_PREFS = new Set(['轻食', '沙拉', '健康餐', '低卡', '素食']);
+    const NON_MEAL_TRAITS = ['咖啡', '咖啡店', '咖啡馆', '咖啡厅', '星巴克', '瑞幸', 'manner', 'Manner',
+                             '甜品', '甜品店', '蛋糕', '奶茶', '面包', '烘焙', '面包店', '下午茶'];
+    const wantsLight = preferences.some(p => LIGHT_PREFS.has(p));
+    if (wantsLight) {
+      const isNonMealPrimary = NON_MEAL_TRAITS.some(t => allText.includes(t)) &&
+        !['轻食', '沙拉', '健康餐', '素食', '三明治', '简餐', 'brunch', 'Brunch'].some(t => allText.includes(t));
+      if (isNonMealPrimary) {
+        score -= 8;
+      }
+    }
 
     if (exactMatches > 0 || partialMatches > 0 || semanticMatches > 0) {
       const matched = preferences.filter(pref => checkPrefMatch(pref, allFeatures));
@@ -1798,116 +2179,110 @@ export function calculateMemberScore(restaurant, member, groupConflicts = []) {
     }
   }
 
-  // 2. 软约束忌口检测
+  // 2. 忌口检测
   let allergyResolvedCount = 0;
   if (allergies && allergies.length > 0) {
     allergies.forEach(allergy => {
-      const isSoft = SOFT_ALLERGIES.includes(allergy);
-      const isStrongSoft = STRONG_SOFT_ALLERGIES.includes(allergy);
-      // 海鲜在群体冲突模式下走软约束路径（硬过滤已放行非专营店）
-      // 🔧 修复：仅当前成员是该海鲜冲突的参与方才切换到软约束路径
+      const profile = ALLERGY_REASON_PROFILE[allergy];
+      const trait = ALLERGY_TRAIT_MAP[allergy];
       const isSeafoodConflict = allergy === '海鲜' && memberInSeafoodConflict();
-      // 海鲜无冲突时仍需处理：走通用硬过敏评分路径（扣分/适合）
-      const isSeafoodNoConflict = allergy === '海鲜' && !isSeafoodConflict;
-      if (!isSoft && !isStrongSoft && !isSeafoodConflict && !isSeafoodNoConflict) {
-        // 清真：不在此处 return，由下方 else if (allergy === '清真') 处理（检查正向标签+提示电话确认）
-        if (allergy === '清真') {
-          // deliberately fall through to the halal branch below
-        } else if (HARD_ALLERGIES.includes(allergy)) {
-          // 坚果/花生/牛奶/乳糖不耐等：硬过滤已放行，直接确认安全
-          reasons.push({ type: 'match', category: 'allergy', text: t('reason.allergyPass', { name: member.name, allergies: allergy }) });
-          return;
+
+      // 清真：正向标签检查 + 电话确认提示
+      if (allergy === '清真') {
+        const halalText = [...(restaurant.tags || []), ...(restaurant.features || []), restaurant.cuisine || '', restaurant.name || ''].join('');
+        const HALAL_SIGNALS = ['清真', 'halal', '回民', '伊斯兰', 'HALAL'];
+        const hasHalalTag = HALAL_SIGNALS.some(s => halalText.toLowerCase().includes(s.toLowerCase()));
+        if (hasHalalTag) {
+          reasons.push({ type: 'match', category: 'allergy', text: `${member.name}：避开非清真，餐厅适合` });
         } else {
-          return;
+          reasons.push({ type: 'partial', category: 'allergy', text: `标签未标清真，建议${member.name}电话确认` });
+          penalty += 5;
         }
+        return;
       }
 
-      if (allergy === '海鲜' && isSeafoodConflict) {
-        // 群体冲突模式：有seafood trait但非专营的日料/粤菜店扣分，可被冲突化解
-        if (memberIsResolver(allergy)) {
+      // 坚果/花生/牛奶/乳糖不耐等硬忌口：硬过滤尽量放行，评分侧用 trait 再做真实检测（双保险）
+      if (HARD_ALLERGIES.includes(allergy) && allergy !== '海鲜') {
+        const hardTrait = (allergy === '坚果' || allergy === '花生') ? 'nuts'
+          : (allergy === '牛奶' || allergy === '乳糖不耐') ? 'dairy' : null;
+        if (hardTrait && restaurantHasTrait(restaurant, hardTrait)) {
+          penalty += 20;
+          reasons.push({ type: 'mismatch', category: 'allergy', text: `${member.name}：含${allergy}相关食材，扣分` });
+        } else {
+          reasons.push({ type: 'match', category: 'allergy', text: `${member.name}：避开${allergy}，餐厅适合` });
+        }
+        return;
+      }
+
+      // 海鲜：冲突 / 无冲突分支
+      if (allergy === '海鲜') {
+        const hasSeafood = restaurantHasTrait(restaurant, 'seafood');
+        // 有 seafood trait + 冲突化解 → 定制文案
+        if (hasSeafood && isSeafoodConflict && memberIsResolver(allergy)) {
           allergyResolvedCount++;
-          const resolutionText = checkCompromise(restaurant, groupConflicts.find(c => c.allergy === '海鲜'));
           const evidenceTags = extractSafeTags(restaurant, allergy);
           const fallbackTip = evidenceTags.length === 0 ? getFallbackTip(restaurant, allergy) : '';
-          const evidenceText = evidenceTags.length > 0
-            ? `，可选：【${evidenceTags.slice(0, 3).join('】【')}】`
-            : (fallbackTip ? `，${fallbackTip}` : '');
-          reasons.push({ type: 'match', category: 'allergy', text: resolutionText || t('reason.conflictResolved', { resolution: `${member.name}：海鲜冲突已化解${evidenceText}` }) });
+          const tagsStr = evidenceTags.slice(0, 3).join('】【');
+          reasons.push({ type: 'match', category: 'allergy', text: RESOLVED_REASON_PROFILE['海鲜'](member.name, '海鲜', tagsStr, fallbackTip) });
           return;
         }
-        if (restaurantHasTrait(restaurant, 'seafood')) {
-          penalty += 15;
-          reasons.push({ type: 'mismatch', category: 'allergy', text: t('reason.allergy', { name: member.name, allergy: '海鲜' }) });
+        if (hasSeafood) {
+          penalty += isSeafoodConflict ? 15 : 12;
+          reasons.push({ type: 'mismatch', category: 'allergy', text: `${member.name}：${profile?.fail || '含海鲜相关，扣分'}` });
         } else {
-          // 餐厅无海鲜元素 → 海鲜过敏方可放心
-          reasons.push({ type: 'match', category: 'allergy', text: t('reason.allergyPass', { name: member.name, allergies: '海鲜' }) });
+          reasons.push({ type: 'match', category: 'allergy', text: `${member.name}：${profile?.pass || '避开海鲜，餐厅适合'}` });
         }
-      } else if (allergy === '海鲜' && isSeafoodNoConflict) {
-        // 无海鲜冲突（如想吃西餐+海鲜过敏）：硬过滤已放行非专营店，这里做软扣分
-        if (memberIsResolver(allergy)) {
-          allergyResolvedCount++;
-          reasons.push({ type: 'match', category: 'allergy', text: t('reason.allergyPass', { name: member.name, allergies: '海鲜' }) });
-          return;
-        }
-        if (restaurantHasTrait(restaurant, 'seafood')) {
-          penalty += 12;
-          reasons.push({ type: 'mismatch', category: 'allergy', text: t('reason.allergy', { name: member.name, allergy: '海鲜' }) });
-        } else {
-          reasons.push({ type: 'match', category: 'allergy', text: t('reason.allergyPass', { name: member.name, allergies: '海鲜' }) });
-        }
-      } else if (allergy === '素食') {
+        return;
+      }
+
+      // 素食：有肉 + 有素菜可选 → partial
+      if (allergy === '素食') {
         const hasMeat = restaurantHasTrait(restaurant, 'meat');
         const hasVegFriendly = restaurantHasTrait(restaurant, 'vegetarian_friendly');
         if (hasMeat) {
           let penaltyAmount = ALLERGY_PENALTY['素食'] || 25;
           if (hasVegFriendly) {
             penaltyAmount = Math.floor(penaltyAmount * 0.4);
-            reasons.push({ type: 'partial', category: 'allergy', text: t('reason.allergyVegPartial', { name: member.name }) });
+            reasons.push({ type: 'partial', category: 'allergy', text: `${member.name}：${profile?.partial || '有素菜可选，扣分较少'}` });
           } else {
-            reasons.push({ type: 'mismatch', category: 'allergy', text: t('reason.allergyVegMismatch', { name: member.name }) });
+            reasons.push({ type: 'mismatch', category: 'allergy', text: `${member.name}：${profile?.fail || '以肉食为主，扣分'}` });
           }
           penalty += penaltyAmount;
         } else {
-          // 餐厅无肉 → 素食需求已满足
-          reasons.push({ type: 'match', category: 'allergy', text: t('reason.allergyPass', { name: member.name, allergies: '素食' }) });
+          reasons.push({ type: 'match', category: 'allergy', text: `${member.name}：${profile?.pass || '避开肉食，餐厅适合'}` });
         }
-      } else if (allergy === '清真') {
-        // 清真：硬过滤只踢了明确非清真的，此处检查正向标签
-        const allText = [...(restaurant.tags || []), ...(restaurant.features || []), restaurant.cuisine || '', restaurant.name || ''].join('');
-        const HALAL_SIGNALS = ['清真', 'halal', '回民', '伊斯兰', 'HALAL'];
-        const hasHalalTag = HALAL_SIGNALS.some(s => allText.toLowerCase().includes(s.toLowerCase()));
-        if (hasHalalTag) {
-          reasons.push({ type: 'match', category: 'allergy', text: t('reason.allergyPass', { name: member.name, allergies: '清真' }) });
-        } else {
-          reasons.push({ type: 'partial', category: 'allergy', text: `标签未标清真，建议${member.name}电话确认` });
-          penalty += 5;
-        }
-      } else {
-        const trait = ALLERGY_TRAIT_MAP[allergy];
-        if (!trait) return;
+        return;
+      }
 
-        // 冲突化解：该成员的过敏被某个冲突化解，附带安全信号证据
-        if (memberIsResolver(allergy)) {
+      // 通用 trait 检测：辣/麻辣/香菜/减肥/低卡 + 菜系类忌口（韩料/日料/川菜...）
+      if (trait) {
+        const hasTrait = restaurantHasTrait(restaurant, trait);
+        // 有 trait + 冲突化解 → 定制文案 + 安全标签
+        if (hasTrait && memberIsResolver(allergy)) {
           allergyResolvedCount++;
           const evidenceTags = extractSafeTags(restaurant, allergy);
           const fallbackTip = evidenceTags.length === 0 ? getFallbackTip(restaurant, allergy) : '';
-          const evidenceText = evidenceTags.length > 0
-            ? `，可选：【${evidenceTags.slice(0, 3).join('】【')}】`
-            : (fallbackTip ? `，${fallbackTip}` : '');
-          reasons.push({ type: 'match', category: 'allergy', text: t('reason.conflictResolved', { resolution: `${member.name}：${allergy}冲突已化解${evidenceText}` }) });
+          const tagsStr = evidenceTags.slice(0, 3).join('】【');
+          const resolverFn = RESOLVED_REASON_PROFILE[allergy] || RESOLVED_REASON_PROFILE._default;
+          reasons.push({ type: 'match', category: 'allergy', text: resolverFn(member.name, allergy, tagsStr, fallbackTip) });
           return;
         }
-
-        if (restaurantHasTrait(restaurant, trait)) {
-          const penaltyAmount = ALLERGY_PENALTY[allergy] || 10;
+        if (hasTrait) {
+          // 扣分优先级：显式配置 ALLERGY_PENALTY[allergy] > 菜系类/有trait映射忌口默认 14 分 > 完全未知 10 分
+          const hasExplicitPenalty = Object.prototype.hasOwnProperty.call(ALLERGY_PENALTY, allergy);
+          const hasTraitMapping = Object.prototype.hasOwnProperty.call(ALLERGY_TRAIT_MAP, allergy);
+          const defaultPenalty = hasTraitMapping ? 14 : 10;
+          const penaltyAmount = hasExplicitPenalty ? ALLERGY_PENALTY[allergy] : defaultPenalty;
           penalty += penaltyAmount;
-          reasons.push({ type: 'mismatch', category: 'allergy', text: t('reason.allergy', { name: member.name, allergy }) });
+          reasons.push({ type: 'mismatch', category: 'allergy', text: `${member.name}：${profile?.fail || `含${allergy}相关，扣分`}` });
         } else {
-          // 餐厅无该忌口 trait 且无冲突化解 → 主动 push "避开X，餐厅适合"
-          // 避免有忌口的成员在忌口维度看不到任何信息
-          reasons.push({ type: 'match', category: 'allergy', text: t('reason.allergyPass', { name: member.name, allergies: allergy }) });
+          reasons.push({ type: 'match', category: 'allergy', text: `${member.name}：${profile?.pass || `避开${allergy}，餐厅适合`}` });
         }
+        return;
       }
+
+      // 无 trait 映射的忌口：硬过滤已放行，直接确认安全
+      reasons.push({ type: 'match', category: 'allergy', text: `${member.name}：避开${allergy}，餐厅适合` });
     });
   }
 
@@ -1965,7 +2340,9 @@ export function calculateMemberScore(restaurant, member, groupConflicts = []) {
 
   // 5. 评分
   const rating = restaurant.rating || 4.2;
-  const ratingScore = 60 + powerScale((rating - 3.5) / 1.5, 1.2) * 40;
+  // 底数钳制：rating < 3.5 时 (rating-3.5)/1.5 为负，Math.pow(负底数, 1.2)=NaN，会塌掉整条成员分
+  const ratingNorm = Math.max(0, (rating - 3.5) / 1.5);
+  const ratingScore = 60 + powerScale(ratingNorm, 1.2) * 40;
   const clampedRatingScore = Math.max(60, Math.min(100, ratingScore));
   score += clampedRatingScore * WEIGHTS.rating;
   dimensionScores.rating = Math.round(clampedRatingScore);
@@ -2060,7 +2437,8 @@ function dedupeReasons(reasons) {
  */
 export function calculateGroupScore(restaurant, intent) {
   if (!intent.members || intent.members.length === 0) {
-    return calculateSingleScore(restaurant, intent);
+    const result = calculateSingleScore(restaurant, intent);
+    return { ...result, solutionTier: 1, compromiseDetails: [], memberScores: [] };
   }
 
   const memberScores = [];
@@ -2404,6 +2782,10 @@ export function calculateGroupScore(restaurant, intent) {
   if (restaurant._fusionKeyword && /涮烤|烤涮|火锅烧烤|烤肉火锅|烧烤火锅|涮烤自助/.test(restaurant._fusionKeyword)) {
     groupScore += 10;
   }
+  // 需求桥接融合加分（如辣×韩餐）：靠 _fusionPrefs 标记识别
+  if (restaurant._fusionPrefs && restaurant._fusionPrefs.length >= 2) {
+    groupScore += 10;
+  }
 
   groupScore = stretchScore(groupScore);
 
@@ -2470,8 +2852,38 @@ export function calculateGroupScore(restaurant, intent) {
       }
     }
   }
-  // 没有任何冲突 → Tier 1（无需化解，完美）
-  if (solutionTier === null) solutionTier = 1;
+  // 没有任何冲突 → 检查是否需要跨大类 Tier 分层
+  if (solutionTier === null) {
+    // 无冲突但有多偏好不同大类场景：需要分桶排序，两边各保位置
+    const uniquePrefs = [...new Set(allPreferences.map(p => p.pref))];
+    const prefCategories = new Set();
+    uniquePrefs.forEach(pref => {
+      const cat = Object.keys(CUISINE_CATEGORIES).find(c =>
+        CUISINE_CATEGORIES[c].some(item => item === pref || item.includes(pref))
+      );
+      if (cat) prefCategories.add(cat);
+    });
+
+    if (prefCategories.size >= 2 && uniquePrefs.length >= 2) {
+      // 有多个不同大类的偏好 → 分层
+      const matchedPrefs = uniquePrefs.filter(pref =>
+        featuresMatchPreference(allFeatures, pref)
+      );
+      if (matchedPrefs.length >= 2 || fusionResults.length > 0) {
+        solutionTier = 1;  // 真融合：餐厅同时命中多个偏好
+      } else {
+        solutionTier = 3;  // 只命中一个偏好
+      }
+    } else {
+      solutionTier = 1;  // 同大类或单一偏好 → 无需分层
+    }
+  }
+
+  // 记录餐厅命中的偏好列表，供排序阶段分桶用
+  // 需求桥接店（如辣×韩餐）的 tags 不含双方菜系，靠 _fusionPrefs 标记补全
+  const _matchedPrefs = [...new Set(allPreferences.map(p => p.pref))].filter(pref =>
+    featuresMatchPreference(allFeatures, pref) || (restaurant._fusionPrefs || []).includes(pref)
+  );
 
   return {
     score: groupScore,
@@ -2481,6 +2893,7 @@ export function calculateGroupScore(restaurant, intent) {
     solutionTier,
     compromiseDetails,
     memberScores: memberScores.slice(),
+    _matchedPrefs,
   };
 }
 
@@ -2514,7 +2927,12 @@ export function getCuisineSearchKeys(intent) {
     return intent.searchKeyword.split('|').filter(k => k.trim());
   }
 
-  const prefs = intent.preferences || [];
+  // 聚合 intent.preferences 和 intent.members 偏好
+  // 多人模式下偏好可能只放在 members 里，intent.preferences 为空
+  const prefs = [
+    ...(intent.preferences || []),
+    ...(intent.members || []).flatMap(m => m.preferences || []),
+  ];
   const cuisineSet = new Set();
   prefs.forEach(p => {
     if (Object.keys(CUISINE_SEMANTIC_MAP).includes(p)) cuisineSet.add(p);
@@ -2532,77 +2950,43 @@ export function getCuisineSearchKeys(intent) {
  * 同时添加通用 fallback 关键词确保能搜到足够候选
  */
 export function getFusionSearchKeywords(intent) {
-  if (!intent.preferences || intent.preferences.length < 2) {
+  // 聚合 intent.preferences 和 intent.members 偏好
+  const allPrefs = [
+    ...(intent.preferences || []),
+    ...(intent.members || []).flatMap(m => m.preferences || []),
+  ];
+  if (allPrefs.length < 2) {
     return [];
   }
 
-  const preferences = [...new Set(intent.preferences)];
+  const prefs = [...new Set(allPrefs)];
   const fusionKeywords = new Set();
 
-  for (let i = 0; i < preferences.length; i++) {
-    for (let j = i + 1; j < preferences.length; j++) {
-      const pref1 = preferences[i];
-      const pref2 = preferences[j];
-
-      if ((pref1 === '川菜' && pref2 === '火锅') || (pref1 === '火锅' && pref2 === '川菜')) {
-        ['麻辣火锅', '川味火锅', '四川火锅', '重庆火锅', '火锅冒菜', '麻辣烫'].forEach(k => fusionKeywords.add(k));
-      }
-      if ((pref1 === '川菜' && pref2 === '冒菜') || (pref1 === '冒菜' && pref2 === '川菜')) {
-        ['麻辣冒菜', '川式冒菜', '冒菜'].forEach(k => fusionKeywords.add(k));
-      }
-      if ((pref1 === '火锅' && pref2 === '冒菜') || (pref1 === '冒菜' && pref2 === '火锅')) {
-        ['火锅冒菜', '麻辣烫', '串串'].forEach(k => fusionKeywords.add(k));
-      }
-      if ((pref1 === '川菜' && pref2 === '湘菜') || (pref1 === '湘菜' && pref2 === '川菜')) {
-        ['川湘菜'].forEach(k => fusionKeywords.add(k));
-      }
-      if ((pref1 === '日料' && pref2 === '烧鸟') || (pref1 === '烧鸟' && pref2 === '日料')) {
-        ['日式烧鸟', '居酒屋', '烧鸟'].forEach(k => fusionKeywords.add(k));
-      }
-      if ((pref1 === '烤肉' && pref2 === '烧烤') || (pref1 === '烧烤' && pref2 === '烤肉')) {
-        ['韩式烤肉', '日式烤肉', '自助烤肉'].forEach(k => fusionKeywords.add(k));
-      }
-      if ((pref1 === '火锅' || pref2 === '火锅') && (pref1 === '烧烤' || pref2 === '烧烤' || pref1 === '烤肉' || pref2 === '烤肉')) {
-        ['火锅烧烤', '烤肉火锅', '火锅烤肉', '涮烤', '烧烤火锅', '涮烤自助', '自助烧烤火锅', '火锅烤肉自助', '烤涮一体', '烤涮'].forEach(k => fusionKeywords.add(k));
-      }
-      if ((pref1 === '韩餐' || pref2 === '韩餐') && (pref1 === '烧烤' || pref2 === '烧烤' || pref1 === '烤肉' || pref2 === '烤肉')) {
-        ['韩式烧烤', '韩式烤肉', '韩国烤肉'].forEach(k => fusionKeywords.add(k));
-      }
-      if ((pref1 === '韩餐' || pref2 === '韩餐') && (pref1 === '火锅' || pref2 === '火锅')) {
-        ['部队锅', '韩式火锅', '部队火锅'].forEach(k => fusionKeywords.add(k));
-      }
-      if ((pref1 === '日料' || pref2 === '日料') && (pref1 === '火锅' || pref2 === '火锅')) {
-        ['寿喜烧', '日式火锅', '涮涮锅', '日式涮锅'].forEach(k => fusionKeywords.add(k));
-      }
-      if ((pref1 === '粤菜' || pref2 === '粤菜') && (pref1 === '火锅' || pref2 === '火锅')) {
-        ['打边炉', '粤式火锅', '粥底火锅', '猪肚鸡'].forEach(k => fusionKeywords.add(k));
-      }
-      if ((pref1 === '粤菜' || pref2 === '粤菜') && (pref1 === '烧烤' || pref2 === '烧烤' || pref1 === '烤肉' || pref2 === '烤肉')) {
-        ['烧腊', '叉烧', '广式烧腊', '烧鹅'].forEach(k => fusionKeywords.add(k));
-      }
-      if ((pref1 === '东北菜' || pref2 === '东北菜') && (pref1 === '烧烤' || pref2 === '烧烤' || pref1 === '烤肉' || pref2 === '烤肉')) {
-        ['东北烧烤', '东北烤肉'].forEach(k => fusionKeywords.add(k));
-      }
-      if ((pref1 === '新疆菜' || pref2 === '新疆菜') && (pref1 === '烧烤' || pref2 === '烧烤' || pref1 === '烤肉' || pref2 === '烤肉')) {
-        ['新疆烤肉', '羊肉串', '新疆烧烤', '烤羊肉'].forEach(k => fusionKeywords.add(k));
-      }
-      if ((pref1 === '湘菜' || pref2 === '湘菜') && (pref1 === '烧烤' || pref2 === '烧烤' || pref1 === '烤肉' || pref2 === '烤肉')) {
-        ['湘味烧烤', '湖南烤肉', '湖南烧烤'].forEach(k => fusionKeywords.add(k));
-      }
-      if ((pref1 === '湘菜' || pref2 === '湘菜') && (pref1 === '火锅' || pref2 === '火锅')) {
-        ['湘味火锅', '湖南火锅'].forEach(k => fusionKeywords.add(k));
-      }
-      // 川菜相关组合需要另一方与烧烤/火锅有关联时才触发，而非无条件
-      if ((pref1 === '川菜' || pref2 === '川菜') && (pref1 === '烧烤' || pref2 === '烧烤' || pref1 === '烤肉' || pref2 === '烤肉' || pref1 === '火锅' || pref2 === '火锅')) {
-        ['烤鱼', '麻辣烤鱼', '巫山烤鱼', '麻辣烧烤'].forEach(k => fusionKeywords.add(k));
-      }
-      if ((pref1 === '川菜' || pref2 === '川菜' || pref1 === '江浙菜' || pref2 === '江浙菜') && (pref1 === '火锅' || pref2 === '火锅' || pref1 === '烧烤' || pref2 === '烧烤')) {
-        ['酸菜鱼', '太二酸菜鱼'].forEach(k => fusionKeywords.add(k));
-      }
+  for (const [key, cfg] of Object.entries(CUISINE_FUSION_MATRIX)) {
+    const [a, b] = key.split('|');
+    if (prefs.includes(a) && prefs.includes(b)) {
+      cfg.searchKeywords.forEach(k => fusionKeywords.add(k));
     }
   }
 
   return [...fusionKeywords];
+}
+
+/**
+ * 生成需求桥接融合标记（需求 × 菜系）
+ * 这类店的 tags 里不含双方菜系，需显式打 _fusionPrefs 标记才能进融合桶
+ * @returns {Array<{keyword: string, prefs: string[]}>}
+ */
+export function getBridgeFusionMarkers(intent) {
+  const prefs = [...new Set(intent.preferences || [])];
+  const markers = [];
+  for (const [key, cfg] of Object.entries(DEMAND_BRIDGE_MATRIX)) {
+    const [demand, cuisine] = key.split('|');
+    if (prefs.includes(demand) && prefs.includes(cuisine)) {
+      cfg.searchKeywords.forEach(kw => markers.push({ keyword: kw, prefs: [demand, cuisine] }));
+    }
+  }
+  return markers;
 }
 
 /**
@@ -2872,16 +3256,50 @@ const ALLERGY_FILTER_RULES = [
 	  const parts = keywords.split('|');
 	  let filtered = parts.filter(k => !toRemove.has(k));
 	  // 辣忌口：给辣系菜系搜索词追加温和变体，从搜索源头增加不辣命中率
-	  // 必须在空检查之前执行——即使 filtered 为空也要追加备选词
-	  if (allergies.includes('辣')) {
-	    const SPICY_ROOTS = ['川菜', '湘菜', '贵州菜', '江西菜', '四川菜', '重庆菜', '云南菜'];
-	    SPICY_ROOTS.forEach(root => {
-	      if (filtered.includes(root)) {
-	        filtered.push('不辣' + root, '改良' + root, '新派' + root, root + '馆');
-	      }
-	    });
-	  }
-	  if (filtered.length === 0) return '';
-	  return filtered.join('|');
+  // 必须在空检查之前执行——即使 filtered 为空也要追加备选词
+  if (allergies.includes('辣')) {
+    const SPICY_ROOTS = ['川菜', '湘菜', '贵州菜', '江西菜', '四川菜', '重庆菜', '云南菜'];
+    SPICY_ROOTS.forEach(root => {
+      if (filtered.includes(root)) {
+        filtered.push('不辣' + root, '改良' + root, '新派' + root, root + '馆');
+      }
+    });
+  }
+  // 素食忌口：给烧烤/烤肉等肉系搜索词追加素菜变体
+  if (allergies.includes('素食')) {
+    const MEAT_ROOTS = ['烧烤', '烤肉', '牛排'];
+    MEAT_ROOTS.forEach(root => {
+      if (filtered.includes(root)) {
+        filtered.push('素' + root, '蔬菜' + root, root + '蔬菜');
+      }
+    });
+    // 火锅追加素火锅变体
+    if (filtered.includes('火锅')) {
+      filtered.push('素火锅', '菌菇火锅', '蔬菜火锅');
+    }
+  }
+  // 海鲜忌口：给日料/粤菜搜索词追加非海鲜变体
+  if (allergies.includes('海鲜')) {
+    if (filtered.includes('日料') || filtered.includes('日本料理')) {
+      filtered.push('日式烤物', '日式拉面', '日式定食');
+    }
+    if (filtered.includes('粤菜')) {
+      filtered.push('客家菜', '烧腊', '广式点心');
+    }
+  }
+  // 减肥/低卡忌口：给辣系搜索词追加低卡变体
+  if (allergies.includes('减肥') || allergies.includes('低卡')) {
+    const HEAVY_ROOTS = ['川菜', '湘菜', '贵州菜', '江西菜'];
+    HEAVY_ROOTS.forEach(root => {
+      if (filtered.includes(root)) {
+        filtered.push('清淡' + root, '少油' + root);
+      }
+    });
+    if (filtered.includes('烧烤') || filtered.includes('烤肉')) {
+      filtered.push('轻食', '沙拉', '健康餐');
+    }
+  }
+  if (filtered.length === 0) return '';
+  return filtered.join('|');
 	}
 // CUISINE_KEYWORDS_FOR_FILTER / CUISINE_SEMANTIC_MAP 已迁移到 src/data/cuisineMap.js

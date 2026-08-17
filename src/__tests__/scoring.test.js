@@ -102,7 +102,7 @@ describe('calculateSingleScore', () => {
     expect(result.score).toBeLessThan(100);
   });
 
-  it('分数拉伸：确保分数在合理展示范围 [52, 99]', () => {
+  it('分数范围：单人分在 [0, 100] 内（极差餐厅不再被 NaN 兜底抬高）', () => {
     // 测试极端高分
     const perfect = {
       ...baseRestaurant,
@@ -119,7 +119,8 @@ describe('calculateSingleScore', () => {
     expect(high.score).toBeGreaterThanOrEqual(52);
     expect(high.score).toBeLessThanOrEqual(99);
 
-    // 测试极端低分
+    // 测试极端低分：修复 rating<3.5 时 Math.pow 负底数 NaN 后，
+    // 极差餐厅应得到真实低分（< 52），而非被 NaN 兜底错误抬到 60
     const bad = {
       ...baseRestaurant,
       rating: 3.0,
@@ -132,8 +133,8 @@ describe('calculateSingleScore', () => {
       allergies: [],
       budget: 50,
     });
-    expect(low.score).toBeGreaterThanOrEqual(52);
-    expect(low.score).toBeLessThanOrEqual(99);
+    expect(low.score).toBeGreaterThanOrEqual(0);
+    expect(low.score).toBeLessThan(52);
   });
 
   it('价格范围过滤：priceRange [50,100] + 人均60 → 在范围内', () => {

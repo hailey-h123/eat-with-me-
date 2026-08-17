@@ -157,7 +157,16 @@ function sleep(ms) {
 }
 
 // 高德 API 调用包装器：10021 (QPS超限) 自动重试最多3次；其他错误直接抛
+let lastCallTime = 0;
+const MIN_CALL_INTERVAL = 350; // ms，全局节流间隔（高德免费版 QPS≈3，留安全余量）
+
 async function callAmapWithRetry(url, params, maxRetries = 3) {
+  // 全局节流：多菜系/拆词场景短时间大量请求会触发高德 QPS 限流(10021)，这里强制拉开间隔
+  const now = Date.now();
+  const wait = lastCallTime + MIN_CALL_INTERVAL - now;
+  if (wait > 0) await sleep(wait);
+  lastCallTime = Date.now();
+
   let lastError = null;
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
@@ -179,12 +188,36 @@ async function callAmapWithRetry(url, params, maxRetries = 3) {
   throw lastError;
 }
 
-export async function searchPOI(keyword, location, radius = 3000, minRadius = 0, maxRadius = 0, pageNum = 1, pageSize = 25) {
+export async function searchPOI(keyword, location, radius = 3000, minRadius = 0, maxRadius = 0, pageNum = 1, pageSize = 25, maxTerms = 3) {
   // Mock 模式：没有 API Key 时使用本地数据
   if (!WEB_KEY) {
     return mockSearch(keyword, location, radius);
   }
 
+  // 高德 v5 keywords 只支持单关键词，不支持 '|' OR 分隔（'|' 仅用于 types 参数）
+  // 拆成多个单关键词逐个搜索、合并去重（id 去重），让「韩餐|韩国料理|韩式」真正生效
+  const terms = String(keyword || '').split('|').map(t => t.trim()).filter(Boolean);
+  if (terms.length <= 1) {
+    return searchPOIOnce(keyword, location, radius, minRadius, maxRadius, pageNum, pageSize);
+  }
+
+  // 多关键词：串行逐个搜索，限制拆分数量避免 QPS 爆掉（核心词已能覆盖大部分店）
+  // 扩张搜索时 maxTerms=2 以减少 API 调用
+  const MAX_TERMS = Math.max(1, Math.min(maxTerms, terms.length));
+  const all = [];
+  const seenIds = new Set();
+  for (const term of terms.slice(0, MAX_TERMS)) {
+    const results = await searchPOIOnce(term, location, radius, minRadius, maxRadius, pageNum, pageSize);
+    if (results && results.length > 0) {
+      results.forEach(r => {
+        if (r.id && !seenIds.has(r.id)) { seenIds.add(r.id); all.push(r); }
+      });
+    }
+  }
+  return all;
+}
+
+async function searchPOIOnce(keyword, location, radius = 3000, minRadius = 0, maxRadius = 0, pageNum = 1, pageSize = 25) {
   try {
     const data = await callAmapWithRetry('https://restapi.amap.com/v5/place/around', {
       key: WEB_KEY,
@@ -216,6 +249,45 @@ export async function searchPOI(keyword, location, radius = 3000, minRadius = 0,
     return [];
   } catch (error) {
     console.error('[amapService] POI 搜索失败:', error);
+    return null;
+  }
+}
+
+/**
+ * 按高德类别编码搜索 POI（两步搜索策略的第二步：关键词搜索不足时用类别补充）
+ * @param {string|string[]} categories - 类别编码，如 '050200' 或 ['050200','050000']
+ * @param {{lng:number,lat:number}} location - 中心点坐标
+ * @param {number} radius - 搜索半径（米）
+ * @param {number} pageNum - 页码
+ * @param {number} pageSize - 每页条数
+ */
+export async function searchPOIByCategory(categories, location, radius = 5000, pageNum = 1, pageSize = 25) {
+  const categoryStr = Array.isArray(categories) ? categories.join('|') : categories;
+
+  // Mock 模式：直接用通用餐厅搜索返回
+  if (!WEB_KEY) {
+    return mockSearch('餐厅', location, radius);
+  }
+
+  try {
+    const data = await callAmapWithRetry('https://restapi.amap.com/v5/place/around', {
+      key: WEB_KEY,
+      types: categoryStr,
+      location: `${location.lng},${location.lat}`,
+      radius: radius.toString(),
+      page_size: pageSize.toString(),
+      page_num: pageNum.toString(),
+      show_fields: 'business,photos',
+    });
+
+    if (data.pois) {
+      // 类别搜索本身就是餐饮类，不需要额外过滤 type
+      let results = data.pois.map(poi => convertPOIToRestaurant(poi));
+      return results;
+    }
+    return [];
+  } catch (error) {
+    console.error('[amapService] 类别 POI 搜索失败:', error);
     return null;
   }
 }

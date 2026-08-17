@@ -12,7 +12,8 @@ const KNOWN_CUISINE = new Set([
   '牛肉面','酸菜鱼','烤鱼','涮羊肉','烤鸭','酸汤鱼','螺蛳粉','沙茶面','小笼包','炒菜','简餐','便当',
 ]);
 
-const ALLERGY_KEYWORDS = ['不吃辣', '忌辣', '不要辣', '怕辣', '不能吃辣', '辣椒', '辣的', '麻辣', '香辣', '不吃辣的', '怕辣的'];
+// 只保留否定词开头的辣忌口；「麻辣/香辣/辣的/辣椒」正向吃辣由 SPICY_KEYWORDS 判定，避免「想吃麻辣香锅」被误判成忌口
+const ALLERGY_KEYWORDS = ['不吃辣', '忌辣', '不要辣', '怕辣', '不能吃辣', '不吃辣的', '怕辣的'];
 const CILANTRO_KEYWORDS = ['不吃香菜', '忌香菜', '不要香菜', '讨厌香菜', '不爱香菜', '不吃芫荽'];
 const HALAL_KEYWORDS = ['清真', '回民', '穆斯林'];
 const VEGETARIAN_KEYWORDS = ['素食', '素菜', '不吃肉', '全素', '纯素'];
@@ -30,6 +31,8 @@ const SPICY_KEYWORDS = ['想吃辣', '要辣', '辣一点', '很辣', '麻辣'];
 const SWEET_KEYWORDS = ['想吃甜的', '甜食', '甜点'];
 const SALTY_KEYWORDS = ['咸的', '重口味', '咸香'];
 const SOUR_KEYWORDS = ['酸的', '酸辣', '开胃'];
+// 通用否定词：识别"不喜欢X/不吃X/不要X/忌X"等，把 X（菜系）标记为忌口而非偏好
+const NEGATION_WORDS = ['不喜欢', '不爱吃', '不想吃', '不要吃', '不吃', '不要', '忌', '讨厌', '拒绝', '别吃'];
 const CHEAP_KEYWORDS = ['便宜', '实惠', '性价比', '不贵'];
 const EXPENSIVE_KEYWORDS = ['高档', '贵一点', '精致', '环境好'];
 
@@ -292,10 +295,29 @@ export function parseIntent(text) {
     result.atmosphere = '安静';
   }
 
+  // 通用否定词预处理：识别"不喜欢韩餐/不吃海鲜/忌辣"等，把被否定的菜系加入 allergies
+  // 这样下方 CUISINE_KEYWORDS 遍历会跳过它们，不会误加入 preferences
+  for (const [cuisine, keywords] of Object.entries(CUISINE_KEYWORDS)) {
+    for (const kw of keywords) {
+      if (kw.length < 2) continue;
+      for (const neg of NEGATION_WORDS) {
+        // 否定词在前，且与菜系关键词之间不超过 6 个字（允许"不太吃"等中间词）
+        const pattern = new RegExp(`${neg}[^，。、；;！!\\n]{0,6}${kw}`);
+        if (pattern.test(trimmedText)) {
+          if (!result.allergies.includes(cuisine)) {
+            result.allergies.push(cuisine);
+          }
+          break;
+        }
+      }
+    }
+  }
+
   for (const [cuisine, keywords] of Object.entries(CUISINE_KEYWORDS)) {
     // 跳过已被识别为过敏的菜系（如"不吃海鲜"→ allergies 已含"海鲜"，不应再加入 preferences）
     if (result.allergies.includes(cuisine)) continue;
-    if (keywords.some(k => trimmedText.includes(k))) {
+    // 单字关键词（川/湘/粤/鲁/鱼/虾/面/汤）会误命中，如"我在四川出差"→ 误判"川菜"
+    if (keywords.some(k => k.length >= 2 && trimmedText.includes(k))) {
       if (!result.preferences.includes(cuisine)) {
         result.preferences.push(cuisine);
       }
@@ -423,7 +445,78 @@ const ALLERGY_TRAIT_MAP = {
   '乳糖不耐': { trait: 'dairy', type: 'hard' },
   '减肥': { conflictTrait: 'heavy', friendlyTrait: 'light', type: 'soft', penalty: 10 },
   '低卡': { conflictTrait: 'heavy', friendlyTrait: 'light', type: 'soft', penalty: 10 },
+  // 菜系类忌口：与 scoringService 的 ALLERGY_TRAIT_MAP 菜系 key 对齐
+  // type='cuisine_avoid' 不走 trait 匹配，直接用 isSameCuisineFamily 判断菜系身份
+  '韩餐': { type: 'cuisine_avoid' },
+  '日料': { type: 'cuisine_avoid' },
+  '川菜': { type: 'cuisine_avoid' },
+  '湘菜': { type: 'cuisine_avoid' },
+  '火锅': { type: 'cuisine_avoid' },
+  '烧烤': { type: 'cuisine_avoid' },
+  '烤肉': { type: 'cuisine_avoid' },
+  '串串': { type: 'cuisine_avoid' },
+  '麻辣烫': { type: 'cuisine_avoid' },
+  '粤菜': { type: 'cuisine_avoid' },
+  '江浙菜': { type: 'cuisine_avoid' },
+  '东北菜': { type: 'cuisine_avoid' },
+  '西北菜': { type: 'cuisine_avoid' },
+  '云南菜': { type: 'cuisine_avoid' },
+  '贵州菜': { type: 'cuisine_avoid' },
+  '北京菜': { type: 'cuisine_avoid' },
+  '鲁菜': { type: 'cuisine_avoid' },
+  '江西菜': { type: 'cuisine_avoid' },
+  '福建菜': { type: 'cuisine_avoid' },
+  '广西菜': { type: 'cuisine_avoid' },
+  '新疆菜': { type: 'cuisine_avoid' },
+  '西餐': { type: 'cuisine_avoid' },
+  '意面': { type: 'cuisine_avoid' },
+  '披萨': { type: 'cuisine_avoid' },
+  '东南亚菜': { type: 'cuisine_avoid' },
+  '泰菜': { type: 'cuisine_avoid' },
+  '越南菜': { type: 'cuisine_avoid' },
+  '面馆': { type: 'cuisine_avoid' },
+  '饺子': { type: 'cuisine_avoid' },
+  '包子': { type: 'cuisine_avoid' },
+  '粥': { type: 'cuisine_avoid' },
+  '汤': { type: 'cuisine_avoid' },
+  '快餐': { type: 'cuisine_avoid' },
+  '轻食': { type: 'cuisine_avoid' },
+  '自助': { type: 'cuisine_avoid' },
+  '甜品': { type: 'cuisine_avoid' },
+  '咖啡': { type: 'cuisine_avoid' },
+  '烧腊': { type: 'cuisine_avoid' },
+  '卤味': { type: 'cuisine_avoid' },
 };
+
+/**
+ * 判断两个菜系/品类是否属于同一菜系家族
+ * 用于菜系忌口冲突检测：pref='韩式烤肉' vs allergy='韩餐' → true
+ */
+function isSameCuisineFamily(pref, allergy) {
+  if (pref === allergy) return true;
+
+  // 用 CUISINE_KEYWORDS（已 import）做同义词匹配
+  // 1. allergy 是 key，检查 pref 是否在其同义词列表中（含子串匹配）
+  const allergySyns = CUISINE_KEYWORDS[allergy];
+  if (allergySyns && allergySyns.some(s => s.length >= 2 && (pref === s || pref.includes(s) || s.includes(pref)))) {
+    return true;
+  }
+
+  // 2. pref 是 key，检查 allergy 是否在其同义词列表中
+  const prefSyns = CUISINE_KEYWORDS[pref];
+  if (prefSyns && prefSyns.some(s => s.length >= 2 && (allergy === s || allergy.includes(s) || s.includes(allergy)))) {
+    return true;
+  }
+
+  // 3. 两者都属于同一个 CUISINE_KEYWORDS key 的同义词组
+  for (const syns of Object.values(CUISINE_KEYWORDS)) {
+    const prefMatch = syns.some(s => s.length >= 2 && (pref === s || pref.includes(s)));
+    const allergyMatch = syns.some(s => s.length >= 2 && (allergy === s || allergy.includes(s)));
+    if (prefMatch && allergyMatch) return true;
+  }
+
+  return false;
+}
 
 function detectConflicts(members) {
   // 确保每个成员有 _memberId，用于全链路去重（避免重名）
@@ -499,6 +592,14 @@ function detectConflicts(members) {
                 altKeyword = `轻食${pref}`;
               }
             }
+          } else if (allergyInfo.type === 'cuisine_avoid') {
+            // 菜系身份直接比对：忌口韩餐 = 不要任何韩餐/韩料/韩式烤肉
+            // 不走 trait 中转，用 isSameCuisineFamily 判断 pref 和 allergy 是否同菜系
+            if (isSameCuisineFamily(pref, allergy)) {
+              isConflict = true;
+              resolution = `${memberA.name}想吃${pref}，但${memberB.name}忌口${allergy}，${allergy}类餐厅不适合，已优先推荐双方都能接受的折中餐厅`;
+              // 无 altKeyword：菜系忌口没有"不辣的韩餐"这种化解变体，靠折中排序处理
+            }
           }
 
           if (isConflict && !conflicts.some(c =>
@@ -573,11 +674,7 @@ export function mergeMemberIntents(members) {
   const memberBudgetRanges = [];
   validMembers.forEach(member => {
     const min = member.minBudget || 0;
-    let max = member.budget;
-    // "以上"产生的占位符（budget=null）→ 用 minBudget*2 作为合理上限
-    if (max === null && member.minBudget) {
-      max = member.minBudget * 2;
-    }
+    const max = member.budget; // "以上"（budget=null）→ max 保持 null，表示真无上限
     if (max !== null) {
       memberBudgetRanges.push({ name: member.name, min, max });
     } else if (member.minBudget) {
@@ -593,13 +690,14 @@ export function mergeMemberIntents(members) {
     groupMinBudget = memberBudgetRanges[0].min;
     groupMaxBudget = memberBudgetRanges[0].max === null ? null : memberBudgetRanges[0].max;
   } else if (memberBudgetRanges.length >= 2) {
-    // 多人有预算 → 计算交集 [max(allMins), min(allMaxs)]
+    // 多人有预算 → 计算交集 [max(allMins), min(有限上限)]
+    // 无上限成员（"100以上"→max=null）不限制上界，只取有限 max 的最小值
     const allMins = memberBudgetRanges.map(r => r.min);
-    const allMaxs = memberBudgetRanges.map(r => r.max);
+    const finiteMaxs = memberBudgetRanges.map(r => r.max).filter(m => m !== null);
     const interMin = Math.max(...allMins);
-    const interMax = Math.min(...allMaxs);
+    const interMax = finiteMaxs.length > 0 ? Math.min(...finiteMaxs) : null;
 
-    if (interMin <= interMax && interMax !== null) {
+    if (interMax !== null && interMin <= interMax) {
       // 交集非空 → 用交集
       groupMinBudget = interMin;
       groupMaxBudget = interMax;
@@ -620,9 +718,13 @@ export function mergeMemberIntents(members) {
           range: [interMin, interMax],
         };
       }
+    } else if (interMax === null) {
+      // 所有人都只提了"以上"（无上限）→ 用最小下限、无上限
+      groupMinBudget = interMin;
+      groupMaxBudget = null;
     } else {
       // 交集为空（A说50-80, B说100-150）→ 回退到中位数价格±30%
-      const midpoints = memberBudgetRanges.map(r => Math.round((r.min + r.max) / 2));
+      const midpoints = memberBudgetRanges.map(r => r.max === null ? r.min : Math.round((r.min + r.max) / 2));
       const sortedMid = [...midpoints].sort((a, b) => a - b);
       const medianMid = sortedMid[Math.floor(sortedMid.length / 2)];
       groupMinBudget = Math.max(0, Math.round(medianMid * 0.7));
@@ -758,6 +860,21 @@ export function mergeMemberIntents(members) {
     .filter(c => (c.type === 'soft' || c.type === 'soft_strong') && c.altKeyword)
     .map(c => c.altKeyword);
 
+  // LLM 非白名单关键词透传（用于搜索）：白名单菜系已进 preferences，剩余词（如「酸菜鱼」「异国料理」）用于搜索补充
+  // 菜系变体（如「韩料」→「韩餐」）已由规则引擎归一进 preferences，跳过透传，避免污染 searchKeyword 短路 cuisineKeys
+  // LLM 兜底词（如「餐厅」——用户无菜系时 LLM 返回的兜底）也跳过，否则会短路掉其他成员的真实偏好（如「想吃川菜」）
+  const GENERIC_FALLBACK_WORDS = new Set(['餐厅', '美食', '饭店', '吃的', '饭馆', '餐馆']);
+  const searchKeywordSet = new Set();
+  validMembers.forEach(member => {
+    (member.searchKeywords || []).forEach(k => {
+      const kw = (k || '').trim();
+      if (!kw || KNOWN_CUISINE.has(kw) || GENERIC_FALLBACK_WORDS.has(kw)) return;
+      const isCuisineVariant = Object.keys(CUISINE_KEYWORDS).some(c => CUISINE_KEYWORDS[c].includes(kw));
+      if (isCuisineVariant) return;
+      searchKeywordSet.add(kw);
+    });
+  });
+
   return {
     location: '',
     peopleCount: validMembers.length,
@@ -772,6 +889,7 @@ export function mergeMemberIntents(members) {
     cuisineVote,
     conflicts,
     conflictAltKeywords,
+    searchKeyword: Array.from(searchKeywordSet).join('|'),
     members: validMembers,
   };
 }
@@ -807,7 +925,9 @@ export async function mergeMemberIntentsWithLLM(members) {
       const llmResult = await parseWithLLM(m.text);
       if (llmResult && llmResult.searchKeywords.length > 0) {
         // Split: known cuisines -> preferences (scoring+display), rest -> searchKeywords only
-        const llmPrefs = llmResult.searchKeywords.filter(k => KNOWN_CUISINE.has(k));
+        // 排除规则引擎已识别为"否定/忌口"的菜系，防止 LLM 把"不喜欢韩餐"理解成偏好
+        const negated = new Set(ruleResult.allergies);
+        const llmPrefs = llmResult.searchKeywords.filter(k => KNOWN_CUISINE.has(k) && !negated.has(k));
         return {
           name: m.name, text: m.text,
           preferences: [...new Set([...llmPrefs, ...ruleResult.preferences])],

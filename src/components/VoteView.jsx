@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { IconArrowLeft, IconCheck, IconUsers, IconTrophy, IconRefreshCw, IconVote } from './icons/FancyIcons';
 import { createVoteSession, getVoteSession, castVote, getVoteResults, endVoteSession } from '../services/voteService';
 
@@ -6,6 +6,7 @@ export default function VoteView({ restaurants, members, onBack, onSelect }) {
   const [voteSession, setVoteSession] = useState(null);
   const [currentVoter, setCurrentVoter] = useState('');
   const [showResults, setShowResults] = useState(false);
+  const autoSelectTimerRef = useRef(null);
 
   useEffect(() => {
     let session = getVoteSession();
@@ -18,9 +19,18 @@ export default function VoteView({ restaurants, members, onBack, onSelect }) {
       const results = getVoteResults();
       if (results && results.winner) {
         const winningRestaurant = restaurants.find(r => r.id === results.winner.id);
-        if (winningRestaurant && onSelect) setTimeout(() => onSelect(winningRestaurant), 2000);
+        if (winningRestaurant && onSelect) {
+          autoSelectTimerRef.current = setTimeout(() => onSelect(winningRestaurant), 2000);
+        }
       }
     }
+    // 清理：showResults 被重置/组件卸载时取消排定的自动跳转，避免误触发
+    return () => {
+      if (autoSelectTimerRef.current) {
+        clearTimeout(autoSelectTimerRef.current);
+        autoSelectTimerRef.current = null;
+      }
+    };
   }, [showResults, voteSession, restaurants, onSelect]);
 
   const handleVote = (restaurantId) => {
@@ -31,6 +41,10 @@ export default function VoteView({ restaurants, members, onBack, onSelect }) {
   };
   const handleEndVote = () => setShowResults(true);
   const handleReset = () => {
+    if (autoSelectTimerRef.current) {
+      clearTimeout(autoSelectTimerRef.current);
+      autoSelectTimerRef.current = null;
+    }
     endVoteSession();
     const session = createVoteSession(restaurants, members);
     setVoteSession(session);
@@ -80,7 +94,7 @@ export default function VoteView({ restaurants, members, onBack, onSelect }) {
           <div className="mb-4 animate-slide-up">
             <input type="text" value={currentVoter} onChange={e => setCurrentVoter(e.target.value)}
               placeholder="输入你的名字进行投票"
-              className="input-field w-full px-4 py-3 text-sm text-text placeholder:text-text-muted" />
+              className="input-field w-full px-4 py-3 text-base text-text placeholder:text-text-muted" />
           </div>
 
           <div className="space-y-3">

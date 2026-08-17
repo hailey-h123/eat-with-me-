@@ -1,25 +1,28 @@
 import { useState, useEffect, useRef } from 'react';
 import Header from './components/Header';
 import LocationBar from './components/LocationBar';
+import TabBar from './components/TabBar';
 import HomeView from './components/HomeView';
 import SoloInput from './components/SoloInput';
 import GroupInput from './components/GroupInput';
 import ResultList from './components/ResultList';
 import VoteView from './components/VoteView';
-import HistoryView from './components/HistoryView';
+import FootprintView from './components/FootprintView';
+import ProfileView from './components/ProfileView';
 import { useLocation } from './hooks/useLocation';
 import { addLike, addDislike, removeLike, removeDislike, makeProfileFingerprint } from './services/feedbackService';
 import { parseIntent, mergeMemberIntentsWithLLM, parseSoloIntentWithLLM } from './services/llmService';
 import { recommendRestaurants, randomExplore, recommendByMode, drawFortuneCard, analyzeEmptyResult, getSearchRadiusFromIntent } from './services/recommendationService';
 import { geocode, IS_MOCK_MODE } from './services/amapService';
 import { calculateSingleScore, calculateSoloFriendly } from './services/scoringService';
-import { addSearchHistory } from './services/historyService';
+import { addSearchHistory, incrementDecisionCount } from './services/historyService';
 import {
   trackPageView, trackSearch,
   trackResultsShown, trackReroll, trackFeedback
 } from './services/analyticsService';
 
 const LAST_MODE_KEY = 'eatwithme_last_mode';
+const CURRENT_VIEW_KEY = 'eatwithme_current_view';
 
 function App() {
   const { location, isLocating, error, debugInfo, retryLocate, updateLocation } = useLocation();
@@ -37,14 +40,39 @@ function App() {
   const [searchRadius, setSearchRadius] = useState(3000);
   const rerollCountRef = useRef(0);
   const searchRef = useRef(false);
+  /** 刷新期间禁止切换 view，保证"在哪个页面刷新还显示哪个页面" */
+  const isRefreshRef = useRef(false);
+  /** 累积本会话所有展示过的餐厅ID，"再来一个"时全部排除，避免循环重复 */
+  const seenRestaurantIdsRef = useRef([]);
 
   useEffect(() => {
     try {
-      const lastMode = localStorage.getItem(LAST_MODE_KEY);
-      if (lastMode === 'solo') setCurrentView('solo-input');
-      else if (lastMode === 'group') setCurrentView('group-input');
+      // 优先恢复上次保存的 view，而不是只根据 LAST_MODE_KEY 跳到输入页
+      const savedView = localStorage.getItem(CURRENT_VIEW_KEY);
+      if (savedView === 'solo-results' || savedView === 'solo-input') {
+        setCurrentView('solo-input');
+      } else if (savedView === 'group-results' || savedView === 'group-input') {
+        setCurrentView('group-input');
+      } else if (savedView === 'home') {
+        // 首页刷新：留在首页
+      } else if (savedView === 'footprint' || savedView === 'profile') {
+        // 足迹/我的：本地数据，可完整恢复
+        setCurrentView(savedView);
+      } else if (savedView === 'vote') {
+        // 投票页依赖内存 results/lastMembers，无法恢复 → 回首页
+      } else {
+        // 首次访问（无任何 view 记录）：回退到上次模式
+        const lastMode = localStorage.getItem(LAST_MODE_KEY);
+        if (lastMode === 'solo') setCurrentView('solo-input');
+        else if (lastMode === 'group') setCurrentView('group-input');
+      }
     } catch {}
   }, []);
+
+  // view 变化时持久化，浏览器刷新后能恢复到正确的页面
+  useEffect(() => {
+    try { localStorage.setItem(CURRENT_VIEW_KEY, currentView); } catch {}
+  }, [currentView]);
 
   // 页面浏览埋点：currentView 变化时上报
   useEffect(() => {
@@ -55,10 +83,19 @@ function App() {
       'solo-results': '单人推荐结果',
       'group-results': '多人推荐结果',
       vote: '投票页',
-      history: '我的收藏',
+      footprint: '足迹',
+      profile: '我的',
     };
     trackPageView(pageNames[currentView] || currentView);
   }, [currentView]);
+
+  // TabBar 显示规则：主 Tab + 输入页显示；结果页/投票页沉浸隐藏
+  const showTabBar = ['home', 'footprint', 'profile', 'solo-input', 'group-input'].includes(currentView);
+
+  // Tab 切换：只切 view，不清理输入态（lastSoloText/lastMembers 等 state 保留）
+  const handleTabChange = (tab) => {
+    if (tab !== currentView) setCurrentView(tab);
+  };
 
   const handleLocationChange = async (newLocation) => {
     const isDefaultCoords = newLocation.lat === 39.9997 && newLocation.lng === 116.4706;
@@ -91,6 +128,8 @@ function App() {
   const handleSearch = async (members) => {
     setIsLoading(true);
     setLastMembers(members);
+    // 首次搜索：清空已见ID累积
+    seenRestaurantIdsRef.current = [];
     try {
     // LLM 增强解析：先跑规则引擎拿到 memberIntents，再用 LLM 重新解析（仅当文本非空时）
     // 尝试 LLM 增强（不阻塞，失败自动回退）
@@ -102,15 +141,26 @@ function App() {
     setSearchRadius(dynamicRadius);
     const recommendations = await recommendRestaurants(groupIntent, location);
     setResults(recommendations);
+    // 累积本次展示的ID
+    if (recommendations.length > 0) {
+      seenRestaurantIdsRef.current = [...new Set([...seenRestaurantIdsRef.current, ...recommendations.map(r => r.id).filter(Boolean)])];
+    }
     if (recommendations.length === 0) {
       setEmptySuggestions(analyzeEmptyResult(groupIntent, dynamicRadius));
     } else {
       setEmptySuggestions([]);
     }
-    addSearchHistory({ text: members.map(m => m.text).join(' + '), mode: 'group' });
+    addSearchHistory({
+      text: members.map(m => m.text).join(' + '),
+      mode: 'group',
+      allergies: groupIntent.allergies || [],
+      distRange: groupIntent.distRange || null,
+    });
     setIsExploreMode(false);
     trackSearch('group', { memberCount: members.length });
     trackResultsShown(recommendations.length, 'group', recommendations.length === 0);
+    // 决定次数：成功生成多人结果 +1
+    incrementDecisionCount();
     setCurrentView(members.length === 1 ? 'solo-results' : 'group-results');
     } catch (e) {
       console.error('[handleSearch] error:', e);
@@ -131,6 +181,13 @@ function App() {
       setLastSoloText(text);
       setLastSoloPrefs(prefs);
       setIsExploreMode(['explore_near', 'explore_mid', 'explore_far', 'explore_any', 'fortune'].includes(mode));
+      // 传进来的 excludeIds 为空 → 首次搜索，清空历史累积
+      const isFirstSearch = !excludeIds || excludeIds.length === 0;
+      if (isFirstSearch) {
+        seenRestaurantIdsRef.current = [];
+      }
+      // 合并：本次传入的（当前屏ID） + 历史累积ID
+      const mergedExcludeIds = [...new Set([...seenRestaurantIdsRef.current, ...(excludeIds || [])])];
       let extraIntent = null;
       let currentRadius = 3000;
       if (prefs && (prefs.priceRange || prefs.distRange || (prefs.preferences && prefs.preferences.length > 0))) {
@@ -160,18 +217,38 @@ function App() {
         }
       }
       setSearchRadius(currentRadius);
-      const recommendations = await recommendByMode(mode, location, extraIntent, null, null, excludeIds);
+      const recommendations = await recommendByMode(mode, location, extraIntent, null, null, mergedExcludeIds);
       setResults(recommendations);
-      if (recommendations.length === 0 && extraIntent) {
-        setEmptySuggestions(analyzeEmptyResult(extraIntent, currentRadius));
+      // 累积本次新展示的ID到历史池
+      if (recommendations.length > 0) {
+        seenRestaurantIdsRef.current = [...new Set([...seenRestaurantIdsRef.current, ...recommendations.map(r => r.id).filter(Boolean)])];
+      }
+      if (recommendations.length === 0) {
+        const baseSuggestions = extraIntent ? analyzeEmptyResult(extraIntent, currentRadius) : [];
+        // 非首次搜索且返回空 → 候选池刷完了，追加提示
+        if (!isFirstSearch && seenRestaurantIdsRef.current.length > 0) {
+          const exhaustedTip = `已为你展示过 ${seenRestaurantIdsRef.current.length} 家符合条件的餐厅，周边暂时没有更多了。可以试试扩大距离范围、调整口味偏好，或者换个位置重新搜索～`;
+          setEmptySuggestions([exhaustedTip, ...baseSuggestions]);
+        } else {
+          setEmptySuggestions(baseSuggestions);
+        }
       } else {
         setEmptySuggestions([]);
       }
       setLastIntent({ mode, text, solo: true, prefs, extraIntent });
-      if (text && text.trim()) addSearchHistory({ text: text.trim(), mode });
-      setCurrentView('solo-results');
+      if (text && text.trim()) {
+        addSearchHistory({
+          text: text.trim(),
+          mode,
+          allergies: extraIntent?.allergies || [],
+          distRange: prefs?.distRange || null,
+        });
+      }
+      if (!isRefreshRef.current) setCurrentView('solo-results');
       trackSearch('solo', { searchText: text || '', hasPrefFilter: !!prefs });
       trackResultsShown(recommendations.length, mode, recommendations.length === 0);
+      // 决定次数：成功生成单人结果（含换一批，handleRefresh 复用本函数）+1
+      incrementDecisionCount();
     } finally { 
       setIsLoading(false); 
       searchRef.current = false;
@@ -183,10 +260,17 @@ function App() {
     searchRef.current = true;
     try {
       setIsLoading(true); setIsExploreMode(true); setLastSoloMode('fortune');
+      // 首次抽签：清空历史累积ID
+      seenRestaurantIdsRef.current = [];
       const extraIntent = lastSoloText ? parseIntent(lastSoloText) : null;
-      const recommendations = await recommendByMode('fortune', location, extraIntent ? { preferences: extraIntent.preferences || [], allergies: extraIntent.allergies || [], budget: extraIntent.budget } : null, fortuneCard);
+      const mergedExcludeIds = [...seenRestaurantIdsRef.current];
+      const recommendations = await recommendByMode('fortune', location, extraIntent ? { preferences: extraIntent.preferences || [], allergies: extraIntent.allergies || [], budget: extraIntent.budget } : null, fortuneCard, null, mergedExcludeIds);
       setResults(recommendations);
+      if (recommendations.length > 0) {
+        seenRestaurantIdsRef.current = [...new Set([...seenRestaurantIdsRef.current, ...recommendations.map(r => r.id).filter(Boolean)])];
+      }
       setLastIntent({ mode: 'fortune', text: lastSoloText, solo: true, fortuneCard });
+      incrementDecisionCount();
       setCurrentView('solo-results');
     } finally { 
       setIsLoading(false); 
@@ -197,15 +281,38 @@ function App() {
   const handleGroupSearch = (members) => handleSearch(members);
   const handleVote = () => {
     try { localStorage.removeItem('eatwithme_vote_session'); } catch {}
+    // 决定次数：多人走到投票页生成候选 +1
+    incrementDecisionCount();
     setCurrentView('vote');
   };
-  const handleVoteSelect = (restaurant) => { setResults([restaurant]); setCurrentView('group-results'); };
+  const handleVoteSelect = (restaurant) => {
+    // 投票选定：也累积ID，防止后续刷新时重复
+    if (restaurant?.id) {
+      seenRestaurantIdsRef.current = [...new Set([...seenRestaurantIdsRef.current, restaurant.id])];
+    }
+    setResults([restaurant]); setCurrentView('group-results');
+  };
 
   const handleRandomExplore = async (mode = 'fresh', members = [], excludeIds = []) => {
     setIsLoading(true); setLastExploreMode(mode); setLastExploreMembers(members); setLastMembers(members);
-    const restaurant = await randomExplore(location, mode, members, excludeIds);
+    // 传进来的 excludeIds 为空 → 首次探索，清空累积
+    const isFirstExplore = !excludeIds || excludeIds.length === 0;
+    if (isFirstExplore) {
+      seenRestaurantIdsRef.current = [];
+    }
+    const mergedExcludeIds = [...new Set([...seenRestaurantIdsRef.current, ...(excludeIds || [])])];
+    const restaurant = await randomExplore(location, mode, members, mergedExcludeIds);
+    if (restaurant?.id) {
+      seenRestaurantIdsRef.current = [...new Set([...seenRestaurantIdsRef.current, restaurant.id])];
+    }
     setResults([restaurant]); setIsExploreMode(true); setIsLoading(false);
-    setCurrentView(currentView === 'solo-input' ? 'solo-results' : 'group-results');
+    // 决定次数：探索成功生成结果 +1
+    if (restaurant) incrementDecisionCount();
+    // 只在从输入页进入时切换 view，刷新时保持当前页不变
+    if (!isRefreshRef.current) {
+      if (currentView === 'solo-input') setCurrentView('solo-results');
+      else if (currentView === 'group-input') setCurrentView('group-results');
+    }
   };
 
   const handleSoloExplore = (mode) => handleRandomExplore(mode, []);
@@ -213,37 +320,72 @@ function App() {
 
   const handleRefresh = async () => {
     rerollCountRef.current += 1;
-    // 收集当前已展示的餐厅ID，换一批时排除
-    const currentIds = results.map(r => r.id).filter(Boolean);
-    if (isExploreMode) {
-      if (lastIntent?.solo) {
-        if (lastSoloMode === 'fortune') {
-          setIsLoading(true); setIsExploreMode(true);
-          try {
-            const card = lastIntent.fortuneCard || drawFortuneCard();
-            const currentId = results[0]?.id;
-            const recommendations = await recommendByMode('fortune', location, null, card, currentId, currentIds);
-            setResults(recommendations);
-          } finally { setIsLoading(false); }
+    // 刷新期间禁止切换 view，保证"在哪个页面刷新还显示哪个页面"
+    isRefreshRef.current = true;
+    try {
+      // 收集当前已展示的餐厅ID，换一批时排除（和历史累积合并）
+      const currentIds = results.map(r => r.id).filter(Boolean);
+      const mergedExcludeIds = [...new Set([...seenRestaurantIdsRef.current, ...currentIds])];
+      if (isExploreMode) {
+        if (lastIntent?.solo) {
+          if (lastSoloMode === 'fortune') {
+            setIsLoading(true); setIsExploreMode(true);
+            try {
+              const card = lastIntent.fortuneCard || drawFortuneCard();
+              const currentId = results[0]?.id;
+              const recommendations = await recommendByMode('fortune', location, null, card, currentId, mergedExcludeIds);
+              setResults(recommendations);
+              if (recommendations.length > 0) {
+                seenRestaurantIdsRef.current = [...new Set([...seenRestaurantIdsRef.current, ...recommendations.map(r => r.id).filter(Boolean)])];
+              } else if (seenRestaurantIdsRef.current.length > 0) {
+                const exhaustedTip = `已抽过 ${seenRestaurantIdsRef.current.length} 家餐厅，当前运势池暂时没有更多了。可以换个口味偏好或位置重新抽～`;
+                setEmptySuggestions([exhaustedTip]);
+              }
+            } finally { setIsLoading(false); }
+          } else {
+            await handleSoloSearch(lastSoloMode, lastSoloText, lastSoloPrefs, currentIds);
+          }
         } else {
-          await handleSoloSearch(lastSoloMode, lastSoloText, lastSoloPrefs, currentIds);
+          await handleRandomExplore(lastExploreMode, lastExploreMembers, currentIds);
         }
-      } else {
-        await handleRandomExplore(lastExploreMode, lastExploreMembers, currentIds);
+      } else if (lastIntent) {
+        if (lastIntent.solo) {
+          await handleSoloSearch(lastSoloMode, lastSoloText, lastSoloPrefs, currentIds);
+        } else {
+          setIsLoading(true);
+          try {
+            const r = await recommendRestaurants(lastIntent, location, mergedExcludeIds);
+            setResults(r);
+            if (r.length > 0) {
+              seenRestaurantIdsRef.current = [...new Set([...seenRestaurantIdsRef.current, ...r.map(x => x.id).filter(Boolean)])];
+              setEmptySuggestions([]);
+            } else if (seenRestaurantIdsRef.current.length > 0) {
+              const exhaustedTip = `已为你展示过 ${seenRestaurantIdsRef.current.length} 家符合条件的餐厅，周边暂时没有更多了。可以试试扩大距离范围、调整预算或口味偏好～`;
+              const baseSuggestions = analyzeEmptyResult(lastIntent, searchRadius);
+              setEmptySuggestions([exhaustedTip, ...baseSuggestions]);
+            } else {
+              setEmptySuggestions(analyzeEmptyResult(lastIntent, searchRadius));
+            }
+          } finally { setIsLoading(false); }
+        }
       }
-    } else if (lastIntent) {
-      if (lastIntent.solo) await handleSoloSearch(lastSoloMode, lastSoloText, lastSoloPrefs, currentIds);
-      else { setIsLoading(true); const r = await recommendRestaurants(lastIntent, location, currentIds); setResults(r); setIsLoading(false); }
+      trackReroll(isExploreMode ? (lastSoloMode || lastExploreMode || 'explore') : 'group', rerollCountRef.current);
+    } finally {
+      isRefreshRef.current = false;
     }
-    trackReroll(isExploreMode ? (lastSoloMode || lastExploreMode || 'explore') : 'group', rerollCountRef.current);
   };
 
   const handleBack = () => {
     if (currentView === 'solo-results') setCurrentView('solo-input');
     else if (currentView === 'group-results') setCurrentView('group-input');
     setResults([]); setLastIntent(null); setEmptySuggestions([]);
+    // 返回入口页时清空累积，下次重新搜索相当于新会话
+    seenRestaurantIdsRef.current = [];
   };
-  const handleBackToHome = () => { setCurrentView('home'); setResults([]); setLastIntent(null); setEmptySuggestions([]); };
+  const handleBackToHome = () => {
+    setCurrentView('home'); setResults([]); setLastIntent(null); setEmptySuggestions([]);
+    seenRestaurantIdsRef.current = [];
+  };
 
   const handleFeedback = (type, restaurant) => {
     // 带当前画像指纹写入 feedbackService，避免不同场景反馈互相污染
@@ -365,12 +507,13 @@ function App() {
 
   const getHeaderConfig = () => {
     switch (currentView) {
-      case 'home': return { title: '吃什么', subtitle: 'AI 用餐决策助手', showBack: false };
+      case 'home': return { title: '吃什么', subtitle: 'AI 用餐决策助手', showBack: false, hidden: true };
       case 'solo-input': return { title: '一人食', subtitle: 'AI 帮你做决定', showBack: true, onBack: handleBackToHome };
       case 'group-input': return { title: '多人聚餐', subtitle: '综合所有人的需求', showBack: true, onBack: handleBackToHome };
       case 'solo-results': case 'group-results': return { title: '推荐结果', subtitle: '', showBack: true, onBack: handleBack };
       case 'vote': return { title: '投票页', subtitle: '', showBack: true, onBack: () => setCurrentView('group-results') };
-      case 'history': return { title: '我的收藏', subtitle: '', showBack: true, onBack: handleBackToHome };
+      case 'footprint': return { title: '足迹', subtitle: '收藏 · 去过 · 搜索历史', showBack: false };
+      case 'profile': return { title: '我的', subtitle: '等级 · 口味 · 成就', showBack: false };
       default: return { title: '吃什么', subtitle: 'AI 用餐决策助手', showBack: false };
     }
   };
@@ -380,7 +523,9 @@ function App() {
 
   return (
     <div className="min-h-screen">
-      <Header title={headerConfig.title} subtitle={headerConfig.subtitle} showBack={headerConfig.showBack} onBack={headerConfig.onBack} />
+      {!headerConfig.hidden && (
+        <Header title={headerConfig.title} subtitle={headerConfig.subtitle} showBack={headerConfig.showBack} onBack={headerConfig.onBack} />
+      )}
       {IS_MOCK_MODE && (
         <div className="bg-amber-50 border-b border-amber-200 px-4 py-2 text-center">
           <p className="text-sm text-amber-800">
@@ -399,27 +544,39 @@ function App() {
         </div>
       )}
       <LocationBar location={location} isLocating={isLocating} error={error} debugInfo={debugInfo} onLocationChange={handleLocationChange} onRetry={retryLocate} />
-      {currentView === 'home' && <main className="py-8"><HomeView onSelectSolo={handleSelectSolo} onSelectGroup={handleSelectGroup} onOpenHistory={() => setCurrentView('history')} location={location} onQuickPick={(restaurant) => {
-        const { score, reasons } = calculateSingleScore(restaurant, { preferences: [], allergies: [] });
-        const scoredRestaurant = {
-          ...restaurant,
-          matchScore: score,
-          reasons,
-          soloFriendly: calculateSoloFriendly(restaurant),
-        };
-        setResults([scoredRestaurant]);
-        setIsExploreMode(false);
-        setSearchRadius(3000);
-        setCurrentView('solo-results');
-      }} /></main>}
-      {currentView === 'solo-input' && <main className="py-8"><SoloInput onSearch={handleSoloSearch} onFortune={handleSoloFortune} isLoading={isLoading} /></main>}
-      {currentView === 'group-input' && <main className="py-8"><GroupInput onSearch={handleGroupSearch} onRandomExplore={handleGroupExplore} isLoading={isLoading} /></main>}
+      {currentView === 'home' && <main className="py-4"><HomeView
+        onSelectSolo={handleSelectSolo}
+        onSelectGroup={handleSelectGroup}
+        onRandomPick={() => handleSoloExplore('fresh')}
+        onFortunePick={() => handleSoloFortune(null)}
+        onOpenProfile={() => setCurrentView('profile')}
+        location={location}
+        onQuickPick={(restaurant) => {
+          const { score, reasons } = calculateSingleScore(restaurant, { preferences: [], allergies: [] });
+          const scoredRestaurant = {
+            ...restaurant,
+            matchScore: score,
+            reasons,
+            soloFriendly: calculateSoloFriendly(restaurant),
+          };
+          setResults([scoredRestaurant]);
+          setIsExploreMode(false);
+          setSearchRadius(3000);
+          // 决定次数：feed 详情点击 +1
+          incrementDecisionCount();
+          setCurrentView('solo-results');
+        }}
+      /></main>}
+      {currentView === 'solo-input' && <main className="py-8 pb-24"><SoloInput onSearch={handleSoloSearch} onFortune={handleSoloFortune} isLoading={isLoading} /></main>}
+      {currentView === 'group-input' && <main className="py-8 pb-24"><GroupInput onSearch={handleGroupSearch} onRandomExplore={handleGroupExplore} isLoading={isLoading} /></main>}
       {(currentView === 'solo-results' || currentView === 'group-results') && <main className="py-8"><ResultList results={results} onBack={handleBack} onRefresh={handleRefresh} isLoading={isLoading} isExploreMode={isExploreMode} isSolo={currentView === 'solo-results'} location={location} onVote={handleVote} showVote={showVote} cuisineVote={lastIntent?.cuisineVote} memberCount={lastMembers.length} conflicts={lastIntent?.conflicts} emptySuggestions={emptySuggestions} onApplySuggestion={handleApplySuggestion} onFeedback={handleFeedback} budgetCompromise={lastIntent?.budgetCompromise} /></main>}
       {currentView === 'vote' && <main className="py-8"><VoteView restaurants={results} members={lastMembers} onBack={() => setCurrentView('group-results')} onSelect={handleVoteSelect} /></main>}
-      {currentView === 'history' && <main className="py-8"><HistoryView onBack={handleBackToHome} onReselect={handleHistoryReselect} /></main>}
-      <footer className="text-center py-10 mt-auto">
+      {currentView === 'footprint' && <main className="py-8 pb-24"><FootprintView onReselect={handleHistoryReselect} /></main>}
+      {currentView === 'profile' && <main className="py-8 pb-24"><ProfileView location={location} onOpenFootprint={() => setCurrentView('footprint')} /></main>}
+      <footer className={`text-center py-10 mt-auto ${showTabBar ? 'pb-24' : ''}`}>
         <p className="text-xs text-ink-tertiary">吃什么 · AI 用餐决策助手</p>
       </footer>
+      {showTabBar && <TabBar activeView={currentView} onChange={handleTabChange} />}
     </div>
   );
 }

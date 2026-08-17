@@ -8,7 +8,7 @@ export default function Header({
 }) {
   return (
     <header className="glass-header py-4">
-      <div className="max-w-2xl mx-auto px-6 flex items-center gap-4">
+      <div className="max-w-2xl mx-auto px-4 sm:px-6 flex items-center gap-4">
         {showBack && (
           <button
             type="button"
@@ -28,18 +28,18 @@ export default function Header({
               <span className="text-[8px] font-bold text-primary-dark">AI</span>
             </div>
           </div>
-          <div>
-            <h1 className="text-xl font-bold text-text tracking-tight leading-tight" style={{ fontFamily: 'var(--font-display)' }}>
+          <div className="min-w-0">
+            <h1 className="text-xl font-bold text-text tracking-tight leading-tight truncate" style={{ fontFamily: 'var(--font-display)' }}>
               {title}
             </h1>
             {subtitle && (
-              <p className="text-xs text-text-secondary leading-tight mt-0.5 font-medium">
+              <p className="text-xs text-text-secondary leading-tight mt-0.5 font-medium truncate">
                 {subtitle}
               </p>
             )}
           </div>
         </div>
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto hidden sm:flex items-center gap-2">
           <div className="w-2 h-2 bg-secondary rounded-full animate-pulse" />
           <span className="text-[10px] text-text-muted font-medium">AI 就绪</span>
         </div>

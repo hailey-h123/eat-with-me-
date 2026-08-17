@@ -1,12 +1,18 @@
 import { useState, useEffect } from 'react';
 import {
-  IconBookmark, IconCheckCircle, IconHistory, IconArrowLeft,
+  IconBookmark, IconCheckCircle, IconHistory,
   IconStar, IconMapPin, IconTrash, IconSparkles
 } from './icons/FancyIcons';
-import { getFavorites, getVisited, getSearchHistory, clearSearchHistory } from '../services/historyService';
+import { getFavorites, getVisited, getSearchHistory, clearSearchHistory, setVisitedMood } from '../services/historyService';
 import { getSoloModes } from '../services/recommendationService';
 
-export default function HistoryView({ onBack, onReselect }) {
+const MOOD_OPTIONS = [
+  { key: 'great', emoji: '😋', label: '好吃' },
+  { key: 'ok', emoji: '🙂', label: '还行' },
+  { key: 'bad', emoji: '😐', label: '一般' },
+];
+
+export default function FootprintView({ onReselect }) {
   const [activeTab, setActiveTab] = useState('favorites');
   const [favorites, setFavorites] = useState([]);
   const [visited, setVisited] = useState([]);
@@ -22,6 +28,11 @@ export default function HistoryView({ onBack, onReselect }) {
 
   const handleClearHistory = () => {
     clearSearchHistory();
+    refreshData();
+  };
+
+  const handleMoodClick = (id, mood) => {
+    setVisitedMood(id, mood);
     refreshData();
   };
 
@@ -50,17 +61,6 @@ export default function HistoryView({ onBack, onReselect }) {
 
   return (
     <div className="max-w-lg mx-auto px-6">
-      <div className="flex items-center justify-between mb-5 fade-in">
-        <button onClick={onBack} className="text-primary text-sm font-medium flex items-center gap-1">
-          <IconArrowLeft className="w-4 h-4" /> 返回
-        </button>
-        {activeTab === 'history' && history.length > 0 && (
-          <button onClick={handleClearHistory} className="text-text-muted text-xs font-medium flex items-center gap-1 hover:text-error transition-colors">
-            <IconTrash className="w-3.5 h-3.5" /> 清空
-          </button>
-        )}
-      </div>
-
       {/* Tab 切换 */}
       <div className="flex gap-2 mb-6 fade-in">
         {tabs.map(tab => {
@@ -74,7 +74,7 @@ export default function HistoryView({ onBack, onReselect }) {
                   ? 'bg-brand-700 text-white border-2 shadow-[2px_2px_0_var(--color-ink)]'
                   : 'bg-white text-text-secondary border-2 hover:bg-bg-soft'
               }`}
-              style={activeTab === tab.id ? { borderColor: 'var(--color-ink)', fontFamily: 'var(--font-display)' } : { borderColor: 'var(--color-ink)', fontFamily: 'var(--font-display)' }}
+              style={{ borderColor: 'var(--color-ink)', fontFamily: 'var(--font-display)' }}
             >
               <Icon className="w-4 h-4" />
               <span>{tab.label}</span>
@@ -101,14 +101,20 @@ export default function HistoryView({ onBack, onReselect }) {
         </div>
       )}
 
-      {/* 去过列表 */}
+      {/* 去过列表（可切换感受表情） */}
       {activeTab === 'visited' && (
         <div className="space-y-3">
           {visited.length === 0 ? (
             <EmptyState icon="check" text="还没有标记去过的餐厅" subtext="点击餐厅卡片上的「标记去过」按钮来记录" />
           ) : (
             visited.map((r, i) => (
-              <RestaurantMiniCard key={r.id} restaurant={r} index={i} formatTime={formatTime} />
+              <VisitedCard
+                key={r.id}
+                restaurant={r}
+                index={i}
+                formatTime={formatTime}
+                onMoodClick={handleMoodClick}
+              />
             ))
           )}
         </div>
@@ -120,26 +126,35 @@ export default function HistoryView({ onBack, onReselect }) {
           {history.length === 0 ? (
             <EmptyState icon="history" text="还没有搜索记录" subtext="搜索过的内容会出现在这里" />
           ) : (
-            history.map((h, i) => (
-              <button
-                key={h.id}
-                onClick={() => onReselect && onReselect(h)}
-                className="w-full fancy-card p-3.5 text-left flex items-center gap-3 hover:bg-bg-secondary transition-colors animate-slide-up"
-                style={{ animationDelay: `${i * 60}ms`, animationFillMode: 'both' }}
-              >
-                <div className="w-9 h-9 rounded-full bg-primary/10 text-primary flex items-center justify-center flex-shrink-0">
-                  <IconHistory className="w-4 h-4" />
+            <>
+              {history.length > 0 && (
+                <div className="flex justify-end mb-1">
+                  <button onClick={handleClearHistory} className="text-text-muted text-xs font-medium flex items-center gap-1 hover:text-error transition-colors">
+                    <IconTrash className="w-3.5 h-3.5" /> 清空
+                  </button>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm text-text font-medium truncate">{h.text || '未输入文字'}</p>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    {h.mode && <span className="text-xs text-text-muted">{getModeLabel(h.mode)}</span>}
-                    <span className="text-xs text-text-muted">· {formatTime(h.timestamp)}</span>
+              )}
+              {history.map((h, i) => (
+                <button
+                  key={h.id}
+                  onClick={() => onReselect && onReselect(h)}
+                  className="w-full fancy-card p-3.5 text-left flex items-center gap-3 hover:bg-bg-secondary transition-colors animate-slide-up"
+                  style={{ animationDelay: `${i * 60}ms`, animationFillMode: 'both' }}
+                >
+                  <div className="w-9 h-9 rounded-full bg-primary/10 text-primary flex items-center justify-center flex-shrink-0">
+                    <IconHistory className="w-4 h-4" />
                   </div>
-                </div>
-                <IconSparkles className="w-4 h-4 text-text-muted flex-shrink-0" />
-              </button>
-            ))
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-text font-medium truncate">{h.text || '未输入文字'}</p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      {h.mode && <span className="text-xs text-text-muted">{getModeLabel(h.mode)}</span>}
+                      <span className="text-xs text-text-muted">· {formatTime(h.timestamp)}</span>
+                    </div>
+                  </div>
+                  <IconSparkles className="w-4 h-4 text-text-muted flex-shrink-0" />
+                </button>
+              ))}
+            </>
           )}
         </div>
       )}
@@ -175,6 +190,36 @@ function RestaurantMiniCard({ restaurant, index, formatTime }) {
           )}
           <span className="text-xs text-text-muted">{formatTime(restaurant.timestamp)}</span>
         </div>
+      </div>
+    </div>
+  );
+}
+
+/** 去过卡片：RestaurantMiniCard + 感受表情切换 */
+function VisitedCard({ restaurant, index, formatTime, onMoodClick }) {
+  return (
+    <div className="animate-slide-up" style={{ animationDelay: `${index * 60}ms`, animationFillMode: 'both' }}>
+      <RestaurantMiniCard restaurant={restaurant} index={index} formatTime={formatTime} />
+      <div className="flex items-center gap-1.5 px-3.5 -mt-1 pb-1">
+        <span className="text-xs text-text-muted font-bold" style={{ fontFamily: 'var(--font-display)' }}>感受：</span>
+        {MOOD_OPTIONS.map(opt => {
+          const active = restaurant.mood === opt.key;
+          return (
+            <button
+              key={opt.key}
+              type="button"
+              onClick={() => onMoodClick(restaurant.id, opt.key)}
+              title={opt.label}
+              aria-label={`标记${opt.label}`}
+              className={`w-8 h-8 rounded-full border-2 flex items-center justify-center text-base transition-all hover:scale-110 ${
+                active ? 'bg-bg-secondary shadow-[2px_2px_0_var(--color-ink)]' : 'bg-white opacity-60 hover:opacity-100'
+              }`}
+              style={{ borderColor: 'var(--color-ink)' }}
+            >
+              {opt.emoji}
+            </button>
+          );
+        })}
       </div>
     </div>
   );

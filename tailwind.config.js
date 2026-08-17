@@ -41,6 +41,7 @@ export default {
           700: '#cc9944',
           800: '#a37d38',
           900: '#7a612d',
+          dark: '#F0A818',
         },
         coral: {
           DEFAULT: '#ff8a80',
@@ -83,6 +84,25 @@ export default {
         },
         cream: '#fffbf0',
         gold: '#d4a574',
+        primary: {
+          DEFAULT: '#FF6B3D',
+          dark: '#E8552A',
+          light: '#FFB89A',
+        },
+        secondary: {
+          DEFAULT: '#2D9CDB',
+          dark: '#2178AB',
+        },
+        text: {
+          DEFAULT: '#2A2520',
+          secondary: '#6B6357',
+          muted: '#A89F8E',
+        },
+        surface: '#FFFFFF',
+        'bg-soft': '#FFF4DE',
+        success: '#6BCB77',
+        warning: '#F0A818',
+        error: '#E8552A',
       },
       fontFamily: {
         display: ['Baloo 2', 'Inter', 'sans-serif'],

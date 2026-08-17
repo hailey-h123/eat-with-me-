@@ -4,23 +4,21 @@
  */
 import { mockRestaurants } from '../data/mockRestaurants';
 import { CUISINE_KEYWORDS_FOR_FILTER } from '../data/cuisineMap';
-import { searchPOI, haversineDistance } from './amapService';
+import { searchPOI, searchPOIByCategory, haversineDistance } from './amapService';
 import { applyFeedbackToScore, makeProfileFingerprint } from './feedbackService';
 import {
-  checkPrefMatch,
   countSafeSignals,
-  featuresMatchPreference,
   calculateSoloFriendly,
   calculateGroupScore,
   calculateSingleScore,
   filterByAllergies,
   getCuisineSearchKeys,
   getFusionSearchKeywords,
+  getBridgeFusionMarkers,
   CUISINE_SYNONYMS,
   getExpandedSearchKeyword,
   filterExpansionsByAllergies,
   mmrRerank,
-  analyzeEmptyResult,
 } from './scoringService';
 import { exploreHiddenTreasures, randomExplore, getExploreModes } from './exploreService';
 import { FORTUNE_CARDS, drawFortuneCard, recommendFortune } from './fortuneService';
@@ -49,7 +47,8 @@ const MIN_CANDIDATES_AFTER_PRICE = 5;
 
 function isPriceInRange(price, minP, maxP) {
   if (price == null || price <= 0 || isNaN(price)) return true;
-  const noCap = (maxP === null || maxP >= 200);
+  // 只有 maxP === null 才表示"无上限"；显式上限（如「300以内」）必须真实过滤
+  const noCap = (maxP === null);
   return noCap ? price >= minP : (price >= minP && price <= maxP);
 }
 
@@ -167,7 +166,8 @@ function getModeIntent(mode) {
     case SOLO_MODES.LIGHT:
       return {
         preferences: ['沙拉', '轻食', '健康餐'],
-        searchKeyword: '西餐|外国餐厅|咖啡厅|面包蛋糕|沙拉|简餐',
+        searchKeyword: '沙拉|轻食|健康餐|简餐|低卡餐|轻食餐厅|健身餐|超级碗|藜麦碗|波奇饭|poke|蔬果汁|冷压果汁|Brunch|早午餐|素食餐厅|低碳水|生酮',
+        expandCategories: ['050200', '050201', '050202'],
       };
     case SOLO_MODES.INDULGE:
       return {
@@ -325,7 +325,11 @@ export async function recommendRestaurants(intent, location, excludeIds = []) {
         return [];
       }
     });
-    const cuisineSearchResults = await Promise.all(cuisineSearchTasks);
+    // 串行搜索各菜系，配合全局节流器避免 QPS 雪崩
+    const cuisineSearchResults = [];
+    for (const task of cuisineSearchTasks) {
+      cuisineSearchResults.push(await task);
+    }
     cuisineKeys.forEach((key, idx) => {
       const results = cuisineSearchResults[idx];
       results.forEach(r => {
@@ -367,6 +371,29 @@ export async function recommendRestaurants(intent, location, excludeIds = []) {
         if (!expandedSeenIds.has(r.id) && !excludeIds.includes(r.id)) {
           expandedSeenIds.add(r.id);
           candidates.push({ ...r, _fusionKeyword: fusionKey });
+          fusionIds.add(r.id);
+        }
+      });
+    });
+
+    // 需求桥接搜索：需求×菜系（如辣×韩餐），搜出的店打 _fusionPrefs 标记进融合桶
+    const bridgeMarkers = getBridgeFusionMarkers(intent);
+    const bridgeResults = await Promise.all(bridgeMarkers.map(async ({ keyword, prefs }) => {
+      try {
+        let safeKeyword = keyword;
+        if (intent.allergies) safeKeyword = filterExpansionsByAllergies(safeKeyword, intent.allergies);
+        if (!safeKeyword) return { keyword, prefs, results: [] };
+        const results = await searchPOI(safeKeyword, searchCenter, Math.max(searchRadius * 2, 5000));
+        return { keyword, prefs, results: (results && results.length > 0) ? results.slice(0, 25) : [] };
+      } catch (e) {
+        return { keyword, prefs, results: [] };
+      }
+    }));
+    bridgeResults.forEach(({ keyword, prefs, results }) => {
+      results.forEach(r => {
+        if (!expandedSeenIds.has(r.id) && !excludeIds.includes(r.id)) {
+          expandedSeenIds.add(r.id);
+          candidates.push({ ...r, _fusionKeyword: keyword, _fusionPrefs: prefs });
           fusionIds.add(r.id);
         }
       });
@@ -415,6 +442,43 @@ export async function recommendRestaurants(intent, location, excludeIds = []) {
     }
   }
 
+  // ========== 两步搜索策略：有 expandCategories 配置（如 LIGHT 轻食模式）时，候选不足追加类别搜索 ==========
+  const TWO_STEP_MIN_CANDIDATES = 8; // 低于此数量触发类别补充搜索
+  if (intent.expandCategories && intent.expandCategories.length > 0 && searchCenter && candidates.length < TWO_STEP_MIN_CANDIDATES) {
+    try {
+      // 注意：类别搜索半径稍大（5km），确保能捞到"超级碗"等店名不含轻食关键词的正经轻食店
+      const categoryRadius = Math.max(searchRadius, 5000);
+      const categoryResults = await searchPOIByCategory(intent.expandCategories, searchCenter, categoryRadius, 1, 25);
+      if (categoryResults && categoryResults.length > 0) {
+        // 构建偏好关键词合集（CUISINE_KEYWORDS 偏好同义词 + 搜索关键词），用于类别搜索结果的软门槛
+        const preferenceKeywords = new Set();
+        (intent.preferences || []).forEach(p => {
+          preferenceKeywords.add(p);
+          (CUISINE_KEYWORDS[p] || []).forEach(kw => preferenceKeywords.add(kw));
+        });
+        if (intent.searchKeyword) {
+          intent.searchKeyword.split('|').forEach(kw => { if (kw) preferenceKeywords.add(kw); });
+        }
+        const kwArr = Array.from(preferenceKeywords);
+        const existingIds = new Set(candidates.map(r => r.id));
+        const newCandidates = categoryResults.filter(r => {
+          if (excludeIds.includes(r.id) || existingIds.has(r.id) || expandedSeenIds.has(r.id)) return false;
+          // 类别搜索软门槛：名字/tags/features/featureTags 里至少命中 1 个偏好关键词，杜绝外国餐厅大类下的无关餐厅（如日料/韩餐纯正餐）
+          const haystack = [r.name || '', ...(r.tags || []), ...(r.features || []), ...(r.featureTags || [])].join(' ');
+          return kwArr.some(kw => kw && haystack.includes(kw));
+        });
+        // 标记为 _fromCategorySearch，后续相关性验证时会跳过菜系同义词强过滤（因为类别搜索来的店店名可能不含轻食关键词）
+        newCandidates.forEach(r => {
+          r._fromCategorySearch = true;
+          expandedSeenIds.add(r.id);
+        });
+        candidates.push(...newCandidates);
+      }
+    } catch (e) {
+      console.warn('[recommendRestaurants] 两步搜索-类别补充失败，跳过:', e?.message);
+    }
+  }
+
   // 如果有软冲突，额外搜索替代关键词补充候选
   if (intent.conflictAltKeywords && intent.conflictAltKeywords.length > 0 && searchCenter) {
     for (const altKeyword of intent.conflictAltKeywords) {
@@ -426,7 +490,7 @@ export async function recommendRestaurants(intent, location, excludeIds = []) {
         const altResults = await searchPOI(safeAlt, searchCenter, searchRadius);
         if (altResults && altResults.length > 0) {
           altResults.forEach(r => {
-            if (!expandedSeenIds.has(r.id)) { expandedSeenIds.add(r.id); candidates.push(r); }
+            if (!expandedSeenIds.has(r.id) && !excludeIds.includes(r.id)) { expandedSeenIds.add(r.id); candidates.push(r); }
           });
         }
       } catch (e) {
@@ -443,6 +507,10 @@ export async function recommendRestaurants(intent, location, excludeIds = []) {
     const allSearchTerms = cuisineKeys.flatMap(k => getExpandedSearchKeyword(k).split('|').filter(Boolean));
     if (allSearchTerms.length > 0) {
       candidates = candidates.filter(r => {
+        // 类别搜索来的餐厅（如超级碗）店名可能不含关键词，跳过第一层强过滤，留到评分软排序
+        if (r._fromCategorySearch) return true;
+        // 融合店豁免：日韩料理/川湘菜等组合词店名不含单个菜系完整词，不能按菜系关键词硬过滤
+        if (r._fusionKeyword) return true;
         const searchText = [
           r.cuisine || '',
           r.name || '',
@@ -463,10 +531,15 @@ export async function recommendRestaurants(intent, location, excludeIds = []) {
       candidates = candidates.filter(r => {
         // 融合关键词来的不过滤（如涮烤自助→伍棵煋）
         if (r._fusionKeyword) return true;
+        // 类别搜索来的餐厅（如超级碗）也跳过同义词强过滤，交给评分软排序
+        if (r._fromCategorySearch) return true;
         const searchText = [r.cuisine || '', r.name || '', ...(r.tags || [])].join('');
         return [...allCuisineSyns].some(syn => searchText.includes(syn));
       });
     }
+    // 注意：不再做「过滤后为空就回退到验证前」的兜底。
+    // 那会把「餐厅」兜底搜出的无关餐厅（西餐/本帮菜等）放回，污染结果。
+    // 搜不到目标菜系时应保持为空，由 analyzeEmptyResult 给出建议。
   }
 
   const activeConflicts = intent.conflicts || [];
@@ -566,20 +639,42 @@ export async function recommendRestaurants(intent, location, excludeIds = []) {
   if (needsExpand) {
     candidates.forEach(r => { expandedSeenIds.add(r.id); r._isExpanded = false; });
 
-    async function expandWith(keyword, radius, isExpanded = true) {
+    async function expandWith(keyword, radius, isExpanded = true, useCompactTerms = true) {
       try {
-        const results = await searchPOI(keyword, searchCenter, radius);
+        // 扩张搜索默认用 maxTerms=2，减少 API 调用；初始搜索和原桶重搜按需选择 3
+        const maxTermsForExpand = useCompactTerms ? 2 : 3;
+        const results = await searchPOI(keyword, searchCenter, radius, 0, 0, 1, 25, maxTermsForExpand);
         if (!results || results.length === 0) return;
         let batch = results.filter(r => !excludeIds.includes(r.id) && !expandedSeenIds.has(r.id));
         if (batch.length === 0) return;
         batch = filterByAllergies(batch, intent.allergies, intent.conflicts || []);
         // 相关性验证：结合 cuisine + name + tags 综合判断
+        // 对4字以上关键词做宽松匹配：拆分为2字子词，命中任一即通过
+        // 如"韩式烤肉"→["韩式","式烤","烤肉"]，餐厅有"烤肉"或"韩式"即通过
         {
           const terms = keyword.split('|').filter(Boolean);
+          // filterExpansionsByAllergies 追加的修饰前缀（如"不辣湘菜"）
+          // 这些前缀是通用安全信号，拆分会误放所有标"不辣"的无关餐厅（西餐/本帮菜等）
+          // 处理方式：去掉前缀后只对核心菜系词做完整匹配，不做子词拆分
+          const MODIFIER_PREFIXES = ['不辣', '改良', '新派', '日式', '泰式', '韩式'];
           if (terms.length > 0) {
             batch = batch.filter(r => {
               const searchText = [r.cuisine || '', r.name || '', ...(r.tags || []), ...(r.features || []), ...(r.featureTags || [])].join('');
-              return terms.some(t => searchText.includes(t));
+              return terms.some(t => {
+                if (searchText.includes(t)) return true;
+                // 修饰前缀词（如"不辣湘菜"→"湘菜"）：只做核心词完整匹配
+                const modPrefix = MODIFIER_PREFIXES.find(p => t.startsWith(p) && t.length > p.length);
+                if (modPrefix) {
+                  return searchText.includes(t.slice(modPrefix.length));
+                }
+                // 多字关键词拆分2字子词做宽松匹配
+                if (t.length >= 4) {
+                  for (let i = 0; i <= t.length - 2; i++) {
+                    if (searchText.includes(t.substring(i, i + 2))) return true;
+                  }
+                }
+                return false;
+              });
             });
           }
         }
@@ -612,14 +707,19 @@ export async function recommendRestaurants(intent, location, excludeIds = []) {
 
     const expandRadius = Math.max(searchRadius * 2, 5000);
 
-    // 分批并行：高德免费版 QPS≈5，每批最多 2 个并发 + 批间 300ms 间隔，避免 10021 超限
-    async function expandBatch(keywords, isExpanded = true) {
-      const BATCH_SIZE = 2;
+    // 分批并行：高德免费版 QPS≈5，每批最多 3 个并发 + 批间 300ms 间隔，避免 10021 超限
+    // maxCuisines：限制扩张菜系数量，列表定义顺序即优先级（门店密度/化解能力从高到低）
+    async function expandBatch(keywords, isExpanded = true, useCompactTerms = true, maxCuisines = 4) {
+      const BATCH_SIZE = 3;
       const BATCH_DELAY = 300;
-      const expandedKeywords = keywords.map(kw => getExpandedSearchKeyword(kw));
+      const limitedKeywords = keywords.slice(0, maxCuisines);
+      const expandedKeywords = limitedKeywords
+        .map(kw => getExpandedSearchKeyword(kw))
+        .map(kw => intent.allergies ? filterExpansionsByAllergies(kw, intent.allergies) : kw)
+        .filter(Boolean);
       for (let i = 0; i < expandedKeywords.length; i += BATCH_SIZE) {
         const batch = expandedKeywords.slice(i, i + BATCH_SIZE);
-        await Promise.all(batch.map(kw => expandWith(kw, expandRadius, isExpanded)));
+        await Promise.all(batch.map(kw => expandWith(kw, expandRadius, isExpanded, useCompactTerms)));
         if (i + BATCH_SIZE < expandedKeywords.length) {
           await new Promise(resolve => setTimeout(resolve, BATCH_DELAY));
         }
@@ -637,24 +737,119 @@ export async function recommendRestaurants(intent, location, excludeIds = []) {
       '减肥': new Set(['轻食', '沙拉', '日料', '健康餐', '素食']),
       '低卡': new Set(['轻食', '沙拉', '日料', '健康餐', '素食']),
     };
+    // 按用户偏好菜系映射的扩张表：只有偏好菜系与忌口硬冲突时才扩张相似菜系
+    // key = conflictAllergy, value = { 偏好菜系: [相似菜系列表] }
+    // 菜系忌口（cuisine_avoid）：同圈扩张 + 同菜系非典型形态扩张
+    // SPICY_CIRCLE：圈组内完整关联，用于"贵州菜→湘菜/川菜/云南菜"等场景的菜系映射
+    // 注意：5 个菜系都保留，但高频 pref（川菜）的扩张顺序和数量通过 SPICY_EXPLICIT_LIMIT 单独控制
+    const SPICY_CIRCLE = ['川菜', '湘菜', '贵州菜', '江西菜', '云南菜'];
+    // 川菜+不吃辣的高频场景：限制扩张的顺序和数量，减少 API 调用
+    // 门店密度从高到低：湘菜 > 云南菜 > 火锅（必加，鸳鸯锅化解力最强）
+    // 贵州菜和江西菜门店少，跳过；如果后续发现用户高频搜贵州菜，再调大 EXPLICIT_LIMIT
+    const SPICY_EXPLICIT_LIMIT = {
+      '川菜': ['湘菜', '云南菜', '火锅'],
+      '四川菜': ['湘菜', '云南菜', '火锅'],
+      '重庆菜': ['湘菜', '云南菜', '火锅'],
+      // 其他 pref 不设限，按 SPICY_CIRCLE 完整扩张
+    };
+    const LIGHT_CIRCLE = ['粤菜', '江浙菜', '客家菜', '福建菜'];
+    const BBQ_CIRCLE = ['烧烤', '烤肉', '烤串', '铁板烧', '韩式烤肉', '日式烧肉'];
+    const HOTPOT_CIRCLE = ['烤涮一体', '麻辣烫', '串串', '冒菜'];
+    // 生成"圈组内互相扩张"配置：忌口 X → 扩张圈内其他 X
+    function buildCircleExpansion(circle) {
+      const result = {};
+      circle.forEach(x => {
+        result[x] = circle.filter(y => y !== x);
+      });
+      return result;
+    }
+    // 辣系扩张：先按圈组内互替，再根据 EXPLICIT_LIMIT 覆盖高频 pref 的扩张列表
+    // 火锅=鸳鸯锅是「不吃辣」的最强化解方案，所有辣系 pref 默认追加火锅（除非 EXPLICIT_LIMIT 已指定）
+    const spicyExpansion = buildCircleExpansion(SPICY_CIRCLE);
+    SPICY_CIRCLE.forEach(x => {
+      if (SPICY_EXPLICIT_LIMIT[x]) {
+        spicyExpansion[x] = SPICY_EXPLICIT_LIMIT[x]; // 覆盖：用显式列表
+      } else {
+        spicyExpansion[x] = [...spicyExpansion[x], '火锅']; // 默认：圈内互替 + 火锅
+      }
+    });
     const EXPANSION_MAP = {
-      '辣': ['火锅', '串串', '麻辣烫', '冒菜', '湘菜', '贵州菜', '云南菜', '江西菜'],
-      '素食': ['火锅', '粤菜', '江浙菜', '日料', '西餐', '云南菜', '东北菜', '川菜', '湘菜'],
-      '海鲜': ['火锅', '东北菜', '北京菜', '鲁菜', '西北菜', '川菜', '湘菜', '韩餐', '西餐', '贵州菜', '江西菜', '云南菜', '新疆菜'],
-      '减肥': ['日料', '粤菜', '江浙菜', '轻食', '沙拉', '健康餐', '火锅', '云南菜', '东南亚', '西餐', '韩餐'],
-      '低卡': ['日料', '粤菜', '江浙菜', '轻食', '沙拉', '健康餐', '火锅', '云南菜', '东南亚', '西餐', '韩餐'],
+      // ============ 原有硬冲突类型（辣/素食/海鲜/减肥）============
+      '辣': {
+        ...spicyExpansion,
+      },
+      '素食': {
+        '烧烤': ['火锅', '川菜', '云南菜'],
+        '烤肉': ['火锅', '川菜', '云南菜'],
+        '牛排': ['火锅', '川菜', '云南菜'],
+      },
+      '海鲜': {
+        '日料': ['韩餐'],
+        '粤菜': ['客家菜'],
+        '海鲜': ['川菜', '湘菜', '火锅', '烧烤'],
+      },
+      '减肥': {
+        ...Object.fromEntries(['川菜', '湘菜'].map(x => [x, ['云南菜', '粤菜', '江浙菜', '日料']])),
+        '烧烤': ['日料', '轻食', '沙拉', '东南亚菜', '云南菜'],
+        '烤肉': ['日料', '轻食', '沙拉', '东南亚菜', '云南菜'],
+      },
+      '低卡': {
+        ...Object.fromEntries(['川菜', '湘菜'].map(x => [x, ['云南菜', '粤菜', '江浙菜', '日料']])),
+        '烧烤': ['日料', '轻食', '沙拉', '东南亚菜', '云南菜'],
+        '烤肉': ['日料', '轻食', '沙拉', '东南亚菜', '云南菜'],
+      },
+      // ============ 菜系忌口类型（cuisine_avoid）============
+      // 韩餐：扩张同菜系非典型形态（烤肉/炸鸡/拌饭等，忌口汤饭但不忌口烤肉）
+      '韩餐': {
+        '韩餐': ['韩式烤肉', '韩式炸鸡', '韩式烤串', '日式烧肉', '韩式石锅拌饭'],
+        '韩国料理': ['韩式烤肉', '韩式炸鸡', '韩式烤串', '日式烧肉', '韩式石锅拌饭'],
+      },
+      // 日料：扩张非刺身形态（烧肉/烤串/寿喜烧/拉面/定食/炸猪排等，忌口刺身但不忌口烤肉）
+      '日料': {
+        '日料': ['日式烧肉', '韩式烤肉', '寿喜烧', '日式烤串', '铁板烧', '日式拉面', '日式定食', '日式炸猪排'],
+        '日本料理': ['日式烧肉', '韩式烤肉', '寿喜烧', '日式烤串', '铁板烧', '日式拉面', '日式定食', '日式炸猪排'],
+      },
+      // 烧烤/烤肉：烧烤圈组内互相扩张（去掉火锅，按你要求）
+      ...Object.fromEntries(BBQ_CIRCLE.map(x => [x, buildCircleExpansion(BBQ_CIRCLE)[x]])),
+      // 火锅：火锅圈组内扩张
+      '火锅': { '火锅': HOTPOT_CIRCLE },
+      '麻辣烫': { '麻辣烫': HOTPOT_CIRCLE.filter(x => x !== '麻辣烫') },
+      '串串': { '串串': HOTPOT_CIRCLE.filter(x => x !== '串串') },
+      '冒菜': { '冒菜': HOTPOT_CIRCLE.filter(x => x !== '冒菜') },
+      // 辣系圈：忌口川/湘/贵/赣/云/客家 → 圈组内扩张其他菜系
+      ...Object.fromEntries(SPICY_CIRCLE.map(x => [x, buildCircleExpansion(SPICY_CIRCLE)[x]])),
+      // 清淡圈：忌口粤/江浙/客家/福建 → 圈组内扩张其他菜系
+      ...Object.fromEntries(LIGHT_CIRCLE.map(x => [x, buildCircleExpansion(LIGHT_CIRCLE)[x]])),
     };
 
     const selfSet = SELF_RESOLVING[conflictAllergy];
+    // 原桶重搜只有在 expandRadius > searchRadius 且当前 pref 餐厅不足时才触发
+    // 初始搜索已经用相同关键词 + searchRadius 搜过，大部分候选已在 expandedSeenIds 里
+    const MIN_PREF_RESTAURANTS = 3;
+    const prefSynonyms = new Set([pref, ...(CUISINE_SYNONYMS[pref] || [])]);
+    const currentPrefCount = candidates.filter(r => {
+      const text = [r.cuisine || '', r.name || '', ...(r.tags || []), ...(r.features || [])].join('');
+      return [...prefSynonyms].some(s => text.includes(s));
+    }).length;
+    const needPrefExpand = expandRadius > searchRadius && currentPrefCount < MIN_PREF_RESTAURANTS;
+
     if (selfSet && selfSet.has(pref)) {
       // 自化解品类：只扩半径搜自己（子品类通过 getExpandedSearchKeyword 自然覆盖）
-      // 归入原桶（_isExpanded=false），因为 pref 是用户原始偏好不是跨菜系扩张
-      await expandBatch([pref], false);
+      if (needPrefExpand) {
+        await expandBatch([pref], false, true); // 最后一个参数 maxTerms=2
+      }
     } else if (EXPANSION_MAP[conflictAllergy]) {
       // 偏好菜系扩大半径重搜（保持 _isExpanded=false，归入原桶）
-      await expandBatch([pref], false);
+      if (needPrefExpand) {
+        await expandBatch([pref], false, true);
+      }
       // 跨菜系扩张（_isExpanded=true，归入扩展桶）
-      await expandBatch(EXPANSION_MAP[conflictAllergy], true);
+      // 按用户偏好菜系查映射表，找不到匹配的偏好则不扩张（不是硬冲突）
+      const expansionConfig = EXPANSION_MAP[conflictAllergy];
+      const expandList = expansionConfig[pref];
+      if (expandList) {
+        await expandBatch(expandList, true, true);
+      }
     }
   }
 
@@ -665,7 +860,7 @@ export async function recommendRestaurants(intent, location, excludeIds = []) {
     budget: intent.budget || null,
   });
   const scoredRestaurants = candidates.map(restaurant => {
-    const { score, reasons, _groupMin, _groupAvg, solutionTier, compromiseDetails, memberScores } = calculateGroupScore(restaurant, intent);
+    const { score, reasons, _groupMin, _groupAvg, solutionTier, compromiseDetails, memberScores, _matchedPrefs } = calculateGroupScore(restaurant, intent);
     let adjustedScore = applyFeedbackToScore(restaurant, score, feedbackFingerprint);
 
     return {
@@ -678,6 +873,7 @@ export async function recommendRestaurants(intent, location, excludeIds = []) {
       solutionTier: solutionTier || 3,
       compromiseDetails: compromiseDetails || [],
       memberScores: memberScores || [],
+      _matchedPrefs: _matchedPrefs || [],
     };
   });
 
@@ -765,14 +961,18 @@ export async function recommendRestaurants(intent, location, excludeIds = []) {
 
   let balancedResults;
   if (needsExpand) {
-    // 分层：原始菜系 vs 关联菜系，各自精排
+    // 判断冲突类型：cuisine_avoid（菜系忌口） vs 其他（辣/海鲜/素食/减肥忌口）
+    // - 辣/海鲜等忌口：原桶（如川菜）保 Top1（有不辣证据时 Tier1/2，没证据时 Tier3 但也给一个川菜位置）
+    // - cuisine_avoid（韩餐/日料等忌口）：原桶（纯韩餐传统店）多为 Tier3 无化解能力，不保 Top1
+    //   让 Tier2 的扩张餐厅（韩式烤肉/日式烧肉等同圈替代）自然排到 Tier3 传统店前面
+    const hasCuisineAvoid = activeConflicts.some(c => c.type === 'cuisine_avoid');
+
+    // 方案B：原桶保 Top1 川菜馆（tier 最高的），剩余位置全局按 tier 排序
+    // 有冲突时，有不辣证据的餐厅（Tier 1/2）优先于无证据的川菜馆（Tier 3）
     const original = scoredRestaurants.filter(r => !r._isExpanded);
     const expanded = scoredRestaurants.filter(r => r._isExpanded);
 
-    const TOP_ORIGINAL = Math.min(2, original.length);
-    const TOP_EXPANDED = Math.min(MAX_RESULTS - TOP_ORIGINAL, expanded.length);
-
-    // 子品类去重：火锅系最多 2 个槽位，同子品类最多 1 个（原桶和扩展桶共用）
+    // 子品类去重：火锅系最多 2 个槽位，同子品类最多 1 个
     const HOTPOT_SUBTYPES = {
       '火锅': ['火锅', '涮锅', '涮肉', '铜锅', '打边炉', '锅物'],
       '麻辣烫': ['麻辣烫'],
@@ -789,73 +989,181 @@ export async function recommendRestaurants(intent, location, excludeIds = []) {
     const dedupeBySubtype = (list, topN, maxHotpot) => {
       const result = [];
       let hotpotCount = 0;
-      const seenSubtypes = new Set();
+      const subtypeCounts = {};
       for (const r of list) {
         if (result.length >= topN) break;
         const subtype = getHotpotSubtype(r);
         if (subtype) {
           if (hotpotCount >= maxHotpot) continue;
-          if (seenSubtypes.has(subtype)) continue;
+          // 火锅（鸳鸯锅化解力最强）允许 2 个，其他火锅系子品类各 1 个
+          const maxForSubtype = subtype === '火锅' ? 2 : 1;
+          const cur = subtypeCounts[subtype] || 0;
+          if (cur >= maxForSubtype) continue;
+          subtypeCounts[subtype] = cur + 1;
           hotpotCount++;
-          seenSubtypes.add(subtype);
         }
         result.push(r);
       }
       return result;
     };
 
-    const originalMMR = mmrRerank([...original].sort((a, b) => {
+    // 火锅优先于麻辣烫/串串/冒菜：同为辣系化解场景，火锅鸳鸯锅化解能力更强
+    const HOTPOT_KW = ['火锅', '涮锅', '涮肉', '铜锅', '打边炉', '锅物'];
+    const MALA_KW = ['麻辣烫', '串串', '冒菜'];
+    const isHotpotType = (r) => HOTPOT_KW.some(k => [r.cuisine || '', ...(r.tags || []), ...(r.features || [])].join('').includes(k));
+    const isMalaType = (r) => MALA_KW.some(k => [r.cuisine || '', ...(r.tags || []), ...(r.features || [])].join('').includes(k));
+
+    // 全局排序：满意人数 → tier → 不辣证据 → 火锅优先 → matchScore
+    const globalSort = (a, b) => {
       const aSat = satisfiedCount(a); const bSat = satisfiedCount(b);
       if (aSat !== bSat) return bSat - aSat;
       const aT = a.solutionTier ?? 3; const bT = b.solutionTier ?? 3;
       if (aT !== bT) return aT - bT;
+      // 同 tier 内：不辣证据（清汤/白灼/粉蒸等 safeSignals）多的排前，让"不辣的店"优先
+      const aSig = conflictAllergy ? countSafeSignals(a, conflictAllergy) : 0;
+      const bSig = conflictAllergy ? countSafeSignals(b, conflictAllergy) : 0;
+      if (aSig !== bSig) return bSig - aSig;
+      // 同 tier 下火锅优先于麻辣烫
+      const aH = isHotpotType(a), bH = isHotpotType(b);
+      const aM = isMalaType(a), bM = isMalaType(b);
+      if (aH && bM) return -1;
+      if (bH && aM) return 1;
       return getScore(b) - getScore(a);
-    }), intent);
-    // 原桶：川菜本身，火锅系最多 0 个（不应出现，但兜底）
-    const originalRanked = dedupeBySubtype(originalMMR, TOP_ORIGINAL, 0);
+    };
 
-    const expandedSorted = [...expanded].sort((a, b) => {
-      const aSat = satisfiedCount(a);
-      const bSat = satisfiedCount(b);
-      if (aSat !== bSat) return bSat - aSat;
-      const aT = a.solutionTier ?? 3;
-      const bT = b.solutionTier ?? 3;
-      if (aT !== bT) return aT - bT;
-      return getScore(b) - getScore(a);
-    });
-    const expandedMMR = mmrRerank(expandedSorted, intent);
-    // 扩展桶：火锅系最多 2 个，同子品类最多 1 个
-    const expandedRanked = dedupeBySubtype(expandedMMR, TOP_EXPANDED, 2);
+    // Step 1: 原桶 Top1 策略
+    // 只有原桶第一名 Tier<=2（有不辣证据/场景化解能力）才保位到第 1
+    // 全是 tier3（无证据的辣川菜）时不保，让火锅等 tier2 扩张餐厅通过 globalSort 自然排前
+    const originalMMR = mmrRerank([...original].sort(globalSort), intent);
+    let topOriginal = [];
+    if (originalMMR.length > 0 && (originalMMR[0].solutionTier ?? 3) <= 2) {
+      topOriginal = [originalMMR[0]];
+    }
 
-    balancedResults = [...originalRanked, ...expandedRanked];
+    // Step 2: 剩余所有餐厅（原桶剩余 + 全部扩展桶）全局按 tier 排
+    const remainingPoolStartIdx = topOriginal.length > 0 ? 1 : 0;
+    const remaining = [
+      ...originalMMR.slice(remainingPoolStartIdx),
+      ...mmrRerank([...expanded].sort(globalSort), intent),
+    ].sort(globalSort);
 
-    // 分轨拼接后仅按满意人数重排，保留原始菜系优先的分层顺序
-    // dedupeBySubtype 已在上层按 tier+score 排好，跨桶比 tier 会导致茶餐厅(T1)反杀川菜(T3)
-    balancedResults.sort((a, b) => {
-      const aSat = satisfiedCount(a);
-      const bSat = satisfiedCount(b);
-      if (aSat !== bSat) return bSat - aSat; // 满足更多人时才跨越分层
-      return 0; // 否则保留 original 优先的分层顺序
-    });
+    // Step 3: 去重填充剩余位置
+    const usedIds = new Set(topOriginal.map(r => r.id));
+    const remainingRanked = dedupeBySubtype(remaining, MAX_RESULTS - topOriginal.length, 3);
+    remainingRanked.forEach(r => usedIds.add(r.id));
+
+    balancedResults = [...topOriginal, ...remainingRanked];
 
     // 不足补齐
     if (balancedResults.length < MAX_RESULTS) {
-      const used = new Set(balancedResults.map(r => r.id));
-      for (const r of original) {
+      for (const r of [...original, ...expanded].sort(globalSort)) {
         if (balancedResults.length >= MAX_RESULTS) break;
-        if (!used.has(r.id)) { balancedResults.push(r); used.add(r.id); }
-      }
-      for (const r of expanded) {
-        if (balancedResults.length >= MAX_RESULTS) break;
-        if (!used.has(r.id)) { balancedResults.push(r); used.add(r.id); }
+        if (!usedIds.has(r.id)) { balancedResults.push(r); usedIds.add(r.id); }
       }
     }
   } else {
-    // 无冲突：直接按 matchScore 排序（已包含融合加分）
-    // 不用 _fusionKeyword 排序：通过"火锅烧烤"搜来的纯火锅店有标记但不是真融合，
-    // 而通过"火锅"搜来的烤涮一体店无标记但 matchScore 更高（有融合加分）
-    scoredRestaurants.sort((a, b) => getScore(b) - getScore(a));
-    balancedResults = applyTierRanking(scoredRestaurants, MAX_RESULTS);
+    // 无冲突：检查是否为多偏好不同大类场景（如川菜+韩料）
+    // 需要分桶排序：融合桶 + 偏好A桶 + 偏好B桶，两边各保位置
+    // 聚合 intent.preferences 和 intent.members 偏好，确保多人模式偏好只放在 members 时也能分桶
+    const uniquePrefs = [...new Set([
+      ...(intent.preferences || []),
+      ...(intent.members || []).flatMap(m => m.preferences || []),
+    ])];
+    // 只要有多偏好且有餐厅匹配了至少1个偏好就分桶
+    // 不要求必须有融合餐厅（同时匹配2个偏好的），否则日料+韩料无融合店时不分桶，只返回一边
+    const hasMultiCategoryPrefs = uniquePrefs.length >= 2 && scoredRestaurants.some(r => r._matchedPrefs && r._matchedPrefs.length >= 1);
+
+    if (hasMultiCategoryPrefs) {
+      // 地方菜系大类：桶偏好是地方菜系时，麻辣香锅/冒菜/串串/麻辣烫等子类降权到真菜系馆后面
+      // 火锅单独保留不降权（用户确认）
+      const LOCAL_CUISINES = CUISINE_KEYWORDS_FOR_FILTER['地方菜系'] || [];
+      const SUB_CUISINE_KEYWORDS = ['麻辣香锅', '冒菜', '串串', '麻辣烫'];
+      const localCuisinePurity = (r, pref) => {
+        if (!LOCAL_CUISINES.includes(pref)) return 0;
+        const text = [r.name || '', r.cuisine || '', ...(r.tags || []), ...(r.features || [])].join('');
+        return SUB_CUISINE_KEYWORDS.some(kw => text.includes(kw)) ? 1 : 0;
+      };
+
+      // 分3桶
+      const fusionBucket = scoredRestaurants.filter(r => r._matchedPrefs && r._matchedPrefs.length >= 2);
+      const prefA = uniquePrefs[0];
+      const prefB = uniquePrefs[1];
+      const bucketA = scoredRestaurants.filter(r => r._matchedPrefs && r._matchedPrefs.length === 1 && r._matchedPrefs.includes(prefA));
+      const bucketB = scoredRestaurants.filter(r => r._matchedPrefs && r._matchedPrefs.length === 1 && r._matchedPrefs.includes(prefB));
+      const otherBucket = scoredRestaurants.filter(r => !r._matchedPrefs || r._matchedPrefs.length === 0);
+
+      // Step 1: 融合桶 MMR 取 Top min(3, 桶大小)
+      const fusionRanked = mmrRerank(
+        [...fusionBucket].sort((a, b) => getScore(b) - getScore(a)),
+        intent
+      );
+      const fusionCount = Math.min(3, fusionRanked.length);
+      const fusionPicks = fusionRanked.slice(0, fusionCount);
+      const usedIds = new Set(fusionPicks.map(r => r.id));
+
+      // Step 2: 根据融合桶偏向分配剩余位置
+      const remainingSlots = MAX_RESULTS - fusionPicks.length;
+      let slotsA, slotsB;
+      if (fusionCount === 0) {
+        // 无融合餐厅：两边均分（A多1个，因为A是第一个偏好）
+        slotsA = Math.ceil(remainingSlots / 2);
+        slotsB = remainingSlots - slotsA;
+      } else {
+        // 判断融合桶偏向：检查融合桶里的餐厅更偏向哪个偏好
+        const fusionMatchA = fusionPicks.filter(r => r._matchedPrefs.includes(prefA)).length;
+        const fusionMatchB = fusionPicks.filter(r => r._matchedPrefs.includes(prefB)).length;
+        if (fusionMatchA > fusionMatchB) {
+          // 融合桶偏A → B桶多分
+          slotsB = Math.ceil(remainingSlots / 2);
+          slotsA = remainingSlots - slotsB;
+        } else if (fusionMatchB > fusionMatchA) {
+          // 融合桶偏B → A桶多分
+          slotsA = Math.ceil(remainingSlots / 2);
+          slotsB = remainingSlots - slotsA;
+        } else {
+          // 均衡 → 两边均分
+          slotsA = Math.ceil(remainingSlots / 2);
+          slotsB = remainingSlots - slotsA;
+        }
+      }
+
+      // Step 3: 每个偏好桶内 MMR 后取对应数量
+      const picksA = mmrRerank(
+        [...bucketA].sort((a, b) => getScore(b) - getScore(a)),
+        intent
+      )
+        .filter(r => !usedIds.has(r.id))
+        .sort((a, b) => localCuisinePurity(a, prefA) - localCuisinePurity(b, prefA))
+        .slice(0, slotsA);
+      picksA.forEach(r => usedIds.add(r.id));
+
+      const picksB = mmrRerank(
+        [...bucketB].sort((a, b) => getScore(b) - getScore(a)),
+        intent
+      )
+        .filter(r => !usedIds.has(r.id))
+        .sort((a, b) => localCuisinePurity(a, prefB) - localCuisinePurity(b, prefB))
+        .slice(0, slotsB);
+      picksB.forEach(r => usedIds.add(r.id));
+
+      balancedResults = [...fusionPicks, ...picksA, ...picksB];
+
+      // 不足补齐：从其他桶补
+      if (balancedResults.length < MAX_RESULTS) {
+        const pool = [...otherBucket, ...bucketA, ...bucketB]
+          .filter(r => !usedIds.has(r.id))
+          .sort((a, b) => getScore(b) - getScore(a));
+        for (const r of pool) {
+          if (balancedResults.length >= MAX_RESULTS) break;
+          balancedResults.push(r);
+          usedIds.add(r.id);
+        }
+      }
+    } else {
+      // 常规无冲突场景：直接按 matchScore 排序
+      scoredRestaurants.sort((a, b) => getScore(b) - getScore(a));
+      balancedResults = applyTierRanking(scoredRestaurants, MAX_RESULTS);
+    }
   }
 
   // 防御性处理：确保所有餐厅都有有效的 matchScore
@@ -872,8 +1180,10 @@ export async function recommendRestaurants(intent, location, excludeIds = []) {
   });
 
   // 最终去重：多个搜索路径可能返回同一餐厅（id 相同或 name+address 相同）
+  // 同时兜底排除 excludeIds（已推荐/已排除的餐厅不再出现）
   const seenFinal = new Set();
   const uniqueResults = safeResults.filter(r => {
+    if (excludeIds.includes(r.id)) return false;
     const key = r.id || `${r.name}__${r.address}`;
     if (seenFinal.has(key)) return false;
     seenFinal.add(key);
