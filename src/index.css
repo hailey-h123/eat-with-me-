@@ -77,6 +77,17 @@
   --font-num: 'Fredoka', 'Inter', 'PingFang SC', -apple-system, sans-serif;
 }
 
+/* App 外壳锁：html + body 双层锁死。
+   - iOS Safari 无视 body 的 overflow:hidden，必须 position:fixed 硬锁
+   - overscroll-behavior:none 断掉滚动链（内滚区到头时不再传给页面，
+     否则真机上整页仍可被拖动/触发下拉刷新——headless 桌面测不出这种行为）
+   - 100vh 是不支持 dvh 的旧浏览器的回退，100dvh 覆盖之 */
+html {
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
 body {
   font-family: 'PingFang SC', 'Hiragino Sans GB', 'Heiti SC', 'Microsoft YaHei', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   background: #FFFBF0;
@@ -86,11 +97,15 @@ body {
     radial-gradient(circle at 75% 88%, rgba(45,156,219,0.08) 0%, transparent 32%),
     radial-gradient(circle at 25% 75%, rgba(107,203,119,0.06) 0%, transparent 28%);
   background-attachment: fixed;
-  /* App 外壳模式：锁死视口高度（dvh 适配手机地址栏），body 级永不滚动，
-     滚动只发生在各页面的内容区（flex-1 overflow-y-auto） */
+  height: 100vh;
   height: 100dvh;
   color: #2A2520;
   overflow: hidden;
+  overscroll-behavior: none;
+  /* iOS 硬锁：body 脱离文档流钉在视口上，彻底不可拖 */
+  position: fixed;
+  inset: 0;
+  width: 100%;
 }
 
 /* 全局兜底：确保所有文本元素在字体/颜色异常时仍可见 */
@@ -130,6 +145,8 @@ body::before {
 main {
   position: relative;
   z-index: 1;
+  /* 滚动链在 main 截断：页面内滚区滑到尽头时不冒泡给 body */
+  overscroll-behavior: contain;
 }
 
 @layer components {

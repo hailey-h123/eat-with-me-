@@ -574,7 +574,7 @@ function App() {
 
   return (
     <TabErrorBoundary>
-    <div className="h-[100dvh] flex flex-col overflow-hidden bg-[#FFFBF0]">
+    <div className="h-full flex flex-col overflow-hidden bg-[#FFFBF0]">
       {!headerConfig.hidden && (
         <Header title={headerConfig.title} subtitle={headerConfig.subtitle} showBack={headerConfig.showBack} onBack={headerConfig.onBack} />
       )}
