@@ -199,8 +199,8 @@ export default function GroupInput({ onSearch, onRandomExplore, isLoading }) {
   // ===== 受邀加入模式 =====
   if (roomState.mode === 'join') {
     return (
-      <div className="max-w-2xl mx-auto px-4 sm:px-6">
-        <div className="fancy-card p-5 mb-4 flex items-start gap-3 slide-up">
+      <div className="max-w-2xl mx-auto px-4 sm:px-6 h-full flex flex-col min-h-0">
+        <div className="fancy-card p-5 mb-4 flex items-start gap-3 slide-up flex-shrink-0">
           <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-primary/10 text-primary flex-shrink-0">
             <IconUsers className="w-5 h-5" />
           </div>
@@ -223,7 +223,8 @@ export default function GroupInput({ onSearch, onRandomExplore, isLoading }) {
             </button>
           </div>
         ) : (
-          <form onSubmit={(e) => { e.preventDefault(); handleSubmitJoin(); }}>
+          <form onSubmit={(e) => { e.preventDefault(); handleSubmitJoin(); }} className="flex-1 min-h-0 flex flex-col">
+            <div className="flex-1 min-h-0 overflow-y-auto">
             <div className="space-y-3">
               {members.map((member, index) => (
                 <div key={member.id} className="slide-up" style={{ animationDelay: `${index * 60}ms`, animationFillMode: 'both' }}>
@@ -263,9 +264,10 @@ export default function GroupInput({ onSearch, onRandomExplore, isLoading }) {
               <IconPlus className="w-4 h-4" />
               添加成员 {members.length >= 8 && '（最多 8 人）'}
             </button>
+            </div>
 
             <button type="submit" disabled={isLoading || !hasAnyInput}
-              className="btn-primary w-full mt-6 py-3.5 text-base disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+              className="btn-primary w-full mt-4 py-3.5 text-base disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 flex-shrink-0">
               {isLoading ? (
                 <span className="flex items-center gap-2"><IconLoader2 className="w-5 h-5 animate-spin" /> 提交中...</span>
               ) : (
@@ -281,9 +283,9 @@ export default function GroupInput({ onSearch, onRandomExplore, isLoading }) {
   // ===== 房主协同模式 =====
   if (roomState.mode === 'host') {
     return (
-      <div className="max-w-2xl mx-auto px-4 sm:px-6">
+      <div className="max-w-2xl mx-auto px-4 sm:px-6 h-full flex flex-col min-h-0">
         {/* 分享链接卡片 */}
-        <div className="fancy-card p-5 mb-4 slide-up">
+        <div className="fancy-card p-5 mb-4 slide-up flex-shrink-0">
           <div className="flex items-center gap-2 mb-3">
             <IconShare2 className="w-4 h-4 text-primary" />
             <span className="text-sm font-semibold text-text">把链接发给朋友，各自填写</span>
@@ -324,7 +326,8 @@ export default function GroupInput({ onSearch, onRandomExplore, isLoading }) {
         )}
 
         {/* 房主自己填写 */}
-        <form onSubmit={handleHostSearch}>
+        <form onSubmit={handleHostSearch} className="flex-1 min-h-0 flex flex-col">
+          <div className="flex-1 min-h-0 overflow-y-auto">
           <p className="text-xs text-text-secondary mb-2 font-medium">我的填写</p>
           <div className="space-y-3">
             {members.map((member, index) => (
@@ -365,8 +368,9 @@ export default function GroupInput({ onSearch, onRandomExplore, isLoading }) {
             <IconPlus className="w-4 h-4" />
             添加成员 {members.length >= 8 && '（最多 8 人）'}
           </button>
+          </div>
 
-          <div className="flex flex-col sm:flex-row gap-3 mt-6">
+          <div className="flex flex-col sm:flex-row gap-3 mt-4 pt-1 flex-shrink-0">
             <button type="submit" disabled={isLoading || !hasAnyInput}
               className="btn-primary w-full sm:flex-1 py-3.5 text-base disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
               {isLoading ? (
@@ -388,77 +392,81 @@ export default function GroupInput({ onSearch, onRandomExplore, isLoading }) {
 
   // ===== 默认本地模式 =====
   return (
-    <div className="max-w-2xl mx-auto px-4 sm:px-6">
-      <form onSubmit={handleLocalSubmit}>
-        <div className="space-y-3">
-          {members.map((member, index) => (
-            <div key={member.id} className="slide-up" style={{ animationDelay: `${index * 60}ms`, animationFillMode: 'both' }}>
-              <div className="fancy-card p-5 flex items-start gap-3">
-                <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-primary/10 text-primary flex-shrink-0">
-                  <IconUser className="w-5 h-5" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-text mb-1.5">成员{index + 1}</p>
-                  <textarea
-                    value={member.text}
-                    onChange={(e) => handleMemberChange(member.id, 'text', e.target.value)}
-                    className="w-full h-[64px] bg-bg-soft text-base text-text placeholder:text-text-muted resize-none focus:outline-none leading-relaxed rounded-xl px-3 py-2 border border-border/50 focus:border-primary/30 focus:ring-2 focus:ring-primary/10 transition-all"
-                    placeholder={getMemberPlaceholder(index)}
+    <div className="max-w-2xl mx-auto px-4 sm:px-6 h-full flex flex-col min-h-0">
+      <form onSubmit={handleLocalSubmit} className="flex-1 min-h-0 flex flex-col">
+        {/* 成员列表：内滚 */}
+        <div className="flex-1 min-h-0 overflow-y-auto">
+          <div className="space-y-3">
+            {members.map((member, index) => (
+              <div key={member.id} className="slide-up" style={{ animationDelay: `${index * 60}ms`, animationFillMode: 'both' }}>
+                <div className="fancy-card p-5 flex items-start gap-3">
+                  <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-primary/10 text-primary flex-shrink-0">
+                    <IconUser className="w-5 h-5" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-text mb-1.5">成员{index + 1}</p>
+                    <textarea
+                      value={member.text}
+                      onChange={(e) => handleMemberChange(member.id, 'text', e.target.value)}
+                      className="w-full h-[64px] bg-bg-soft text-base text-text placeholder:text-text-muted resize-none focus:outline-none leading-relaxed rounded-xl px-3 py-2 border border-border/50 focus:border-primary/30 focus:ring-2 focus:ring-primary/10 transition-all"
+                      placeholder={getMemberPlaceholder(index)}
+                      />
+                    <MemberLocationInput
+                      address={member.address}
+                      lat={member.lat}
+                      lng={member.lng}
+                      onChange={(loc) => handleMemberLocationChange(member.id, loc)}
                     />
-                  <MemberLocationInput
-                    address={member.address}
-                    lat={member.lat}
-                    lng={member.lng}
-                    onChange={(loc) => handleMemberLocationChange(member.id, loc)}
-                  />
+                  </div>
+                    {members.length > 1 && (
+                      <button type="button" onClick={() => handleRemoveMember(member.id)}
+                        className="p-1.5 text-text-muted hover:text-error rounded-xl transition-all duration-200 flex-shrink-0 mt-0.5" title="删除该成员">
+                        <IconTrash2 className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
                 </div>
-                  {members.length > 1 && (
-                    <button type="button" onClick={() => handleRemoveMember(member.id)}
-                      className="p-1.5 text-text-muted hover:text-error rounded-xl transition-all duration-200 flex-shrink-0 mt-0.5" title="删除该成员">
-                      <IconTrash2 className="w-4 h-4" />
-                    </button>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
 
-          <button type="button" onClick={handleAddMember}
-            disabled={isLoading || members.length >= 8}
-            className="btn-secondary w-full mt-3 py-3 text-text-secondary disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2">
-            <IconPlus className="w-4 h-4" />
-            添加成员 {members.length >= 8 && '（最多 8 人）'}
-          </button>
+            <button type="button" onClick={handleAddMember}
+              disabled={isLoading || members.length >= 8}
+              className="btn-secondary w-full mt-3 py-3 text-text-secondary disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+              <IconPlus className="w-4 h-4" />
+              添加成员 {members.length >= 8 && '（最多 8 人）'}
+            </button>
 
-          {/* 邀请好友入口 */}
-          <button type="button" onClick={handleCreateRoom} disabled={isCreatingRoom}
-            className="btn-secondary w-full mt-3 py-3 text-primary flex items-center justify-center gap-2 disabled:opacity-50">
-            {isCreatingRoom ? (
-              <><IconLoader2 className="w-4 h-4 animate-spin" /> 创建房间中...</>
-            ) : (
-              <><IconShare2 className="w-4 h-4" /> 邀请朋友一起填</>
-            )}
-          </button>
-
-          <div className="flex flex-col sm:flex-row gap-3 mt-6">
-            <button type="submit" disabled={isLoading || !hasAnyInput}
-              className="btn-primary w-full sm:flex-1 py-3.5 text-base disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
-              {isLoading ? (
-                <span className="flex items-center gap-2"><IconLoader2 className="w-5 h-5 animate-spin" /> 思考中...</span>
+            {/* 邀请好友入口 */}
+            <button type="button" onClick={handleCreateRoom} disabled={isCreatingRoom}
+              className="btn-secondary w-full mt-3 py-3 text-primary flex items-center justify-center gap-2 disabled:opacity-50">
+              {isCreatingRoom ? (
+                <><IconLoader2 className="w-4 h-4 animate-spin" /> 创建房间中...</>
               ) : (
-                <span className="flex items-center gap-2"><IconSearch className="w-5 h-5" /> 帮我们选!</span>
+                <><IconShare2 className="w-4 h-4" /> 邀请朋友一起填</>
               )}
             </button>
-            <button type="button" onClick={handleRandomExplore} disabled={isLoading || !hasAnyInput}
-              className="btn-secondary w-full sm:px-6 sm:w-auto py-3.5 text-primary text-base disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
-              <IconSparkle className="w-5 h-5" />
-              尝鲜体验
-            </button>
-          </div>
 
-          <p className="text-xs text-text-muted text-center mt-5">
-            AI 将综合所有成员的偏好，为你推荐最合适的餐厅
-          </p>
+            <p className="text-xs text-text-muted text-center mt-4">
+              AI 将综合所有成员的偏好，为你推荐最合适的餐厅
+            </p>
+        </div>
+
+        {/* 底部提交按钮组：常驻不滚 */}
+        <div className="flex flex-col sm:flex-row gap-3 pt-4 flex-shrink-0">
+          <button type="submit" disabled={isLoading || !hasAnyInput}
+            className="btn-primary w-full sm:flex-1 py-3.5 text-base disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+            {isLoading ? (
+              <span className="flex items-center gap-2"><IconLoader2 className="w-5 h-5 animate-spin" /> 思考中...</span>
+            ) : (
+              <span className="flex items-center gap-2"><IconSearch className="w-5 h-5" /> 帮我们选!</span>
+            )}
+          </button>
+          <button type="button" onClick={handleRandomExplore} disabled={isLoading || !hasAnyInput}
+            className="btn-secondary w-full sm:px-6 sm:w-auto py-3.5 text-primary text-base disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+            <IconSparkle className="w-5 h-5" />
+            尝鲜体验
+          </button>
+        </div>
       </form>
 
       {isLoading && <LoadingOverlay />}

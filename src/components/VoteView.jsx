@@ -66,8 +66,8 @@ export default function VoteView({ restaurants, members, onBack, onSelect }) {
   };
 
   return (
-    <div className="max-w-lg mx-auto px-6">
-      <div className="flex items-center justify-between mb-6 fade-in">
+    <div className="max-w-lg mx-auto px-6 h-full flex flex-col min-h-0">
+      <div className="flex items-center justify-between mb-4 fade-in flex-shrink-0">
         <button onClick={onBack} className="text-primary text-sm font-medium flex items-center gap-1.5" style={{ fontFamily: 'var(--font-display)' }}>
           <IconArrowLeft className="w-4 h-4" /> 返回
         </button>
@@ -80,7 +80,7 @@ export default function VoteView({ restaurants, members, onBack, onSelect }) {
 
       {!showResults ? (
         <>
-          <div className="fancy-card p-5 mb-6 animate-slide-up">
+          <div className="fancy-card p-5 mb-4 animate-slide-up flex-shrink-0">
             <div className="flex items-center gap-2 mb-2.5">
               <IconVote className="w-5 h-5 text-primary" />
               <h2 className="font-bold text-primary" style={{ fontFamily: 'var(--font-display)' }}>开始投票</h2>
@@ -91,13 +91,13 @@ export default function VoteView({ restaurants, members, onBack, onSelect }) {
             </div>
           </div>
 
-          <div className="mb-4 animate-slide-up">
+          <div className="mb-4 animate-slide-up flex-shrink-0">
             <input type="text" value={currentVoter} onChange={e => setCurrentVoter(e.target.value)}
               placeholder="输入你的名字进行投票"
               className="input-field w-full px-4 py-3 text-base text-text placeholder:text-text-muted" />
           </div>
 
-          <div className="space-y-3">
+          <div className="flex-1 min-h-0 overflow-y-auto space-y-3">
             {voteSession.restaurants.map((item, i) => {
               const restaurant = restaurants.find(r => r.id === item.id);
               const isVoted = item.voters.includes(currentVoter.trim());
@@ -136,7 +136,7 @@ export default function VoteView({ restaurants, members, onBack, onSelect }) {
           </div>
         </>
       ) : (
-        <div className="text-center animate-fade-in">
+        <div className="text-center animate-fade-in flex-1 min-h-0 overflow-y-auto">
           <div className="mb-6">
             <div className="inline-flex items-center justify-center w-20 h-20 rounded-3xl bg-primary/10 text-primary mb-4 border-2 border-ink shadow-[4px_4px_0_var(--color-ink)]">
               <IconTrophy className="w-10 h-10" />

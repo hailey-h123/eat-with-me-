@@ -668,8 +668,8 @@ export default function ResultCard({ restaurant, showExploreMessage = false, isS
 
         <div className="flex flex-wrap gap-2 mb-4">
           {filteredTags.map(tag => (
-            <span key={tag} className="px-2 py-0.5 rounded-full text-[10px] font-normal bg-primary/10 text-text/80 border border-ink/10"
-              style={{ fontFamily: 'var(--font-display)' }}>
+            <span key={tag} className="px-3 py-1 rounded-full text-xs font-bold text-white border-2 border-ink shadow-[2px_2px_0_var(--color-ink)]"
+              style={{ background: 'var(--color-primary)', borderColor: 'var(--color-ink)', fontFamily: 'var(--font-display)' }}>
               {tag}
             </span>
           ))}

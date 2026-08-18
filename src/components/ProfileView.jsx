@@ -58,7 +58,8 @@ export default function ProfileView({ location, onOpenFootprint }) {
   };
 
   return (
-    <div className="max-w-lg mx-auto px-4 sm:px-6 space-y-5">
+    <div className="max-w-lg mx-auto px-4 sm:px-6 h-full flex flex-col min-h-0">
+      <div className="flex-1 min-h-0 overflow-y-auto space-y-5 pb-4">
       {/* 1. 用户等级卡 */}
       <div
         className="relative overflow-hidden rounded-2xl p-6 border-2 shadow-[4px_4px_0_var(--color-ink)] text-center"
@@ -211,6 +212,7 @@ export default function ProfileView({ location, onOpenFootprint }) {
           <IconChevronRight className="w-4 h-4 text-text-muted" />
         </button>
       </section>
+      </div>
     </div>
   );
 }

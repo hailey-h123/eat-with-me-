@@ -103,8 +103,8 @@ export default function ResultList({
   }
 
   return (
-    <div className="max-w-lg mx-auto px-4 sm:px-6">
-      <div className="flex items-center justify-between mb-5 fade-in">
+    <div className="max-w-lg mx-auto px-4 sm:px-6 h-full flex flex-col min-h-0">
+      <div className="flex items-center justify-between mb-4 fade-in flex-shrink-0">
         <button onClick={onBack} className="text-text-secondary text-sm font-medium flex items-center gap-1 hover:text-primary transition-colors">
           <IconArrowLeft className="w-4 h-4" /> {'返回修改'}
         </button>
@@ -115,6 +115,8 @@ export default function ResultList({
         )}
       </div>
 
+      {/* 滚动区：提示信息 + 地图 + 结果卡（顶条与操作按钮常驻） */}
+      <div className="flex-1 min-h-0 overflow-y-auto">
       {!isExploreMode && conflicts && conflicts.length > 0 && (
         <div className="mb-4 conflict-warning animate-slide-up">
           <p className="text-text font-bold mb-1.5" style={{ fontFamily: 'var(--font-display)' }}>{'检测到偏好冲突'}</p>
@@ -158,7 +160,7 @@ export default function ResultList({
       )}
 
       {!isExploreMode && (
-        <div className={`mb-5 ${showVote ? 'flex gap-3' : ''} animate-slide-up`}>
+        <div className={`mb-4 flex-shrink-0 ${showVote ? 'flex gap-3' : ''} animate-slide-up`}>
           <button onClick={() => setShowMap(!showMap)}
             className={`${showVote ? 'flex-1' : 'w-full'} btn-secondary py-2.5 text-sm font-medium flex items-center justify-center gap-2 ${showMap ? 'text-text' : ''}`}>
             <IconMapPin className="w-4 h-4" />
@@ -216,9 +218,10 @@ export default function ResultList({
           )}
           <p className="text-xs text-text-muted mb-4">{`为你找到 ${results.length} 家匹配的餐厅`}</p>
 
-          {/* 手机端：横滑缩略导航 + 单卡详情 */}
+          {/* 手机端：横滑缩略导航（sticky 常驻）+ 单卡详情 */}
           <div className="sm:hidden">
-            <div className="-mx-4 px-4 overflow-x-auto flex gap-3 pb-2 snap-x snap-mandatory">
+            <div className="-mx-4 px-4 pt-1 pb-2 overflow-x-auto flex gap-3 snap-x snap-mandatory sticky top-0 z-10"
+              style={{ background: '#FFFBF0' }}>
               {results.map((r, i) => (
                 <button
                   key={r.id}
@@ -297,6 +300,7 @@ export default function ResultList({
           })()}
         </div>
       )}
+      </div>
     </div>
   );
 }

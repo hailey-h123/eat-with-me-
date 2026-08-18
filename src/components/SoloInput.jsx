@@ -324,7 +324,7 @@ export default function SoloInput({ onSearch, onFortune, isLoading, initialCateg
   const showPreferenceTuner = selectedCategory && selectedCategory !== 'fortune' && !drawnCard;
 
   return (
-    <div className="relative max-w-2xl mx-auto px-4 sm:px-6">
+    <div className="relative h-full max-w-2xl mx-auto px-4 sm:px-6 flex flex-col min-h-0">
       <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
         <FoodDecor type="noodle" size={24} className="absolute left-[4%] top-[8%] opacity-25 float-animation hidden sm:block" style={{ animationDelay: '0.5s' }} />
         <FoodDecor type="chili" size={20} className="absolute right-[6%] top-[14%] opacity-25 float-animation hidden sm:block" style={{ animationDelay: '1.4s' }} />
@@ -332,9 +332,9 @@ export default function SoloInput({ onSearch, onFortune, isLoading, initialCateg
         <FoodDecor type="sparkle" size={16} className="absolute right-[10%] top-[70%] opacity-40 float-animation" style={{ animationDelay: '0.8s' }} />
       </div>
 
-      <div className="relative mb-4">
+      <div className="relative flex-1 min-h-0 flex flex-col">
         {!selectedCategory ? (
-          <div>
+          <div className="flex-1 min-h-0 overflow-y-auto">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 fade-in">
               {categories.map((cat, i) => (
                 <button key={cat.key} type="button" onClick={() => handleSelectCategory(cat)}
@@ -356,50 +356,54 @@ export default function SoloInput({ onSearch, onFortune, isLoading, initialCateg
             <FoodBanner />
           </div>
         ) : selectedCategory === 'fortune' && !drawnCard ? (
-          <div className="scale-in">
-            <button type="button" onClick={handleBackToCategories} className="text-primary text-sm font-bold flex items-center gap-1.5 transition-all hover:gap-2.5 mb-6" style={{ fontFamily: 'var(--font-display)' }}>
+          <div className="scale-in flex-1 min-h-0 flex flex-col">
+            <button type="button" onClick={handleBackToCategories} className="text-primary text-sm font-bold flex items-center gap-1.5 transition-all hover:gap-2.5 mb-6 flex-shrink-0" style={{ fontFamily: 'var(--font-display)' }}>
               <IconChevronLeft className="w-4 h-4" /> 返回
             </button>
-            <FortuneSlotMachine onCardDrawn={handleCardDrawn} />
+            <div className="flex-1 min-h-0 flex flex-col justify-center">
+              <FortuneSlotMachine onCardDrawn={handleCardDrawn} />
+            </div>
           </div>
         ) : (
-          <div className="scale-in">
-            <button type="button" onClick={handleBackToCategories} className="text-primary text-sm font-bold flex items-center gap-1.5 transition-all hover:gap-2.5 mb-6" style={{ fontFamily: 'var(--font-display)' }}>
+          <div className="scale-in flex-1 min-h-0 flex flex-col">
+            <button type="button" onClick={handleBackToCategories} className="text-primary text-sm font-bold flex items-center gap-1.5 transition-all hover:gap-2.5 mb-4 flex-shrink-0" style={{ fontFamily: 'var(--font-display)' }}>
               <IconChevronLeft className="w-4 h-4" /> 返回分类
             </button>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {getModesByCategory(selectedCategory).map(([key, mode]) => (
-                <button key={key} type="button" onClick={() => handleSelectMode(key)} disabled={isLoading}
-                  className="outline-card p-5 flex items-center gap-4 text-left disabled:opacity-50">
-                  <div className="relative w-12 h-12 rounded-xl border-2 border-ink flex items-center justify-center shadow-[2px_2px_0_var(--color-ink)] flex-shrink-0" style={{ borderColor: 'var(--color-ink)', background: 'var(--color-bg-soft)' }}>
-                    <EmojiToIcon emoji={mode.icon} size={24} className="text-primary" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-extrabold truncate text-text" style={{ fontFamily: 'var(--font-display)' }}>{mode.label}</p>
-                    <p className="text-xs truncate text-text-muted mt-0.5">{mode.description}</p>
-                  </div>
-                  {isLoading && <IconLoader2 className="w-5 h-5 animate-spin text-primary flex-shrink-0" />}
-                </button>
-              ))}
+            <div className="flex-1 min-h-0 overflow-y-auto pb-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {getModesByCategory(selectedCategory).map(([key, mode]) => (
+                  <button key={key} type="button" onClick={() => handleSelectMode(key)} disabled={isLoading}
+                    className="outline-card p-5 flex items-center gap-4 text-left disabled:opacity-50">
+                    <div className="relative w-12 h-12 rounded-xl border-2 border-ink flex items-center justify-center shadow-[2px_2px_0_var(--color-ink)] flex-shrink-0" style={{ borderColor: 'var(--color-ink)', background: 'var(--color-bg-soft)' }}>
+                      <EmojiToIcon emoji={mode.icon} size={24} className="text-primary" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-extrabold truncate text-text" style={{ fontFamily: 'var(--font-display)' }}>{mode.label}</p>
+                      <p className="text-xs truncate text-text-muted mt-0.5">{mode.description}</p>
+                    </div>
+                    {isLoading && <IconLoader2 className="w-5 h-5 animate-spin text-primary flex-shrink-0" />}
+                  </button>
+                ))}
+              </div>
+              {showPreferenceTuner && (
+                <PreferenceTuner
+                  variant={selectedCategory}
+                  priceRange={priceRange}
+                  onPriceRangeChange={setPriceRange}
+                  tags={selectedTags}
+                  onTagsChange={setSelectedTags}
+                  distRange={distRange}
+                  onDistRangeChange={setDistRange}
+                />
+              )}
             </div>
-            {showPreferenceTuner && (
-              <PreferenceTuner
-                variant={selectedCategory}
-                priceRange={priceRange}
-                onPriceRangeChange={setPriceRange}
-                tags={selectedTags}
-                onTagsChange={setSelectedTags}
-                distRange={distRange}
-                onDistRangeChange={setDistRange}
-              />
-            )}
           </div>
         )}
 
         {isLoading && (
-          <LoadingOverlay 
-            message="正在为你挑餐厅..." 
-            subMessage={drawnCard ? `${drawnCard.label}好运加持中` : ''} 
+          <LoadingOverlay
+            message="正在为你挑餐厅..."
+            subMessage={drawnCard ? `${drawnCard.label}好运加持中` : ''}
           />
         )}
       </div>

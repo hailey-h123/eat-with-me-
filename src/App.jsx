@@ -9,6 +9,7 @@ import ResultList from './components/ResultList';
 import VoteView from './components/VoteView';
 import FootprintView from './components/FootprintView';
 import ProfileView from './components/ProfileView';
+import FortuneDrawView from './components/FortuneDrawView';
 import Mascot from './components/Mascot';
 import { IconTarget } from './components/icons/FancyIcons';
 import { useLocation } from './hooks/useLocation';
@@ -77,6 +78,7 @@ function App() {
   const [lastExploreMembers, setLastExploreMembers] = useState([]);
   const [emptySuggestions, setEmptySuggestions] = useState([]);
   const [searchRadius, setSearchRadius] = useState(3000);
+  const [fortuneFromHome, setFortuneFromHome] = useState(false);
   const rerollCountRef = useRef(0);
   const searchRef = useRef(false);
   /** 刷新期间禁止切换 view，保证"在哪个页面刷新还显示哪个页面" */
@@ -419,8 +421,14 @@ function App() {
   };
 
   const handleBack = () => {
-    if (currentView === 'solo-results') setCurrentView('solo-input');
-    else if (currentView === 'group-results') setCurrentView('group-input');
+    if (fortuneFromHome) {
+      setFortuneFromHome(false);
+      setCurrentView('home');
+    } else if (currentView === 'solo-results') {
+      setCurrentView('solo-input');
+    } else if (currentView === 'group-results') {
+      setCurrentView('group-input');
+    }
     setResults([]); setLastIntent(null); setEmptySuggestions([]);
     // 返回入口页时清空累积，下次重新搜索相当于新会话
     seenRestaurantIdsRef.current = [];
@@ -591,12 +599,15 @@ function App() {
         </div>
       )}
       {currentView === 'home' && (
-        <main className={`flex-1 min-h-0 overflow-y-auto ${showTabBar ? 'pb-[calc(env(safe-area-inset-bottom)+64px)]' : ''}`}>
+        <main className="flex-1 min-h-0 overflow-y-auto">
           <HomeView
             onSelectMood={handleSelectMood}
             onSelectExplore={handleSelectExplore}
             onSelectGroup={handleSelectGroup}
-            onFortunePick={() => handleSoloFortune(null)}
+            onFortunePick={() => {
+              setFortuneFromHome(true);
+              setCurrentView('fortune-draw');
+            }}
             onOpenProfile={() => setCurrentView('profile')}
             location={location}
             onQuickPick={(restaurant) => {
@@ -616,12 +627,24 @@ function App() {
           />
         </main>
       )}
-      {currentView === 'solo-input' && <main className="flex-1 min-h-0 overflow-y-auto py-4 pb-[calc(env(safe-area-inset-bottom)+64px)]"><SoloInput onSearch={handleSoloSearch} onFortune={handleSoloFortune} isLoading={isLoading} initialCategory={soloInitialCategory} /></main>}
-      {currentView === 'group-input' && <main className="flex-1 min-h-0 overflow-y-auto py-4 pb-[calc(env(safe-area-inset-bottom)+64px)]"><GroupInput onSearch={handleGroupSearch} onRandomExplore={handleGroupExplore} isLoading={isLoading} /></main>}
+      {currentView === 'solo-input' && <main className="flex-1 min-h-0 overflow-y-auto py-4"><SoloInput onSearch={handleSoloSearch} onFortune={handleSoloFortune} isLoading={isLoading} initialCategory={soloInitialCategory} /></main>}
+      {currentView === 'fortune-draw' && <main className="flex-1 min-h-0 overflow-y-auto py-4">
+        <FortuneDrawView
+          onCardDrawn={(card) => {
+            setFortuneFromHome(true);
+            handleSoloFortune(card);
+          }}
+          onBack={() => {
+            setFortuneFromHome(false);
+            setCurrentView('home');
+          }}
+        />
+      </main>}
+      {currentView === 'group-input' && <main className="flex-1 min-h-0 overflow-y-auto py-4"><GroupInput onSearch={handleGroupSearch} onRandomExplore={handleGroupExplore} isLoading={isLoading} /></main>}
       {(currentView === 'solo-results' || currentView === 'group-results') && <main className="flex-1 min-h-0 overflow-y-auto py-4"><ResultList results={results} onBack={handleBack} onRefresh={handleRefresh} isLoading={isLoading} isExploreMode={isExploreMode} isSolo={currentView === 'solo-results'} location={location} onVote={handleVote} showVote={showVote} cuisineVote={lastIntent?.cuisineVote} memberCount={lastMembers.length} conflicts={lastIntent?.conflicts} emptySuggestions={emptySuggestions} onApplySuggestion={handleApplySuggestion} onFeedback={handleFeedback} budgetCompromise={lastIntent?.budgetCompromise} /></main>}
       {currentView === 'vote' && <main className="flex-1 min-h-0 overflow-y-auto py-4"><VoteView restaurants={results} members={lastMembers} onBack={() => setCurrentView('group-results')} onSelect={handleVoteSelect} /></main>}
-      {currentView === 'footprint' && <main className="flex-1 min-h-0 overflow-y-auto py-4 pb-[calc(env(safe-area-inset-bottom)+64px)]"><TabErrorBoundary><FootprintView onReselect={handleHistoryReselect} /></TabErrorBoundary></main>}
-      {currentView === 'profile' && <main className="flex-1 min-h-0 overflow-y-auto py-4 pb-[calc(env(safe-area-inset-bottom)+64px)]"><TabErrorBoundary><ProfileView location={location} onOpenFootprint={() => setCurrentView('footprint')} /></TabErrorBoundary></main>}
+      {currentView === 'footprint' && <main className="flex-1 min-h-0 overflow-y-auto py-4"><TabErrorBoundary><FootprintView onReselect={handleHistoryReselect} /></TabErrorBoundary></main>}
+      {currentView === 'profile' && <main className="flex-1 min-h-0 overflow-y-auto py-4"><TabErrorBoundary><ProfileView location={location} onOpenFootprint={() => setCurrentView('footprint')} /></TabErrorBoundary></main>}
       {showTabBar && <TabBar activeView={currentView} onChange={handleTabChange} />}
     </div>
     </TabErrorBoundary>

@@ -61,9 +61,9 @@ export default function FootprintView({ onReselect }) {
   ];
 
   return (
-    <div className="max-w-lg mx-auto px-6">
-      {/* Tab 切换 */}
-      <div className="flex gap-2 mb-6 fade-in">
+    <div className="max-w-lg mx-auto px-6 h-full flex flex-col min-h-0">
+      {/* Tab 切换（常驻） */}
+      <div className="flex gap-2 mb-4 fade-in flex-shrink-0">
         {tabs.map(tab => {
           const Icon = tab.icon;
           return (
@@ -89,6 +89,8 @@ export default function FootprintView({ onReselect }) {
         })}
       </div>
 
+      {/* 列表滚动区 */}
+      <div className="flex-1 min-h-0 overflow-y-auto pb-4">
       {/* 收藏列表 */}
       {activeTab === 'favorites' && (
         <div className="space-y-3">
@@ -159,6 +161,7 @@ export default function FootprintView({ onReselect }) {
           )}
         </div>
       )}
+      </div>
     </div>
   );
 }
@@ -198,11 +201,38 @@ function RestaurantMiniCard({ restaurant, index, formatTime }) {
 
 /** 去过卡片：RestaurantMiniCard + 感受表情切换 */
 function VisitedCard({ restaurant, index, formatTime, onMoodClick }) {
+  const photo = restaurant.photos?.[0]?.url;
   return (
-    <div className="animate-slide-up" style={{ animationDelay: `${index * 60}ms`, animationFillMode: 'both' }}>
-      <RestaurantMiniCard restaurant={restaurant} index={index} formatTime={formatTime} />
-      <div className="flex items-center gap-1.5 px-3.5 -mt-1 pb-1">
-        <span className="text-xs text-text-muted font-bold" style={{ fontFamily: 'var(--font-display)' }}>感受：</span>
+    <div
+      className="flat-card p-3.5 animate-slide-up"
+      style={{ animationDelay: `${index * 60}ms`, animationFillMode: 'both' }}
+    >
+      <div className="flex items-center gap-3">
+        {photo ? (
+          <img src={photo} alt={restaurant.name} className="w-14 h-14 rounded-xl object-cover border-2 flex-shrink-0" style={{ borderColor: 'var(--color-ink)' }} loading="lazy" />
+        ) : (
+          <div className="w-14 h-14 rounded-xl bg-bg-soft border-2 flex items-center justify-center flex-shrink-0" style={{ borderColor: 'var(--color-ink)' }}>
+            <IconMapPin className="w-5 h-5 text-text-muted" />
+          </div>
+        )}
+        <div className="flex-1 min-w-0">
+          <h4 className="font-bold text-text text-sm truncate" style={{ fontFamily: 'var(--font-display)' }}>{restaurant.name}</h4>
+          <div className="flex items-center gap-2 mt-0.5 text-xs text-text-muted">
+            {restaurant.cuisine && <span>{restaurant.cuisine}</span>}
+            {restaurant.price > 0 && <span>· 人均{restaurant.price}元</span>}
+          </div>
+          <div className="flex items-center gap-2 mt-1">
+            {restaurant.rating > 0 && (
+              <span className="flex items-center gap-0.5 text-xs text-accent-dark font-medium">
+                <IconStar className="w-3 h-3" filled /> {restaurant.rating}
+              </span>
+            )}
+            <span className="text-xs text-text-muted">{formatTime(restaurant.timestamp)}</span>
+          </div>
+        </div>
+      </div>
+      <div className="flex items-center gap-1.5 pt-3 mt-2 border-t-2 border-dashed" style={{ borderColor: 'var(--color-ink)' }}>
+        <span className="text-xs text-text-muted font-bold flex-shrink-0" style={{ fontFamily: 'var(--font-display)' }}>感受：</span>
         {MOOD_OPTIONS.map(opt => {
           const active = restaurant.mood === opt.key;
           const Icon = opt.icon;

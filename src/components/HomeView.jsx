@@ -206,7 +206,7 @@ export default function HomeView({
 
       {/* ===== Hero 问候卡：吉祥物 + 头像入口 + 今天怎么吃主标题 ===== */}
       <div
-        className={`relative overflow-hidden mb-2 flex-shrink-0 ${isNarrow ? 'p-2' : 'p-5 sm:p-6 fancy-card'}`}
+        className={`relative overflow-hidden mb-2 flex-shrink-0 ${isNarrow ? 'p-3' : 'p-5 sm:p-6 fancy-card'}`}
         style={config.heroStyle}
       >
         {!isNarrow && (
@@ -222,51 +222,51 @@ export default function HomeView({
           type="button"
           onClick={onOpenProfile}
           aria-label="进入我的主页"
-          className={`absolute z-10 rounded-full bg-white border-2 flex items-center justify-center hover:scale-110 transition-transform shadow-[2px_2px_0_var(--color-ink)] ${isNarrow ? 'top-1.5 right-1.5 w-7 h-7 text-sm' : 'top-3.5 right-3.5 sm:top-4 sm:right-4 w-10 h-10 text-xl'}`}
+          className={`absolute z-10 rounded-full bg-white border-2 flex items-center justify-center hover:scale-110 transition-transform shadow-[2px_2px_0_var(--color-ink)] ${isNarrow ? 'top-2 right-2 w-8 h-8 text-base' : 'top-3.5 right-3.5 sm:top-4 sm:right-4 w-10 h-10 text-xl'}`}
           style={{ borderColor: 'var(--color-ink)' }}
         >
           {avatar}
         </button>
 
         <div className={`relative flex flex-col items-center text-center ${isNarrow ? '' : 'pt-2'}`}>
-          <div className={`relative ${isNarrow ? '' : 'mb-2'}`}>
-            <Mascot mood={config.mood} size={isNarrow ? 52 : 84} />
+          <div className={`relative ${isNarrow ? 'mb-1' : 'mb-2'}`}>
+            <Mascot mood={config.mood} size={isNarrow ? 72 : 84} />
             <div
-              className={`absolute bg-white border-2 border-ink rounded-2xl shadow-[3px_3px_0_var(--color-ink)] ${isNarrow ? '-top-1 -right-6 px-1.5 py-0.5' : '-top-2 -right-10 px-3 py-1.5'}`}
+              className={`absolute bg-white border-2 border-ink rounded-2xl shadow-[3px_3px_0_var(--color-ink)] ${isNarrow ? '-top-1 -right-7 px-2 py-1' : '-top-2 -right-10 px-3 py-1.5'}`}
               style={{ borderColor: 'var(--color-ink)' }}
             >
-              <span className={`${isNarrow ? 'text-[9px]' : 'text-xs'} font-bold text-text`} style={{ fontFamily: 'var(--font-display)' }}>{config.bubble}</span>
-              <div className={`absolute bg-white border-r-2 border-b-2 rotate-45 ${isNarrow ? '-bottom-0.5 left-3 w-2 h-2' : '-bottom-1.5 left-5 w-3 h-3'}`} style={{ borderColor: 'var(--color-ink)' }} />
+              <span className={`${isNarrow ? 'text-[10px]' : 'text-xs'} font-bold text-text`} style={{ fontFamily: 'var(--font-display)' }}>{config.bubble}</span>
+              <div className={`absolute bg-white border-r-2 border-b-2 rotate-45 ${isNarrow ? '-bottom-0.5 left-4 w-2.5 h-2.5' : '-bottom-1.5 left-5 w-3 h-3'}`} style={{ borderColor: 'var(--color-ink)' }} />
             </div>
           </div>
 
           {/* 主标题：今天怎么吃？ */}
           <h1
-            className={`font-extrabold leading-none ${isNarrow ? 'text-[20px] mt-0.5' : 'mb-1 text-[34px] sm:text-[40px]'}`}
+            className={`font-extrabold leading-none ${isNarrow ? 'text-[24px] mt-1' : 'mb-1 text-[34px] sm:text-[40px]'}`}
             style={{ fontFamily: 'var(--font-display)', color: 'var(--color-primary)' }}
           >
             今天怎么吃？
           </h1>
           {/* 副标题：动态问候语 */}
-          <p className={`text-text-secondary font-bold ${isNarrow ? 'text-[10px] mt-0' : 'text-sm sm:text-base'}`} style={{ fontFamily: 'var(--font-display)' }}>
+          <p className={`text-text-secondary font-bold ${isNarrow ? 'text-[11px] mt-0.5' : 'text-sm sm:text-base'}`} style={{ fontFamily: 'var(--font-display)' }}>
             {config.greeting}
           </p>
         </div>
       </div>
 
       {/* ===== 快捷操作 4 列横向卡片（风格和 SoloInput 分类页一致，尺寸适配一行4个） ===== */}
-      <div className={`grid grid-cols-4 gap-2 mb-2.5 sm:mb-6 flex-shrink-0`}>
+      <div className={`grid grid-cols-4 gap-1.5 mb-2 sm:mb-6 flex-shrink-0`}>
         {quickActions.map((action, i) => (
           <button key={action.key} type="button" onClick={action.onClick}
-            className={`outline-card text-center flex flex-col items-center gap-1.5 sm:gap-2 slide-up hover:-translate-y-0.5 transition-transform ${isNarrow ? 'px-1 py-2' : 'p-3.5'}`}
+            className={`outline-card text-center flex flex-col items-center gap-1 sm:gap-2 slide-up hover:-translate-y-0.5 transition-transform ${isNarrow ? 'px-1 py-1.5' : 'p-3.5'}`}
             style={{ animationDelay: `${i * 60}ms`, animationFillMode: 'both' }}>
             <div
-              className={`relative rounded-2xl border-2 border-ink flex items-center justify-center shadow-[2.5px_2.5px_0_var(--color-ink)] ${isNarrow ? 'w-9 h-9' : 'w-11 h-11'}`}
+              className={`relative rounded-2xl border-2 border-ink flex items-center justify-center shadow-[2.5px_2.5px_0_var(--color-ink)] ${isNarrow ? 'w-8 h-8' : 'w-11 h-11'}`}
               style={{ borderColor: 'var(--color-ink)', background: action.color }}
             >
-              <EmojiToIcon emoji={action.emoji} size={isNarrow ? 18 : 22} className="text-white" />
+              <EmojiToIcon emoji={action.emoji} size={isNarrow ? 16 : 22} className="text-white" />
             </div>
-            <span className={`font-extrabold text-text leading-tight ${isNarrow ? 'text-[11px]' : 'text-xs'}`} style={{ fontFamily: 'var(--font-display)' }}>{action.label}</span>
+            <span className={`font-extrabold text-text leading-tight ${isNarrow ? 'text-[10px]' : 'text-xs'}`} style={{ fontFamily: 'var(--font-display)' }}>{action.label}</span>
             {!isNarrow && (
               <span className="text-[10px] text-text-muted text-center leading-tight">{action.desc}</span>
             )}

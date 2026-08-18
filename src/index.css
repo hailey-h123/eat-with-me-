@@ -86,9 +86,11 @@ body {
     radial-gradient(circle at 75% 88%, rgba(45,156,219,0.08) 0%, transparent 32%),
     radial-gradient(circle at 25% 75%, rgba(107,203,119,0.06) 0%, transparent 28%);
   background-attachment: fixed;
-  min-height: 100vh;
+  /* App 外壳模式：锁死视口高度（dvh 适配手机地址栏），body 级永不滚动，
+     滚动只发生在各页面的内容区（flex-1 overflow-y-auto） */
+  height: 100dvh;
   color: #2A2520;
-  overflow-x: hidden;
+  overflow: hidden;
 }
 
 /* 全局兜底：确保所有文本元素在字体/颜色异常时仍可见 */
@@ -120,7 +122,8 @@ body::before {
 }
 
 #root {
-  min-height: 100vh;
+  height: 100%;
+  overflow: hidden;
   position: relative;
 }
 

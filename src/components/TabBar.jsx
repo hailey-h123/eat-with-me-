@@ -26,12 +26,10 @@ export default function TabBar({ activeView, onChange }) {
 
   return (
     <nav
-      className="fixed bottom-0 left-0 right-0 z-40 border-t-2 flex-shrink-0"
+      className="border-t-2 flex-shrink-0"
       style={{
         borderColor: 'var(--color-ink)',
         background: 'rgba(255,251,240,0.92)',
-        backdropFilter: 'blur(20px) saturate(180%)',
-        WebkitBackdropFilter: 'blur(20px) saturate(180%)',
         paddingBottom: 'env(safe-area-inset-bottom)',
       }}
       aria-label="主导航"
