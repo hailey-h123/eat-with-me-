@@ -113,7 +113,7 @@ export default function HomeView({
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
-  const feedSize = isNarrow ? 2 : baseFeedSize;
+  const feedSize = baseFeedSize;
   const feedItems = feedPool.length > 0
     ? Array.from({ length: Math.min(feedSize, feedPool.length) }, (_, i) => feedPool[(feedOffset + i) % feedPool.length])
     : [];
@@ -206,45 +206,49 @@ export default function HomeView({
 
       {/* ===== Hero 问候卡：吉祥物 + 头像入口 + 今天怎么吃主标题 ===== */}
       <div
-        className={`relative overflow-hidden mb-2.5 sm:mb-6 fancy-card flex-shrink-0 ${isNarrow ? 'p-2.5' : 'p-5 sm:p-6'}`}
+        className={`relative overflow-hidden mb-2 flex-shrink-0 ${isNarrow ? 'p-2' : 'p-5 sm:p-6 fancy-card'}`}
         style={config.heroStyle}
       >
-        <FoodDecor type="sparkle" size={isNarrow ? 10 : 14} className="pointer-events-none absolute top-2 left-2.5 sm:top-3 sm:left-4 opacity-60 float-animation" style={{ animationDelay: '0.5s' }} />
-        <FoodDecor type="heart" size={isNarrow ? 8 : 12} className={`pointer-events-none absolute opacity-60 float-animation text-peach ${isNarrow ? 'top-2 right-[36px]' : 'top-4 right-[52px] sm:right-[60px]'}`} style={{ animationDelay: '1.2s' }} />
-        <FoodDecor type="egg" size={isNarrow ? 10 : 14} className="pointer-events-none absolute bottom-2 right-2 sm:bottom-3 sm:right-4 opacity-40 float-animation" style={{ animationDelay: '0.4s' }} />
+        {!isNarrow && (
+          <>
+            <FoodDecor type="sparkle" size={14} className="pointer-events-none absolute top-3 left-4 opacity-60 float-animation" style={{ animationDelay: '0.5s' }} />
+            <FoodDecor type="heart" size={12} className="pointer-events-none absolute opacity-60 float-animation text-peach top-4 right-[60px]" style={{ animationDelay: '1.2s' }} />
+            <FoodDecor type="egg" size={14} className="pointer-events-none absolute bottom-3 right-4 opacity-40 float-animation" style={{ animationDelay: '0.4s' }} />
+          </>
+        )}
 
         {/* 头像入口：Hero卡内部右上角 */}
         <button
           type="button"
           onClick={onOpenProfile}
           aria-label="进入我的主页"
-          className={`absolute z-10 rounded-full bg-white border-2 flex items-center justify-center hover:scale-110 transition-transform shadow-[2px_2px_0_var(--color-ink)] ${isNarrow ? 'top-2 right-2 w-8 h-8 text-base' : 'top-3.5 right-3.5 sm:top-4 sm:right-4 w-10 h-10 text-xl'}`}
+          className={`absolute z-10 rounded-full bg-white border-2 flex items-center justify-center hover:scale-110 transition-transform shadow-[2px_2px_0_var(--color-ink)] ${isNarrow ? 'top-1.5 right-1.5 w-7 h-7 text-sm' : 'top-3.5 right-3.5 sm:top-4 sm:right-4 w-10 h-10 text-xl'}`}
           style={{ borderColor: 'var(--color-ink)' }}
         >
           {avatar}
         </button>
 
-        <div className={`relative flex flex-col items-center text-center ${isNarrow ? 'pt-0.5' : 'pt-2'}`}>
-          <div className={`relative ${isNarrow ? 'mb-1' : 'mb-2'}`}>
-            <Mascot mood={config.mood} size={isNarrow ? 48 : 84} />
+        <div className={`relative flex flex-col items-center text-center ${isNarrow ? '' : 'pt-2'}`}>
+          <div className={`relative ${isNarrow ? '' : 'mb-2'}`}>
+            <Mascot mood={config.mood} size={isNarrow ? 52 : 84} />
             <div
-              className={`absolute bg-white border-2 border-ink rounded-2xl shadow-[3px_3px_0_var(--color-ink)] ${isNarrow ? '-top-0.5 -right-7 px-2 py-0.5' : '-top-2 -right-10 px-3 py-1.5'}`}
+              className={`absolute bg-white border-2 border-ink rounded-2xl shadow-[3px_3px_0_var(--color-ink)] ${isNarrow ? '-top-1 -right-6 px-1.5 py-0.5' : '-top-2 -right-10 px-3 py-1.5'}`}
               style={{ borderColor: 'var(--color-ink)' }}
             >
-              <span className={`${isNarrow ? 'text-[10px]' : 'text-xs'} font-bold text-text`} style={{ fontFamily: 'var(--font-display)' }}>{config.bubble}</span>
-              <div className={`absolute bg-white border-r-2 border-b-2 rotate-45 ${isNarrow ? '-bottom-1 left-4 w-2.5 h-2.5' : '-bottom-1.5 left-5 w-3 h-3'}`} style={{ borderColor: 'var(--color-ink)' }} />
+              <span className={`${isNarrow ? 'text-[9px]' : 'text-xs'} font-bold text-text`} style={{ fontFamily: 'var(--font-display)' }}>{config.bubble}</span>
+              <div className={`absolute bg-white border-r-2 border-b-2 rotate-45 ${isNarrow ? '-bottom-0.5 left-3 w-2 h-2' : '-bottom-1.5 left-5 w-3 h-3'}`} style={{ borderColor: 'var(--color-ink)' }} />
             </div>
           </div>
 
           {/* 主标题：今天怎么吃？ */}
           <h1
-            className={`font-extrabold leading-none mb-1 ${isNarrow ? 'text-[22px]' : 'text-[34px] sm:text-[40px]'}`}
+            className={`font-extrabold leading-none ${isNarrow ? 'text-[20px] mt-0.5' : 'mb-1 text-[34px] sm:text-[40px]'}`}
             style={{ fontFamily: 'var(--font-display)', color: 'var(--color-primary)' }}
           >
             今天怎么吃？
           </h1>
           {/* 副标题：动态问候语 */}
-          <p className={`text-text-secondary font-bold ${isNarrow ? 'text-[11px]' : 'text-sm sm:text-base'}`} style={{ fontFamily: 'var(--font-display)' }}>
+          <p className={`text-text-secondary font-bold ${isNarrow ? 'text-[10px] mt-0' : 'text-sm sm:text-base'}`} style={{ fontFamily: 'var(--font-display)' }}>
             {config.greeting}
           </p>
         </div>

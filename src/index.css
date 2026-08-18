@@ -185,6 +185,24 @@ main {
     box-shadow: 1px 1px 0 var(--color-ink);
   }
 
+  /* 扁平卡片直角变体（首页 feed 用） */
+  .flat-card-square {
+    border-radius: 0;
+  }
+
+  /* 首页 feed 干净卡片：直角、无黑边、无硬阴影 */
+  .feed-card-clean {
+    background: #FFFFFF;
+    border-radius: 0;
+    border: none;
+    box-shadow: none;
+    transition: background-color 0.2s ease;
+  }
+
+  .feed-card-clean:hover {
+    background: #F7F4EE;
+  }
+
   /* 主按钮：胶囊 + 描边 + 硬阴影 */
   .btn-primary {
     background: var(--color-primary);
