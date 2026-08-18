@@ -1,15 +1,16 @@
 import { useState, useEffect } from 'react';
 import {
   IconBookmark, IconCheckCircle, IconHistory,
-  IconStar, IconMapPin, IconTrash, IconSparkles
+  IconStar, IconMapPin, IconTrash, IconSparkles,
+  IconSmile, IconMeh, IconFrown
 } from './icons/FancyIcons';
 import { getFavorites, getVisited, getSearchHistory, clearSearchHistory, setVisitedMood } from '../services/historyService';
 import { getSoloModes } from '../services/recommendationService';
 
 const MOOD_OPTIONS = [
-  { key: 'great', emoji: '😋', label: '好吃' },
-  { key: 'ok', emoji: '🙂', label: '还行' },
-  { key: 'bad', emoji: '😐', label: '一般' },
+  { key: 'great', icon: IconSmile, label: '好吃' },
+  { key: 'ok', icon: IconMeh, label: '还行' },
+  { key: 'bad', icon: IconFrown, label: '一般' },
 ];
 
 export default function FootprintView({ onReselect }) {
@@ -122,7 +123,7 @@ export default function FootprintView({ onReselect }) {
 
       {/* 搜索历史 */}
       {activeTab === 'history' && (
-        <div className="space-y-2">
+        <div className="space-y-3">
           {history.length === 0 ? (
             <EmptyState icon="history" text="还没有搜索记录" subtext="搜索过的内容会出现在这里" />
           ) : (
@@ -138,7 +139,7 @@ export default function FootprintView({ onReselect }) {
                 <button
                   key={h.id}
                   onClick={() => onReselect && onReselect(h)}
-                  className="w-full fancy-card p-3.5 text-left flex items-center gap-3 hover:bg-bg-secondary transition-colors animate-slide-up"
+                  className="w-full flat-card p-3.5 text-left flex items-center gap-3 hover:bg-bg-secondary transition-colors animate-slide-up"
                   style={{ animationDelay: `${i * 60}ms`, animationFillMode: 'both' }}
                 >
                   <div className="w-9 h-9 rounded-full bg-primary/10 text-primary flex items-center justify-center flex-shrink-0">
@@ -166,7 +167,7 @@ function RestaurantMiniCard({ restaurant, index, formatTime }) {
   const photo = restaurant.photos?.[0]?.url;
   return (
     <div
-      className="fancy-card p-3.5 flex items-center gap-3 animate-slide-up"
+      className="flat-card p-3.5 flex items-center gap-3 animate-slide-up"
       style={{ animationDelay: `${index * 60}ms`, animationFillMode: 'both' }}
     >
       {photo ? (
@@ -204,6 +205,7 @@ function VisitedCard({ restaurant, index, formatTime, onMoodClick }) {
         <span className="text-xs text-text-muted font-bold" style={{ fontFamily: 'var(--font-display)' }}>感受：</span>
         {MOOD_OPTIONS.map(opt => {
           const active = restaurant.mood === opt.key;
+          const Icon = opt.icon;
           return (
             <button
               key={opt.key}
@@ -216,7 +218,7 @@ function VisitedCard({ restaurant, index, formatTime, onMoodClick }) {
               }`}
               style={{ borderColor: 'var(--color-ink)' }}
             >
-              {opt.emoji}
+              <Icon className="w-4 h-4" />
             </button>
           );
         })}

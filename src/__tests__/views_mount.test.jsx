@@ -28,21 +28,18 @@ describe('新视图挂载冒烟', () => {
     expect(screen.getByText('辣星人')).toBeTruthy();
   });
 
-  it('HomeView 渲染 4 宫格 + 3 指标 + 附近推荐区', () => {
+  it('HomeView 渲染 4 宫格 + 附近推荐区', () => {
     const noop = () => {};
     render(<HomeView
-      onSelectSolo={noop} onSelectGroup={noop}
-      onRandomPick={noop} onFortunePick={noop}
+      onSelectMood={noop} onSelectExplore={noop}
+      onSelectGroup={noop} onFortunePick={noop}
       onOpenProfile={noop} onQuickPick={noop}
       location={{ name: '望京', lat: 39.99, lng: 116.47 }}
     />);
-    expect(screen.getByText('一人食')).toBeTruthy();
+    expect(screen.getByText('按心情选')).toBeTruthy();
+    expect(screen.getByText('探索未知')).toBeTruthy();
     expect(screen.getByText('多人聚餐')).toBeTruthy();
-    expect(screen.getByText('随便选')).toBeTruthy();
-    expect(screen.getByText('抽签吃')).toBeTruthy();
-    expect(screen.getByText('收藏')).toBeTruthy();
-    expect(screen.getByText('去过')).toBeTruthy();
-    expect(screen.getAllByText('今日运势').length).toBe(2); // 指标 + 抽签卡 desc
+    expect(screen.getByText('今日运势')).toBeTruthy();
     expect(screen.getByText(/附近餐厅推荐/)).toBeTruthy();
   });
 });

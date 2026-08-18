@@ -1,7 +1,10 @@
 import { useState, useEffect, useMemo } from 'react';
 import {
   IconStar, IconMapPin, IconChevronRight, IconSparkles, IconEdit2,
+  IconComment, IconTrash2, IconInfo, IconSmile, IconMeh, IconFrown,
+  IconTrophy, IconTarget, IconUsers, IconSolo,
 } from './icons/FancyIcons';
+import { EmojiToIcon, IconChili } from './icons/FoodIcons';
 import { getFavorites, getVisited, getSearchHistory, getDecisionCount } from '../services/historyService';
 import { computeLevel, computeTasteTags, computeBadges, countModes, getAvatar } from '../services/profileService';
 
@@ -61,7 +64,9 @@ export default function ProfileView({ location, onOpenFootprint }) {
         className="relative overflow-hidden rounded-2xl p-6 border-2 shadow-[4px_4px_0_var(--color-ink)] text-center"
         style={{ borderColor: 'var(--color-ink)', background: 'linear-gradient(135deg, #FFF5D6 0%, #FFFBF0 60%, #FFEAB3 100%)' }}
       >
-        <div className="text-5xl mb-2">{avatar}</div>
+        <div className="flex justify-center mb-2">
+          <EmojiToIcon emoji={avatar} size={56} className="text-primary" />
+        </div>
         <h3 className="text-xl font-extrabold text-text mb-1" style={{ fontFamily: 'var(--font-display)' }}>
           美食{level.title} · Lv.{level.level}
         </h3>
@@ -132,17 +137,20 @@ export default function ProfileView({ location, onOpenFootprint }) {
         ) : (
           <div className="space-y-2.5">
             {recentDecisions.map(r => {
-              const mood = r.mood === 'great' ? '😋' : r.mood === 'ok' ? '🙂' : r.mood === 'bad' ? '😐' : '🍽️';
+              const MoodIcon = r.mood === 'great' ? IconSmile : r.mood === 'ok' ? IconMeh : r.mood === 'bad' ? IconFrown : null;
+              const cuisineEmoji = r.cuisine?.includes('火锅') ? '🍲' : r.cuisine?.includes('川') ? '🌶️' : r.cuisine?.includes('日') ? '🍣' : '🍽️';
               return (
                 <div key={r.id} className="flex items-center gap-3">
                   <span className="w-8 h-8 rounded-full bg-bg-soft border-2 flex items-center justify-center text-sm flex-shrink-0" style={{ borderColor: 'var(--color-ink)' }}>
-                    {r.cuisine?.includes('火锅') ? '🍲' : r.cuisine?.includes('川') ? '🌶️' : r.cuisine?.includes('日') ? '🍣' : '🍽️'}
+                    <EmojiToIcon emoji={cuisineEmoji} size={18} />
                   </span>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-bold text-text truncate" style={{ fontFamily: 'var(--font-display)' }}>{r.name}</p>
                     <p className="text-xs text-text-muted">{formatTime(r.timestamp)} · {r.cuisine || '美食'}</p>
                   </div>
-                  <span className="text-lg" aria-label="感受">{mood}</span>
+                  <span className="text-lg" aria-label="感受">
+                    {MoodIcon ? <MoodIcon className="w-5 h-5 text-primary" /> : <EmojiToIcon emoji="🍽️" size={20} />}
+                  </span>
                 </div>
               );
             })}
@@ -161,7 +169,12 @@ export default function ProfileView({ location, onOpenFootprint }) {
               style={{ borderColor: 'var(--color-ink)' }}
               title={badge.desc}
             >
-              <div className="text-2xl mb-1">{badge.icon}</div>
+              <div className="flex justify-center mb-1">
+                {badge.id === 'decade' && <IconTarget className="w-7 h-7 text-primary" />}
+                {badge.id === 'spicy' && <IconChili className="w-7 h-7" />}
+                {badge.id === 'organizer' && <IconUsers className="w-7 h-7 text-secondary" />}
+                {badge.id === 'solo' && <IconSolo className="w-7 h-7 text-primary" />}
+              </div>
               <p className="text-[10px] font-extrabold text-text leading-tight" style={{ fontFamily: 'var(--font-display)' }}>{badge.label}</p>
               <p className={`text-[9px] mt-0.5 leading-tight ${badge.unlocked ? 'text-secondary font-bold' : 'text-text-muted'}`}>
                 {badge.unlocked ? '已解锁' : '未解锁'}
@@ -170,7 +183,9 @@ export default function ProfileView({ location, onOpenFootprint }) {
           ))}
           {/* 预留占位徽章 */}
           <div className="text-center p-2 rounded-xl border-2 border-dashed bg-bg-soft/50 opacity-40" style={{ borderColor: 'var(--color-ink)' }}>
-            <div className="text-2xl mb-1">🏆</div>
+            <div className="flex justify-center mb-1">
+              <IconTrophy className="w-7 h-7 text-text-muted" />
+            </div>
             <p className="text-[10px] font-extrabold text-text leading-tight" style={{ fontFamily: 'var(--font-display)' }}>敬请期待</p>
           </div>
         </div>
@@ -179,7 +194,7 @@ export default function ProfileView({ location, onOpenFootprint }) {
       {/* 5. 设置项 */}
       <section className="fancy-card p-2">
         <button type="button" className="w-full flex items-center justify-between px-4 py-3 text-sm text-text hover:bg-bg-soft rounded-xl transition-colors" style={{ fontFamily: 'var(--font-display)' }}>
-          <span>💬 联系我们</span>
+          <span className="flex items-center gap-2"><IconComment className="w-4 h-4" /> 联系我们</span>
           <IconChevronRight className="w-4 h-4 text-text-muted" />
         </button>
         <button
@@ -188,11 +203,11 @@ export default function ProfileView({ location, onOpenFootprint }) {
           className="w-full flex items-center justify-between px-4 py-3 text-sm text-error hover:bg-bg-soft rounded-xl transition-colors"
           style={{ fontFamily: 'var(--font-display)' }}
         >
-          <span>🗑️ 清除本地数据</span>
+          <span className="flex items-center gap-2"><IconTrash2 className="w-4 h-4" /> 清除本地数据</span>
           <IconChevronRight className="w-4 h-4 text-error/60" />
         </button>
         <button type="button" className="w-full flex items-center justify-between px-4 py-3 text-sm text-text hover:bg-bg-soft rounded-xl transition-colors" style={{ fontFamily: 'var(--font-display)' }}>
-          <span>ℹ️ 关于吃什么</span>
+          <span className="flex items-center gap-2"><IconInfo className="w-4 h-4" /> 关于吃什么</span>
           <IconChevronRight className="w-4 h-4 text-text-muted" />
         </button>
       </section>

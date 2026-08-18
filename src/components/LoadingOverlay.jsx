@@ -1,4 +1,5 @@
 import Mascot, { FoodDecor } from './Mascot';
+import { IconSparkles } from './icons/FancyIcons';
 
 export default function LoadingOverlay({ message = '正在为你挑餐厅...', subMessage = '' }) {
   return (
@@ -19,8 +20,8 @@ export default function LoadingOverlay({ message = '正在为你挑餐厅...', s
         {message}
       </p>
       {subMessage && (
-        <p className="mt-2 text-sm text-text-muted">
-          {subMessage} ✨
+        <p className="mt-2 text-sm text-text-muted flex items-center justify-center gap-1">
+          {subMessage} <IconSparkles className="w-3.5 h-3.5" />
         </p>
       )}
       <div className="mt-8 flex gap-3">

@@ -7,7 +7,7 @@ import LoadingOverlay from './LoadingOverlay';
 import { 
   IconArrowLeft, IconRefreshCw, IconMapPin, IconVote, IconDice, 
   IconThinking, IconBan, IconWarning, IconSparkle, IconSparkles,
-  IconUtensils, IconWallet
+  IconUtensils, IconWallet, IconChart, IconCheck, IconLightbulb
 } from './icons/FancyIcons';
 
 export default function ResultList({
@@ -81,7 +81,7 @@ export default function ResultList({
               <button
                 key={suggestion.id}
                 onClick={() => onApplySuggestion && onApplySuggestion(suggestion)}
-                className="w-full fancy-card p-3 text-left flex items-center gap-3 hover:bg-bg-secondary transition-colors animate-slide-up"
+                className="w-full flat-card p-3 text-left flex items-center gap-3 hover:bg-bg-secondary transition-colors animate-slide-up"
                 style={{ animationDelay: `${i * 80}ms`, animationFillMode: 'both' }}
               >
                 <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center flex-shrink-0">
@@ -105,11 +105,11 @@ export default function ResultList({
   return (
     <div className="max-w-lg mx-auto px-4 sm:px-6">
       <div className="flex items-center justify-between mb-5 fade-in">
-        <button onClick={onBack} className="text-primary text-sm font-medium flex items-center gap-1">
+        <button onClick={onBack} className="text-text-secondary text-sm font-medium flex items-center gap-1 hover:text-primary transition-colors">
           <IconArrowLeft className="w-4 h-4" /> {'返回修改'}
         </button>
         {!isExploreMode && (
-          <button onClick={onRefresh} className="text-primary text-sm font-medium flex items-center gap-1">
+          <button onClick={onRefresh} className="text-text-secondary text-sm font-medium flex items-center gap-1 hover:text-primary transition-colors">
             <IconRefreshCw className="w-4 h-4" /> {'换一批'}
           </button>
         )}
@@ -117,14 +117,14 @@ export default function ResultList({
 
       {!isExploreMode && conflicts && conflicts.length > 0 && (
         <div className="mb-4 conflict-warning animate-slide-up">
-          <p className="text-error font-medium mb-1.5">{'检测到偏好冲突'}</p>
+          <p className="text-text font-bold mb-1.5" style={{ fontFamily: 'var(--font-display)' }}>{'检测到偏好冲突'}</p>
           {conflicts.map((c, i) => (
-            <p key={i} className="text-error/70 text-xs mt-1 leading-relaxed">
-              <span className="inline-flex align-middle mr-1">
+            <p key={i} className="text-text-secondary text-xs mt-1 leading-relaxed">
+              <span className="inline-flex align-middle mr-1 text-accent-dark">
                 {c.type === 'hard' ? <IconBan size={16} /> : <IconWarning size={16} />}
               </span>
               {c.members[0]}想吃{c.preference} ↔ {c.members[1]}不吃{c.allergy}
-              <span className="text-error/50"> → {c.resolution}</span>
+              <span className="text-text-muted"> → {c.resolution}</span>
             </p>
           ))}
         </div>
@@ -144,7 +144,13 @@ export default function ResultList({
           <div className="flex items-start gap-2.5 text-sm" style={{ fontFamily: 'var(--font-display)' }}>
             <span className="w-5 h-5 rounded-full flex-shrink-0 flex items-center justify-center bg-white border-2 text-xs"
               style={{ borderColor: 'var(--color-ink)' }}>
-              {budgetCompromise.type === 'empty_intersection' ? '⚠' : budgetCompromise.type === 'narrow_intersection' ? '📊' : '✓'}
+              {budgetCompromise.type === 'empty_intersection' ? (
+                <IconWarning className="w-3 h-3" />
+              ) : budgetCompromise.type === 'narrow_intersection' ? (
+                <IconChart className="w-3 h-3" />
+              ) : (
+                <IconCheck className="w-3 h-3" />
+              )}
             </span>
             <span className="text-text-secondary leading-relaxed font-medium">{budgetCompromise.text}</span>
           </div>
@@ -196,7 +202,7 @@ export default function ResultList({
       ) : (
         <div>
           {cuisineVote && cuisineVote.consensusLevel !== 'none' && (
-            <div className="bg-primary/10 text-primary p-3.5 rounded-xl text-sm mb-4 fade-in">
+            <div className="bg-primary/10 text-text p-3.5 rounded-xl text-sm mb-4 fade-in">
               {cuisineVote.consensusLevel === 'strong' && (
                 <span>{`${memberCount} 人中有 ${cuisineVote.topCount} 人想吃${cuisineVote.topCuisine} → 优先推荐${cuisineVote.topCuisine}店`}</span>
               )}
@@ -269,7 +275,9 @@ export default function ResultList({
                   background: 'rgba(245,158,11,0.06)',
                 }}>
                 <div className="flex items-start gap-2.5 text-sm font-bold text-text-secondary mb-1" style={{ fontFamily: 'var(--font-display)' }}>
-                  <span className="w-5 h-5 rounded-full flex-shrink-0 flex items-center justify-center bg-white border-2" style={{ borderColor: 'var(--color-ink)' }}>💡</span>
+                  <span className="w-5 h-5 rounded-full flex-shrink-0 flex items-center justify-center bg-white border-2" style={{ borderColor: 'var(--color-ink)' }}>
+                    <IconLightbulb className="w-3.5 h-3.5 text-primary" />
+                  </span>
                   <span>系统有话要说：当前推荐多为折中方案</span>
                 </div>
                 <ul className="space-y-1.5 pl-7 text-xs text-text-secondary" style={{ fontFamily: 'var(--font-display)' }}>

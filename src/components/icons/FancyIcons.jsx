@@ -651,3 +651,55 @@ export function IconComment({ className = '' }) {
     </svg>
   );
 }
+
+export function IconInfo({ className = '' }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 10h.01" />
+      <path d="M12 14v4" />
+    </svg>
+  );
+}
+
+export function IconSmile({ className = '' }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="9" />
+      <circle cx="9" cy="10" r="1.2" fill="currentColor" stroke="none" />
+      <circle cx="15" cy="10" r="1.2" fill="currentColor" stroke="none" />
+      <path d="M8.5 14.5c1.2 1.2 3.8 1.2 5 0" />
+    </svg>
+  );
+}
+
+export function IconMeh({ className = '' }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="9" />
+      <circle cx="9" cy="10" r="1.2" fill="currentColor" stroke="none" />
+      <circle cx="15" cy="10" r="1.2" fill="currentColor" stroke="none" />
+      <path d="M9 15h6" />
+    </svg>
+  );
+}
+
+export function IconFrown({ className = '' }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="9" />
+      <circle cx="9" cy="10" r="1.2" fill="currentColor" stroke="none" />
+      <circle cx="15" cy="10" r="1.2" fill="currentColor" stroke="none" />
+      <path d="M8.5 16c1.2-1.2 3.8-1.2 5 0" />
+    </svg>
+  );
+}
+
+export function IconChart({ className = '' }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 20h16" />
+      <path d="M6 20V12M10 20V8M14 20v-5M18 20V6" />
+    </svg>
+  );
+}

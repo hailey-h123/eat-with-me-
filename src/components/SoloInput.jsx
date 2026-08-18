@@ -29,8 +29,8 @@ function MascotTip() {
       </div>
       <div className="flex-1 min-w-0">
         <p className="text-xs font-extrabold text-text-muted mb-1" style={{ fontFamily: 'var(--font-display)' }}>面仔碎碎念</p>
-        <p className="text-sm text-text-secondary leading-relaxed">
-          <span className="mr-1.5">{tip.emoji}</span>
+        <p className="text-sm text-text-secondary leading-relaxed flex items-start gap-2">
+          <EmojiToIcon emoji={tip.emoji} size={18} className="flex-shrink-0 mt-0.5" />
           {tip.text}
         </p>
       </div>
@@ -292,8 +292,8 @@ function PreferenceTuner({ variant, priceRange, onPriceRangeChange, tags, onTags
   );
 }
 
-export default function SoloInput({ onSearch, onFortune, isLoading }) {
-  const [selectedCategory, setSelectedCategory] = useState(null);
+export default function SoloInput({ onSearch, onFortune, isLoading, initialCategory }) {
+  const [selectedCategory, setSelectedCategory] = useState(initialCategory || null);
   const [drawnCard, setDrawnCard] = useState(null);
   const [priceRange, setPriceRange] = useState([PRICE_MIN, PRICE_MAX]);
   const [distRange, setDistRange] = useState(DEFAULT_DIST_RANGE);

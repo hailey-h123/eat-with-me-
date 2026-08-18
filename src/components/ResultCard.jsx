@@ -4,7 +4,7 @@ import {
   IconNavigation, IconLightbulb, IconCheck, IconCross, IconHalfCheck,
   IconThumbsUp, IconThumbsDown, IconBookmark, IconCheckCircle,
   IconPerfectFusion, IconFlavorFusion, IconStyleFusion,
-  IconHeart, IconShieldCheck, IconWallet, IconComment
+  IconHeart, IconShieldCheck, IconWallet, IconComment, IconChart
 } from './icons/FancyIcons';
 import { FoodDecor } from './Mascot';
 import Lightbox from './Lightbox';
@@ -512,7 +512,7 @@ export default function ResultCard({ restaurant, showExploreMessage = false, isS
   return (
     <>
     <div
-      className="fancy-card mb-4 cursor-pointer relative overflow-hidden"
+      className="flat-card mb-4 cursor-pointer relative overflow-hidden"
       onClick={() => setExpanded(!expanded)}
     >
       {/* 卡片角落装饰小涂鸦（不挡点击） */}
@@ -608,7 +608,7 @@ export default function ResultCard({ restaurant, showExploreMessage = false, isS
           )}
         </div>
 
-        {/* 📊 个人满足度：每个成员的维度分解 + 综合分 */}
+        {/* 个人满足度：每个成员的维度分解 + 综合分 */}
         {restaurant.memberScores && restaurant.memberScores.length >= 1 && (
           <div
             className="mb-3.5 p-2.5 rounded-xl border-2"
@@ -622,7 +622,7 @@ export default function ResultCard({ restaurant, showExploreMessage = false, isS
                 className="w-4 h-4 rounded-full flex items-center justify-center text-[10px] text-white"
                 style={{ background: '#7c5cff' }}
               >
-                📊
+                <IconChart className="w-3 h-3 text-white" />
               </span>
               成员满足度
             </div>
@@ -668,8 +668,8 @@ export default function ResultCard({ restaurant, showExploreMessage = false, isS
 
         <div className="flex flex-wrap gap-2 mb-4">
           {filteredTags.map(tag => (
-            <span key={tag} className="px-3 py-1 rounded-full text-xs font-bold bg-bg-soft text-text-secondary border-2 border-ink"
-              style={{ borderColor: 'var(--color-ink)', fontFamily: 'var(--font-display)' }}>
+            <span key={tag} className="px-2 py-0.5 rounded-full text-[10px] font-normal bg-primary/10 text-text/80 border border-ink/10"
+              style={{ fontFamily: 'var(--font-display)' }}>
               {tag}
             </span>
           ))}

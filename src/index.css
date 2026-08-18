@@ -164,6 +164,27 @@ main {
     box-shadow: 3px 3px 0 var(--color-ink);
   }
 
+  /* 扁平列表卡片：只保留描边，hover 才出现轻阴影 */
+  .flat-card {
+    background: #FFFFFF;
+    border-radius: 24px;
+    border: 2.5px solid var(--color-ink);
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
+                box-shadow 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  .flat-card:hover {
+    transform: translate(-1px, -1px);
+    box-shadow: 3px 3px 0 var(--color-ink);
+  }
+
+  .flat-card:active {
+    transform: translate(1px, 1px);
+    box-shadow: 1px 1px 0 var(--color-ink);
+  }
+
   /* 主按钮：胶囊 + 描边 + 硬阴影 */
   .btn-primary {
     background: var(--color-primary);
@@ -543,6 +564,42 @@ main {
   40% { transform: translateX(5px); }
   60% { transform: translateX(-3px); }
   80% { transform: translateX(3px); }
+}
+
+/* ================ 移动端（<640px）适配样式 ================ */
+@media (max-width: 640px) {
+  /* LocationBar 移动端压缩：减少 padding，让整体高度控制在 ~42px */
+  .location-bar {
+    padding: 6px 10px !important;
+    gap: 6px !important;
+    border-radius: 14px !important;
+    box-shadow: 2px 2px 0 var(--color-ink) !important;
+  }
+
+  /* 滚动条在移动端更细，减少视觉干扰 */
+  ::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    border: none;
+    border-radius: 4px;
+    background: rgba(255, 107, 61, 0.35);
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 107, 61, 0.55);
+  }
+}
+
+/* ================ 超窄屏（<380px）极限压缩 ================ */
+@media (max-width: 380px) {
+  .location-bar {
+    padding: 5px 8px !important;
+    gap: 4px !important;
+  }
 }
 
 ::-webkit-scrollbar {

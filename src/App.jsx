@@ -9,6 +9,8 @@ import ResultList from './components/ResultList';
 import VoteView from './components/VoteView';
 import FootprintView from './components/FootprintView';
 import ProfileView from './components/ProfileView';
+import Mascot from './components/Mascot';
+import { IconTarget } from './components/icons/FancyIcons';
 import { useLocation } from './hooks/useLocation';
 import { addLike, addDislike, removeLike, removeDislike, makeProfileFingerprint } from './services/feedbackService';
 import { parseIntent, mergeMemberIntentsWithLLM, parseSoloIntentWithLLM } from './services/llmService';
@@ -40,7 +42,9 @@ class TabErrorBoundary extends React.Component {
     if (this.state.hasError) {
       return (
         <div className="max-w-lg mx-auto px-6 py-16 text-center">
-          <div className="text-4xl mb-4">😵</div>
+          <div className="flex justify-center mb-4">
+            <Mascot mood="surprise" size={80} />
+          </div>
           <h3 className="font-bold text-text mb-2">页面加载出错了</h3>
           <p className="text-text-muted text-sm mb-4">{this.state.error?.message}</p>
           <pre className="text-xs text-left bg-bg-soft p-3 rounded-lg overflow-auto max-h-40 text-text-muted">
@@ -157,8 +161,12 @@ function App() {
     return { success: true };
   };
 
-  const handleSelectSolo = () => { try { localStorage.setItem(LAST_MODE_KEY, 'solo'); } catch {} setCurrentView('solo-input'); };
+  // 首页4宫格直达：按心情选 / 探索附近 —— 带 initialCategory 进 SoloInput，跳过3分类选择页
+  const [soloInitialCategory, setSoloInitialCategory] = useState(null);
+  const handleSelectSolo = () => { try { localStorage.setItem(LAST_MODE_KEY, 'solo'); } catch {} setSoloInitialCategory(null); setCurrentView('solo-input'); };
   const handleSelectGroup = () => { try { localStorage.setItem(LAST_MODE_KEY, 'group'); } catch {} setCurrentView('group-input'); };
+  const handleSelectMood = () => { try { localStorage.setItem(LAST_MODE_KEY, 'solo'); } catch {} setSoloInitialCategory('scenario'); setCurrentView('solo-input'); };
+  const handleSelectExplore = () => { try { localStorage.setItem(LAST_MODE_KEY, 'solo'); } catch {} setSoloInitialCategory('explore'); setCurrentView('solo-input'); };
 
   const handleSearch = async (members) => {
     setIsLoading(true);
@@ -558,60 +566,62 @@ function App() {
 
   return (
     <TabErrorBoundary>
-    <div className="min-h-screen">
+    <div className="h-[100dvh] flex flex-col overflow-hidden bg-[#FFFBF0]">
       {!headerConfig.hidden && (
         <Header title={headerConfig.title} subtitle={headerConfig.subtitle} showBack={headerConfig.showBack} onBack={headerConfig.onBack} />
       )}
-      <LocationBar location={location} isLocating={isLocating} error={error} debugInfo={debugInfo} onLocationChange={handleLocationChange} onRetry={retryLocate} />
+      <div className="flex-shrink-0">
+        <LocationBar location={location} isLocating={isLocating} error={error} debugInfo={debugInfo} onLocationChange={handleLocationChange} onRetry={retryLocate} />
+      </div>
       {IS_MOCK_MODE && (
-        <div className="bg-amber-50 border-b border-amber-200 px-4 py-2 text-center">
-          <p className="text-sm text-amber-800">
-            🎯 <strong>演示模式</strong> · 当前使用模拟数据，配置高德 API Key 后可获取真实推荐
-            <span className="ml-2 text-amber-600">
+        <div className="bg-amber-50 border-b border-amber-200 px-4 py-1.5 text-center flex-shrink-0">
+          <p className="text-[11px] text-amber-800 flex items-center justify-center gap-1.5">
+            <IconTarget className="w-3 h-3" /> <strong>演示模式</strong> · 模拟数据
+            <span className="ml-1 text-amber-600">
               （
               <button
                 onClick={() => alert('1. 访问 https://console.amap.com/dev/key/app\n2. 创建「Web端(JS API)」应用\n3. 创建「Web服务」应用\n4. 复制 .env.example 为 .env 并填入 Key')}
                 className="underline hover:text-amber-900"
               >
-                如何配置？
+                如何配置
               </button>
               ）
             </span>
           </p>
         </div>
       )}
-      {currentView === 'home' && <main className="py-4"><HomeView
-        onSelectSolo={handleSelectSolo}
-        onSelectGroup={handleSelectGroup}
-        onRandomPick={() => handleSoloExplore('fresh')}
-        onFortunePick={() => handleSoloFortune(null)}
-        onOpenProfile={() => setCurrentView('profile')}
-        location={location}
-        onQuickPick={(restaurant) => {
-          const { score, reasons } = calculateSingleScore(restaurant, { preferences: [], allergies: [] });
-          const scoredRestaurant = {
-            ...restaurant,
-            matchScore: score,
-            reasons,
-            soloFriendly: calculateSoloFriendly(restaurant),
-          };
-          setResults([scoredRestaurant]);
-          setIsExploreMode(false);
-          setSearchRadius(3000);
-          // 决定次数：feed 详情点击 +1
-          incrementDecisionCount();
-          setCurrentView('solo-results');
-        }}
-      /></main>}
-      {currentView === 'solo-input' && <main className="py-8 pb-24"><SoloInput onSearch={handleSoloSearch} onFortune={handleSoloFortune} isLoading={isLoading} /></main>}
-      {currentView === 'group-input' && <main className="py-8 pb-24"><GroupInput onSearch={handleGroupSearch} onRandomExplore={handleGroupExplore} isLoading={isLoading} /></main>}
-      {(currentView === 'solo-results' || currentView === 'group-results') && <main className="py-8"><ResultList results={results} onBack={handleBack} onRefresh={handleRefresh} isLoading={isLoading} isExploreMode={isExploreMode} isSolo={currentView === 'solo-results'} location={location} onVote={handleVote} showVote={showVote} cuisineVote={lastIntent?.cuisineVote} memberCount={lastMembers.length} conflicts={lastIntent?.conflicts} emptySuggestions={emptySuggestions} onApplySuggestion={handleApplySuggestion} onFeedback={handleFeedback} budgetCompromise={lastIntent?.budgetCompromise} /></main>}
-      {currentView === 'vote' && <main className="py-8"><VoteView restaurants={results} members={lastMembers} onBack={() => setCurrentView('group-results')} onSelect={handleVoteSelect} /></main>}
-      {currentView === 'footprint' && <main className="py-8 pb-24"><TabErrorBoundary><FootprintView onReselect={handleHistoryReselect} /></TabErrorBoundary></main>}
-      {currentView === 'profile' && <main className="py-8 pb-24"><TabErrorBoundary><ProfileView location={location} onOpenFootprint={() => setCurrentView('footprint')} /></TabErrorBoundary></main>}
-      <footer className={`text-center py-10 mt-auto ${showTabBar ? 'pb-24' : ''}`}>
-        <p className="text-xs text-ink-tertiary">吃什么 · AI 用餐决策助手</p>
-      </footer>
+      {currentView === 'home' && (
+        <main className={`flex-1 min-h-0 overflow-y-auto ${showTabBar ? 'pb-[calc(env(safe-area-inset-bottom)+64px)]' : ''}`}>
+          <HomeView
+            onSelectMood={handleSelectMood}
+            onSelectExplore={handleSelectExplore}
+            onSelectGroup={handleSelectGroup}
+            onFortunePick={() => handleSoloFortune(null)}
+            onOpenProfile={() => setCurrentView('profile')}
+            location={location}
+            onQuickPick={(restaurant) => {
+              const { score, reasons } = calculateSingleScore(restaurant, { preferences: [], allergies: [] });
+              const scoredRestaurant = {
+                ...restaurant,
+                matchScore: score,
+                reasons,
+                soloFriendly: calculateSoloFriendly(restaurant),
+              };
+              setResults([scoredRestaurant]);
+              setIsExploreMode(false);
+              setSearchRadius(3000);
+              incrementDecisionCount();
+              setCurrentView('solo-results');
+            }}
+          />
+        </main>
+      )}
+      {currentView === 'solo-input' && <main className="flex-1 min-h-0 overflow-y-auto py-4 pb-[calc(env(safe-area-inset-bottom)+64px)]"><SoloInput onSearch={handleSoloSearch} onFortune={handleSoloFortune} isLoading={isLoading} initialCategory={soloInitialCategory} /></main>}
+      {currentView === 'group-input' && <main className="flex-1 min-h-0 overflow-y-auto py-4 pb-[calc(env(safe-area-inset-bottom)+64px)]"><GroupInput onSearch={handleGroupSearch} onRandomExplore={handleGroupExplore} isLoading={isLoading} /></main>}
+      {(currentView === 'solo-results' || currentView === 'group-results') && <main className="flex-1 min-h-0 overflow-y-auto py-4"><ResultList results={results} onBack={handleBack} onRefresh={handleRefresh} isLoading={isLoading} isExploreMode={isExploreMode} isSolo={currentView === 'solo-results'} location={location} onVote={handleVote} showVote={showVote} cuisineVote={lastIntent?.cuisineVote} memberCount={lastMembers.length} conflicts={lastIntent?.conflicts} emptySuggestions={emptySuggestions} onApplySuggestion={handleApplySuggestion} onFeedback={handleFeedback} budgetCompromise={lastIntent?.budgetCompromise} /></main>}
+      {currentView === 'vote' && <main className="flex-1 min-h-0 overflow-y-auto py-4"><VoteView restaurants={results} members={lastMembers} onBack={() => setCurrentView('group-results')} onSelect={handleVoteSelect} /></main>}
+      {currentView === 'footprint' && <main className="flex-1 min-h-0 overflow-y-auto py-4 pb-[calc(env(safe-area-inset-bottom)+64px)]"><TabErrorBoundary><FootprintView onReselect={handleHistoryReselect} /></TabErrorBoundary></main>}
+      {currentView === 'profile' && <main className="flex-1 min-h-0 overflow-y-auto py-4 pb-[calc(env(safe-area-inset-bottom)+64px)]"><TabErrorBoundary><ProfileView location={location} onOpenFootprint={() => setCurrentView('footprint')} /></TabErrorBoundary></main>}
       {showTabBar && <TabBar activeView={currentView} onChange={handleTabChange} />}
     </div>
     </TabErrorBoundary>

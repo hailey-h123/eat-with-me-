@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { IconHome, IconHistory, IconUser } from './icons/FancyIcons';
 
 /**
@@ -12,13 +13,22 @@ const TABS = [
 ];
 
 export default function TabBar({ activeView, onChange }) {
+  const [isNarrow, setIsNarrow] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return window.innerWidth < 640;
+  });
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const onResize = () => setIsNarrow(window.innerWidth < 640);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
   return (
     <nav
-      className="fixed bottom-0 left-0 right-0 z-40 border-t-2"
+      className="fixed bottom-0 left-0 right-0 z-40 border-t-2 flex-shrink-0"
       style={{
         borderColor: 'var(--color-ink)',
-        // 玻璃拟态内联实现（不复用 glass-header：它带 position:sticky + top:0，
-        // 与 fixed bottom-0 叠加会把 nav 拉成全屏高，半透明背景盖住整页 → 白屏）
         background: 'rgba(255,251,240,0.92)',
         backdropFilter: 'blur(20px) saturate(180%)',
         WebkitBackdropFilter: 'blur(20px) saturate(180%)',
@@ -36,19 +46,19 @@ export default function TabBar({ activeView, onChange }) {
               type="button"
               onClick={() => onChange(tab.id)}
               aria-current={active ? 'page' : undefined}
-              className={`flex-1 flex flex-col items-center gap-0.5 py-2.5 transition-all ${
-                active ? 'text-primary' : 'text-text-secondary hover:text-text'
-              }`}
+              className={`flex-1 flex flex-col items-center gap-0.5 transition-all ${
+                isNarrow ? 'py-1.5' : 'py-2.5'
+              } ${active ? 'text-primary' : 'text-text-secondary hover:text-text'}`}
               style={{ fontFamily: 'var(--font-display)' }}
             >
               <span
-                className={`flex items-center justify-center w-10 h-8 rounded-xl transition-all ${
-                  active ? 'bg-primary/12 scale-105' : ''
-                }`}
+                className={`flex items-center justify-center rounded-xl transition-all ${
+                  isNarrow ? 'w-8 h-6' : 'w-10 h-8'
+                } ${active ? 'bg-primary/12 scale-105' : ''}`}
               >
-                <Icon className="w-5 h-5" />
+                <Icon className={isNarrow ? 'w-4 h-4' : 'w-5 h-5'} />
               </span>
-              <span className={`text-[11px] leading-none ${active ? 'font-extrabold' : 'font-bold'}`}>
+              <span className={`leading-none ${active ? 'font-extrabold' : 'font-bold'} ${isNarrow ? 'text-[10px]' : 'text-[11px]'}`}>
                 {tab.label}
               </span>
             </button>

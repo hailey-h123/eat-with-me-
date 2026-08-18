@@ -4,6 +4,8 @@
  * Style: rounded, friendly, Apple-inspired with consistent 24px viewBox.
  */
 
+import { IconMapPin, IconUtensils } from './FancyIcons';
+
 const IconBase = ({ children, size = 24, className = '', ...props }) => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
@@ -595,6 +597,66 @@ export function IconIdea({ size, className, ...props }) {
   );
 }
 
+// Replaces 🥟 (dumpling)
+export function IconDumpling({ size, className, ...props }) {
+  return (
+    <IconBase size={size} className={className} {...props}>
+      <path d="M12 3c-4 0-8 3-8 7 0 2.5 1.5 4.5 4 5.5l.8 3.5h6.4l.8-3.5c2.5-1 4-3 4-5.5 0-4-4-7-8-7z" />
+      <path d="M6 8l2 1M12 7v2M18 8l-2 1" />
+    </IconBase>
+  );
+}
+
+// Replaces 🧋 (bubble tea)
+export function IconBubbleTea({ size, className, ...props }) {
+  return (
+    <IconBase size={size} className={className} {...props}>
+      <path d="M7 5h10l-1.5 14a2 2 0 0 1-2 1.5h-5a2 2 0 0 1-2-1.5L5 5h2z" />
+      <path d="M14 5V3a1 1 0 0 1 1-1h1" />
+      <circle cx="9.5" cy="12" r="1" fill="currentColor" stroke="none" />
+      <circle cx="14.5" cy="15" r="1" fill="currentColor" stroke="none" />
+      <circle cx="12" cy="10" r="1" fill="currentColor" stroke="none" />
+    </IconBase>
+  );
+}
+
+// Replaces 😊 (smile avatar)
+export function IconSmileFace({ size, className, ...props }) {
+  return (
+    <IconBase size={size} className={className} {...props}>
+      <circle cx="12" cy="12" r="9" />
+      <circle cx="9" cy="10" r="1.2" fill="currentColor" stroke="none" />
+      <circle cx="15" cy="10" r="1.2" fill="currentColor" stroke="none" />
+      <path d="M8.5 14.5c1.2 1.2 3.8 1.2 5 0" />
+    </IconBase>
+  );
+}
+
+// Replaces 😋 (yum avatar)
+export function IconYumFace({ size, className, ...props }) {
+  return (
+    <IconBase size={size} className={className} {...props}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M8 10c.5.5 1.5.5 2 0" />
+      <path d="M14 10c.5.5 1.5.5 2 0" />
+      <path d="M9 14c1 1.5 5 1.5 6 0" />
+      <path d="M10.5 15.5c.5.5 1.5.5 2 0" />
+    </IconBase>
+  );
+}
+
+// Replaces 🤩 (star-eyes avatar)
+export function IconStarEyes({ size, className, ...props }) {
+  return (
+    <IconBase size={size} className={className} {...props}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M7 9.5l.6 1.4 1.4.6-1.4.6-.6 1.4-.6-1.4-1.4-.6 1.4-.6.6-1.4z" fill="currentColor" stroke="none" />
+      <path d="M17 9.5l.6 1.4 1.4.6-1.4.6-.6 1.4-.6-1.4-1.4-.6 1.4-.6.6-1.4z" fill="currentColor" stroke="none" />
+      <path d="M8.5 15c1.2 1.2 3.8 1.2 5 0" />
+    </IconBase>
+  );
+}
+
 // Convenience map: emoji → component
 export const EMOJI_ICON_MAP = {
   '🎯': IconTarget,
@@ -626,6 +688,13 @@ export const EMOJI_ICON_MAP = {
   '🌟': IconSparkle,
   '✨': IconSparkles,
   '💡': IconIdea,
+  '🥟': IconDumpling,
+  '🧋': IconBubbleTea,
+  '🍽️': IconUtensils,
+  '📍': IconMapPin,
+  '😊': IconSmileFace,
+  '😋': IconYumFace,
+  '🤩': IconStarEyes,
 };
 
 /**
