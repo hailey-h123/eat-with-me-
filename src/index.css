@@ -78,6 +78,9 @@
 }
 
 /* App 外壳锁：html + body 双层锁死。
+   - overflow: clip 是终极锁（hidden 仍会创建滚动容器，macOS 触控板在
+     Chrome/Safari 上仍能划出弹性回弹；clip 完全不创建滚动容器，无可回弹），
+     hidden 行作为不支持 clip 的老浏览器回退
    - iOS Safari 无视 body 的 overflow:hidden，必须 position:fixed 硬锁
    - overscroll-behavior:none 断掉滚动链（内滚区到头时不再传给页面，
      否则真机上整页仍可被拖动/触发下拉刷新——headless 桌面测不出这种行为）
@@ -85,6 +88,7 @@
 html {
   height: 100%;
   overflow: hidden;
+  overflow: clip;
   overscroll-behavior: none;
 }
 
@@ -101,6 +105,7 @@ body {
   height: 100dvh;
   color: #2A2520;
   overflow: hidden;
+  overflow: clip;
   overscroll-behavior: none;
   /* iOS 硬锁：body 脱离文档流钉在视口上，彻底不可拖 */
   position: fixed;
