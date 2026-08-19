@@ -160,6 +160,14 @@ function sleep(ms) {
 let lastCallTime = 0;
 const MIN_CALL_INTERVAL = 350; // ms，全局节流间隔（高德免费版 QPS≈3，留安全余量）
 
+// 日配额超限状态（10044 USER_DAILY_QUERY_OVER_LIMIT）：
+// 一旦触发当日所有真实搜索都会失败，搜索类接口回退演示数据并对外暴露状态供 UI 提示。
+// 配额每日 0 点重置，刷新页面即恢复真实模式。
+let quotaExceeded = false;
+export function isQuotaExceeded() {
+  return quotaExceeded;
+}
+
 async function callAmapWithRetry(url, params, maxRetries = 3) {
   // 全局节流：多菜系/拆词场景短时间大量请求会触发高德 QPS 限流(10021)，这里强制拉开间隔
   const now = Date.now();
@@ -173,6 +181,11 @@ async function callAmapWithRetry(url, params, maxRetries = 3) {
       return await jsonp(url, params);
     } catch (err) {
       lastError = err;
+      if (err.infocode === '10044') {
+        // 日配额超限：重试无意义，记录状态后立即上抛（调用方决定是否回退演示数据）
+        quotaExceeded = true;
+        throw err;
+      }
       if (err.infocode === '10021') {
         // QPS超限：指数退避 200ms → 400ms → 800ms
         const delay = 200 * Math.pow(2, attempt);
@@ -249,6 +262,10 @@ async function searchPOIOnce(keyword, location, radius = 3000, minRadius = 0, ma
     return [];
   } catch (error) {
     console.error('[amapService] POI 搜索失败:', error);
+    // 日配额超限：回退演示数据（与无 Key 模式同路径），让 feed/推荐继续可用
+    if (error.infocode === '10044') {
+      return mockSearch(keyword, location, radius);
+    }
     return null;
   }
 }
@@ -288,6 +305,10 @@ export async function searchPOIByCategory(categories, location, radius = 5000, p
     return [];
   } catch (error) {
     console.error('[amapService] 类别 POI 搜索失败:', error);
+    // 日配额超限：回退演示数据（与无 Key 模式同路径）
+    if (error.infocode === '10044') {
+      return mockSearch('餐厅', location, radius);
+    }
     return null;
   }
 }

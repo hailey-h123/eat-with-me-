@@ -6,7 +6,7 @@ import {
 } from './icons/FancyIcons';
 import { EmojiToIcon } from './icons/FoodIcons';
 import { getTimeSlot } from '../services/recommendationService';
-import { searchPOI, IS_MOCK_MODE } from '../services/amapService';
+import { searchPOI, IS_MOCK_MODE, isQuotaExceeded } from '../services/amapService';
 import { getAvatar } from '../services/profileService';
 
 const getTimeConfig = () => ({
@@ -309,7 +309,7 @@ export default function HomeView({
           </div>
         ) : feedItems.length === 0 ? (
           <div className={`flat-card text-center text-text-muted ${isNarrow ? 'p-3 text-[11px]' : 'p-6 text-sm'}`}>
-            附近暂无推荐，试试重新定位
+            {isQuotaExceeded() ? '今日高德查询额度已用完，明日自动恢复' : '附近暂无推荐，试试重新定位'}
           </div>
         ) : (
           <>

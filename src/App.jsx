@@ -16,7 +16,7 @@ import { useLocation } from './hooks/useLocation';
 import { addLike, addDislike, removeLike, removeDislike, makeProfileFingerprint } from './services/feedbackService';
 import { parseIntent, mergeMemberIntentsWithLLM, parseSoloIntentWithLLM } from './services/llmService';
 import { recommendRestaurants, randomExplore, recommendByMode, drawFortuneCard, analyzeEmptyResult, getSearchRadiusFromIntent } from './services/recommendationService';
-import { geocode, IS_MOCK_MODE } from './services/amapService';
+import { geocode, IS_MOCK_MODE, isQuotaExceeded } from './services/amapService';
 import { calculateSingleScore, calculateSoloFriendly } from './services/scoringService';
 import { addSearchHistory, incrementDecisionCount } from './services/historyService';
 import {
@@ -132,6 +132,16 @@ function App() {
 
   // TabBar 显示规则：主 Tab + 输入页显示；结果页/投票页沉浸隐藏
   const showTabBar = ['home', 'footprint', 'profile', 'solo-input', 'group-input'].includes(currentView);
+
+  // 高德日配额超限状态（10044，模块级标记）：轮询同步到 React 状态以驱动演示横幅。
+  // 标志每日至多翻转一次，1s 轮询开销可忽略。
+  const [quotaExceeded, setQuotaExceeded] = useState(() => isQuotaExceeded());
+  useEffect(() => {
+    const timer = setInterval(() => {
+      if (isQuotaExceeded() !== quotaExceeded) setQuotaExceeded(isQuotaExceeded());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [quotaExceeded]);
 
   // Tab 切换：只切 view，不清理输入态（lastSoloText/lastMembers 等 state 保留）
   const handleTabChange = (tab) => {
@@ -581,21 +591,27 @@ function App() {
       <div className="flex-shrink-0">
         <LocationBar location={location} isLocating={isLocating} error={error} debugInfo={debugInfo} onLocationChange={handleLocationChange} onRetry={retryLocate} />
       </div>
-      {IS_MOCK_MODE && (
+      {(IS_MOCK_MODE || quotaExceeded) && (
         <div className="bg-amber-50 border-b border-amber-200 px-4 py-1.5 text-center flex-shrink-0">
-          <p className="text-[11px] text-amber-800 flex items-center justify-center gap-1.5">
-            <IconTarget className="w-3 h-3" /> <strong>演示模式</strong> · 模拟数据
-            <span className="ml-1 text-amber-600">
-              （
-              <button
-                onClick={() => alert('1. 访问 https://console.amap.com/dev/key/app\n2. 创建「Web端(JS API)」应用\n3. 创建「Web服务」应用\n4. 复制 .env.example 为 .env 并填入 Key')}
-                className="underline hover:text-amber-900"
-              >
-                如何配置
-              </button>
-              ）
-            </span>
-          </p>
+          {quotaExceeded && !IS_MOCK_MODE ? (
+            <p className="text-[11px] text-amber-800 flex items-center justify-center gap-1.5">
+              <IconTarget className="w-3 h-3" /> <strong>高德今日查询额度已用完</strong> · 暂用演示数据，明日自动恢复
+            </p>
+          ) : (
+            <p className="text-[11px] text-amber-800 flex items-center justify-center gap-1.5">
+              <IconTarget className="w-3 h-3" /> <strong>演示模式</strong> · 模拟数据
+              <span className="ml-1 text-amber-600">
+                （
+                <button
+                  onClick={() => alert('1. 访问 https://console.amap.com/dev/key/app\n2. 创建「Web端(JS API)」应用\n3. 创建「Web服务」应用\n4. 复制 .env.example 为 .env 并填入 Key')}
+                  className="underline hover:text-amber-900"
+                >
+                  如何配置
+                </button>
+                ）
+              </span>
+            </p>
+          )}
         </div>
       )}
       {currentView === 'home' && (
