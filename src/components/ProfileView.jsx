@@ -34,7 +34,7 @@ export default function ProfileView({ location, onOpenFootprint }) {
     return computeBadges({ favorites, visited, decisionCount, groupCount, soloCount });
   }, [favorites, visited, searchHistory, decisionCount]);
 
-  const recentDecisions = visited.slice(0, 3);
+  const recentDecisions = visited.slice(0, 2);
 
   const handleClearData = () => {
     if (!window.confirm('确定清除所有本地数据吗？（收藏/去过/搜索历史/等级进度将全部清空，无法恢复）')) return;
@@ -59,157 +59,112 @@ export default function ProfileView({ location, onOpenFootprint }) {
 
   return (
     <div className="max-w-lg mx-auto px-4 sm:px-6 h-full flex flex-col min-h-0">
-      <div className="flex-1 min-h-0 overflow-y-auto space-y-5 pb-4">
+      <div className="flex-1 min-h-0 overflow-y-auto space-y-3 pb-3">
       {/* 1. 用户等级卡 */}
       <div
-        className="relative overflow-hidden rounded-2xl p-6 border-2 shadow-[4px_4px_0_var(--color-ink)] text-center"
+        className="relative overflow-hidden rounded-2xl p-4 border-2 shadow-[3px_3px_0_var(--color-ink)] text-center"
         style={{ borderColor: 'var(--color-ink)', background: 'linear-gradient(135deg, #FFF5D6 0%, #FFFBF0 60%, #FFEAB3 100%)' }}
       >
-        <div className="flex justify-center mb-2">
-          <EmojiToIcon emoji={avatar} size={56} className="text-primary" />
+        <div className="flex justify-center items-center gap-2 mb-1.5">
+          <EmojiToIcon emoji={avatar} size={36} className="text-primary" />
+          <h3 className="text-lg font-extrabold text-text" style={{ fontFamily: 'var(--font-display)' }}>
+            美食{level.title} · Lv.{level.level}
+          </h3>
         </div>
-        <h3 className="text-xl font-extrabold text-text mb-1" style={{ fontFamily: 'var(--font-display)' }}>
-          美食{level.title} · Lv.{level.level}
-        </h3>
-        <p className="text-sm text-text-secondary mb-3" style={{ fontFamily: 'var(--font-display)' }}>
-          决定过 {level.current} 次吃什么{location?.name ? ` · ${location.name}` : ''}
-        </p>
-        {/* 进度条 */}
+        {/* 进度条（说明行同时承载"决定过 N 次"信息） */}
         <div className="max-w-xs mx-auto">
-          <div className="h-3 rounded-full bg-white/70 border-2 overflow-hidden" style={{ borderColor: 'var(--color-ink)' }}>
+          <div className="h-2.5 rounded-full bg-white/70 border-2 overflow-hidden" style={{ borderColor: 'var(--color-ink)' }}>
             <div
               className="h-full rounded-full transition-all duration-500"
               style={{ width: `${Math.max(4, level.progress * 100)}%`, background: 'linear-gradient(90deg, var(--color-primary), var(--color-accent))' }}
             />
           </div>
-          <p className="text-xs text-text-secondary mt-1.5 font-bold" style={{ fontFamily: 'var(--font-display)' }}>
+          <p className="text-[11px] text-text-secondary mt-1 font-bold" style={{ fontFamily: 'var(--font-display)' }}>
             {level.isMax
-              ? '已满级，继续保持！'
-              : `${level.current} / ${level.nextThreshold} 次 → 升级 Lv.${level.level + 1} ${computeLevel(level.nextThreshold).title}`}
+              ? `已决定 ${level.current} 次 · 满级继续保持！`
+              : `已决定 ${level.current} 次 · 还差 ${level.nextThreshold - level.current} 次升级 ${computeLevel(level.nextThreshold).title}`}
           </p>
         </div>
       </div>
 
-      {/* 2. 口味偏好标签云 */}
-      <section className="fancy-card p-5">
-        <div className="flex items-center justify-between mb-3">
-          <h4 className="text-sm font-extrabold text-text flex items-center gap-1.5" style={{ fontFamily: 'var(--font-display)' }}>
-            <IconSparkles className="w-4 h-4 text-primary" /> 我的口味偏好
+      {/* 2+3. 口味偏好 & 最近的决定：2 列并排（一屏化） */}
+      <div className="grid grid-cols-2 gap-3">
+        <section className="fancy-card p-3">
+          <h4 className="text-xs font-extrabold text-text flex items-center gap-1 mb-2" style={{ fontFamily: 'var(--font-display)' }}>
+            <IconSparkles className="w-3.5 h-3.5 text-primary" /> 口味偏好
           </h4>
-          <button type="button" className="text-xs text-primary font-bold flex items-center gap-1 hover:underline" style={{ fontFamily: 'var(--font-display)' }}>
-            <IconEdit2 className="w-3 h-3" /> 修改
-          </button>
-        </div>
-        {tasteTags.length === 0 ? (
-          <p className="text-xs text-text-muted">
-            继续使用后，AI 会根据你的收藏/搜索自动生成口味画像
-          </p>
-        ) : (
-          <div className="flex flex-wrap gap-2">
-            {tasteTags.map((tag, i) => (
-              <span
-                key={`${tag.label}-${i}`}
-                className="px-3 py-1 rounded-full text-xs font-bold bg-white border-2 text-text-secondary"
-                style={{ borderColor: 'var(--color-ink)' }}
-              >
-                {tag.label}
-              </span>
-            ))}
+          {tasteTags.length === 0 ? (
+            <p className="text-[10px] text-text-muted leading-relaxed">继续使用后 AI 自动生成口味画像</p>
+          ) : (
+            <div className="flex flex-wrap gap-1.5">
+              {tasteTags.slice(0, 4).map((tag, i) => (
+                <span key={`${tag.label}-${i}`} className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-white border text-text-secondary" style={{ borderColor: 'var(--color-ink)' }}>
+                  {tag.label}
+                </span>
+              ))}
+            </div>
+          )}
+        </section>
+        <section className="fancy-card p-3">
+          <div className="flex items-center justify-between mb-2">
+            <h4 className="text-xs font-extrabold text-text" style={{ fontFamily: 'var(--font-display)' }}>最近决定</h4>
+            <button type="button" onClick={onOpenFootprint} className="text-[10px] text-primary font-bold flex items-center" style={{ fontFamily: 'var(--font-display)' }}>
+              全部 <IconChevronRight className="w-2.5 h-2.5" />
+            </button>
           </div>
-        )}
-        <p className="text-[10px] text-text-muted mt-2.5">AI 根据收藏/搜索自动生成</p>
-      </section>
-
-      {/* 3. 最近的决定时间线 */}
-      <section className="fancy-card p-5">
-        <div className="flex items-center justify-between mb-3">
-          <h4 className="text-sm font-extrabold text-text" style={{ fontFamily: 'var(--font-display)' }}>最近的决定</h4>
-          <button
-            type="button"
-            onClick={onOpenFootprint}
-            className="text-xs text-primary font-bold flex items-center gap-0.5 hover:underline"
-            style={{ fontFamily: 'var(--font-display)' }}
-          >
-            全部 <IconChevronRight className="w-3 h-3" />
-          </button>
-        </div>
-        {recentDecisions.length === 0 ? (
-          <p className="text-xs text-text-muted">标记「去过」的餐厅会出现在这里</p>
-        ) : (
-          <div className="space-y-2.5">
-            {recentDecisions.map(r => {
-              const MoodIcon = r.mood === 'great' ? IconSmile : r.mood === 'ok' ? IconMeh : r.mood === 'bad' ? IconFrown : null;
-              const cuisineEmoji = r.cuisine?.includes('火锅') ? '🍲' : r.cuisine?.includes('川') ? '🌶️' : r.cuisine?.includes('日') ? '🍣' : '🍽️';
-              return (
-                <div key={r.id} className="flex items-center gap-3">
-                  <span className="w-8 h-8 rounded-full bg-bg-soft border-2 flex items-center justify-center text-sm flex-shrink-0" style={{ borderColor: 'var(--color-ink)' }}>
-                    <EmojiToIcon emoji={cuisineEmoji} size={18} />
-                  </span>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-bold text-text truncate" style={{ fontFamily: 'var(--font-display)' }}>{r.name}</p>
-                    <p className="text-xs text-text-muted">{formatTime(r.timestamp)} · {r.cuisine || '美食'}</p>
+          {recentDecisions.length === 0 ? (
+            <p className="text-[10px] text-text-muted leading-relaxed">标记「去过」的餐厅会出现在这里</p>
+          ) : (
+            <div className="space-y-1.5">
+              {recentDecisions.slice(0, 2).map(r => {
+                const MoodIcon = r.mood === 'great' ? IconSmile : r.mood === 'ok' ? IconMeh : r.mood === 'bad' ? IconFrown : null;
+                return (
+                  <div key={r.id} className="flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: r.mood === 'bad' ? '#E8552A' : 'var(--color-secondary)' }} />
+                    <p className="text-[11px] text-text truncate flex-1">{r.name}</p>
+                    {MoodIcon && <MoodIcon className="w-3.5 h-3.5 text-primary flex-shrink-0" />}
                   </div>
-                  <span className="text-lg" aria-label="感受">
-                    {MoodIcon ? <MoodIcon className="w-5 h-5 text-primary" /> : <EmojiToIcon emoji="🍽️" size={20} />}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </section>
+                );
+              })}
+            </div>
+          )}
+        </section>
+      </div>
 
-      {/* 4. 成就徽章 */}
-      <section className="fancy-card p-5">
-        <h4 className="text-sm font-extrabold text-text mb-3" style={{ fontFamily: 'var(--font-display)' }}>成就徽章</h4>
-        <div className="grid grid-cols-4 gap-3">
+      {/* 4. 成就徽章：单行 4 格（一屏化，去掉占位格） */}
+      <section className="fancy-card p-3">
+        <h4 className="text-xs font-extrabold text-text mb-2" style={{ fontFamily: 'var(--font-display)' }}>成就徽章</h4>
+        <div className="grid grid-cols-4 gap-2">
           {badges.map(badge => (
-            <div
-              key={badge.id}
-              className={`text-center p-2 rounded-xl border-2 transition-all ${badge.unlocked ? 'bg-white' : 'bg-bg-soft opacity-50'}`}
+            <div key={badge.id}
+              className={`flex flex-col items-center gap-1 py-1.5 rounded-lg border ${badge.unlocked ? 'bg-white' : 'bg-bg-soft opacity-50'}`}
               style={{ borderColor: 'var(--color-ink)' }}
-              title={badge.desc}
-            >
-              <div className="flex justify-center mb-1">
-                {badge.id === 'decade' && <IconTarget className="w-7 h-7 text-primary" />}
-                {badge.id === 'spicy' && <IconChili className="w-7 h-7" />}
-                {badge.id === 'organizer' && <IconUsers className="w-7 h-7 text-secondary" />}
-                {badge.id === 'solo' && <IconSolo className="w-7 h-7 text-primary" />}
+              title={badge.desc}>
+              <div className="flex items-center gap-1">
+                {badge.id === 'decade' && <IconTarget className="w-5 h-5 text-primary" />}
+                {badge.id === 'spicy' && <IconChili className="w-5 h-5" />}
+                {badge.id === 'organizer' && <IconUsers className="w-5 h-5 text-secondary" />}
+                {badge.id === 'solo' && <IconSolo className="w-5 h-5 text-primary" />}
               </div>
-              <p className="text-[10px] font-extrabold text-text leading-tight" style={{ fontFamily: 'var(--font-display)' }}>{badge.label}</p>
-              <p className={`text-[9px] mt-0.5 leading-tight ${badge.unlocked ? 'text-secondary font-bold' : 'text-text-muted'}`}>
-                {badge.unlocked ? '已解锁' : '未解锁'}
-              </p>
+              <p className="text-[9px] font-extrabold text-text leading-none text-center" style={{ fontFamily: 'var(--font-display)' }}>{badge.label}</p>
             </div>
           ))}
-          {/* 预留占位徽章 */}
-          <div className="text-center p-2 rounded-xl border-2 border-dashed bg-bg-soft/50 opacity-40" style={{ borderColor: 'var(--color-ink)' }}>
-            <div className="flex justify-center mb-1">
-              <IconTrophy className="w-7 h-7 text-text-muted" />
-            </div>
-            <p className="text-[10px] font-extrabold text-text leading-tight" style={{ fontFamily: 'var(--font-display)' }}>敬请期待</p>
-          </div>
         </div>
       </section>
 
-      {/* 5. 设置项 */}
-      <section className="fancy-card p-2">
-        <button type="button" className="w-full flex items-center justify-between px-4 py-3 text-sm text-text hover:bg-bg-soft rounded-xl transition-colors" style={{ fontFamily: 'var(--font-display)' }}>
-          <span className="flex items-center gap-2"><IconComment className="w-4 h-4" /> 联系我们</span>
-          <IconChevronRight className="w-4 h-4 text-text-muted" />
+      {/* 5. 设置项：横排（一屏化） */}
+      <section className="fancy-card p-2 flex items-stretch gap-2">
+        <button type="button" className="flex-1 flex flex-col items-center gap-1 py-2 rounded-xl hover:bg-bg-soft transition-colors text-text" style={{ fontFamily: 'var(--font-display)' }}>
+          <IconComment className="w-4 h-4" />
+          <span className="text-[10px] font-bold">联系我们</span>
         </button>
-        <button
-          type="button"
-          onClick={handleClearData}
-          className="w-full flex items-center justify-between px-4 py-3 text-sm text-error hover:bg-bg-soft rounded-xl transition-colors"
-          style={{ fontFamily: 'var(--font-display)' }}
-        >
-          <span className="flex items-center gap-2"><IconTrash2 className="w-4 h-4" /> 清除本地数据</span>
-          <IconChevronRight className="w-4 h-4 text-error/60" />
+        <button type="button" onClick={handleClearData} className="flex-1 flex flex-col items-center gap-1 py-2 rounded-xl hover:bg-bg-soft transition-colors text-error" style={{ fontFamily: 'var(--font-display)' }}>
+          <IconTrash2 className="w-4 h-4" />
+          <span className="text-[10px] font-bold">清除数据</span>
         </button>
-        <button type="button" className="w-full flex items-center justify-between px-4 py-3 text-sm text-text hover:bg-bg-soft rounded-xl transition-colors" style={{ fontFamily: 'var(--font-display)' }}>
-          <span className="flex items-center gap-2"><IconInfo className="w-4 h-4" /> 关于吃什么</span>
-          <IconChevronRight className="w-4 h-4 text-text-muted" />
+        <button type="button" className="flex-1 flex flex-col items-center gap-1 py-2 rounded-xl hover:bg-bg-soft transition-colors text-text" style={{ fontFamily: 'var(--font-display)' }}>
+          <IconInfo className="w-4 h-4" />
+          <span className="text-[10px] font-bold">关于</span>
         </button>
       </section>
       </div>

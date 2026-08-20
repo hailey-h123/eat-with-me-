@@ -619,22 +619,7 @@ main {
     box-shadow: 2px 2px 0 var(--color-ink) !important;
   }
 
-  /* 滚动条在移动端更细，减少视觉干扰 */
-  ::-webkit-scrollbar {
-    width: 4px;
-    height: 4px;
-  }
-  ::-webkit-scrollbar-track {
-    background: transparent;
-  }
-  ::-webkit-scrollbar-thumb {
-    border: none;
-    border-radius: 4px;
-    background: rgba(255, 107, 61, 0.35);
-  }
-  ::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 107, 61, 0.55);
-  }
+  /* 原生 app 观感：滚动条永不可见（滚动功能保留，见文件末尾全局规则） */
 }
 
 /* ================ 超窄屏（<380px）极限压缩 ================ */
@@ -645,22 +630,17 @@ main {
   }
 }
 
+/* 原生 app 观感：滚动条全局永不可见。
+   之前 8px 橙色滑块样式让每个内滚容器都顶着一个显眼滚动条（桌面也生效），
+   与 app 的预期完全不符；列表/feed 仍可滚动，只是不露出滑块。 */
+* {
+  scrollbar-width: none;           /* Firefox */
+  -ms-overflow-style: none;        /* 旧 Edge */
+}
 ::-webkit-scrollbar {
-  width: 8px;
-}
-
-::-webkit-scrollbar-track {
-  background: #FFF4DE;
-}
-
-::-webkit-scrollbar-thumb {
-  background: var(--color-primary);
-  border: 2px solid #FFF4DE;
-  border-radius: 8px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: var(--color-primary-dark);
+  width: 0;
+  height: 0;
+  display: none;                   /* Chrome / Safari / 新 Edge */
 }
 
 input:focus, textarea:focus {
