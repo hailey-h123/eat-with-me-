@@ -27,6 +27,36 @@ import {
 const LAST_MODE_KEY = 'eatwithme_last_mode';
 const CURRENT_VIEW_KEY = 'eatwithme_current_view';
 
+// 🩺 高德安全配置前端自检：浏览器控制台输入 __AMAP_SELFTEST__ 直接查看注入状态（不打印明文 Key）
+try {
+  const appCfg = window.APP_CONFIG || {};
+  const envKey = import.meta.env.VITE_AMAP_KEY;
+  const envWebKey = import.meta.env.VITE_AMAP_WEB_KEY;
+  const envSCode = import.meta.env.VITE_AMAP_SECURITY_CODE || import.meta.env.VITE_AMAP_WEB_SECURITY_CODE;
+  const jsKey = envKey || appCfg.AMAP_KEY || '';
+  const webKey = envWebKey || appCfg.AMAP_WEB_KEY || '';
+  const scode = envSCode || appCfg.AMAP_SECURITY_CODE || appCfg.AMAP_WEB_SECURITY_CODE || '';
+  // 提前注入：不用等 useLocation.js 的定位流程，页面一打开就把安全密钥挂上。
+  // 高德要求：必须在 <script src="https://webapi.amap.com/maps?..."> 被 append 之前设置，
+  // 这里是 App 入口，比任何地图加载都早，useLocation.js 里后续检测到已存在就不会覆盖。
+  if (scode) {
+    window._AMapSecurityConfig = window._AMapSecurityConfig || {};
+    if (!window._AMapSecurityConfig.securityJsCode) window._AMapSecurityConfig.securityJsCode = scode;
+  }
+  const mask = s => s ? `${s.slice(0,6)}...${s.slice(-4)} (len=${s.length})` : '(空)';
+  window.__AMAP_SELFTEST__ = {
+    'Web端 JS Key (注入状态)': jsKey ? '✅ 已注入 (AMAP_KEY=' + mask(jsKey) + ')' : '❌ 未注入 —— 请检查 .env 或 public/config.js',
+    'Web服务 Key (注入状态)': webKey ? '✅ 已注入 (AMAP_WEB_KEY=' + mask(webKey) + ')' : '⚠️ 未注入 —— 将走 mock 模式',
+    '安全密钥 scode (注入状态)': scode ? '✅ 已注入 (SECURITY_CODE=' + mask(scode) + ')' : '❌ 未注入 —— 配了安全密钥的话会被 INVALID_USER_SCODE 拦',
+    'window._AMapSecurityConfig (JS API侧)': window._AMapSecurityConfig
+      ? ('✅ 已提前注入，securityJsCode = ' + mask(window._AMapSecurityConfig.securityJsCode || ''))
+      : '❌ 未注入 —— 如果 .env 有 VITE_AMAP_SECURITY_CODE 就不应该出现',
+    '当前页面 host (域名白名单要匹配它)': window.location.hostname,
+    'public/config.js 静态值': { AMAP_KEY: appCfg.AMAP_KEY ? '⚠️ 非空 = 静态文件泄露了 Key！应该是空字符串占位' : '✅ 空占位 = 正确', AMAP_WEB_KEY: appCfg.AMAP_WEB_KEY ? '⚠️ 非空 = 静态文件泄露了 Key！应该是空字符串占位' : '✅ 空占位 = 正确' },
+    '怎么看是否真的通过': '打开 F12 Network 过滤 restapi.amap.com / webapi.amap.com，看返回 infocode：10000=通过；10044(USER_DAILY_QUERY_OVER_LIMIT)=也是通过(只是额度用完)；10003=缺域名白名单；info含INVALID_USER_SCODE=缺scode',
+  };
+} catch (_) { /* noop */ }
+
 // ErrorBoundary: 捕获新 Tab 页面的渲染错误，显示调试信息而不是白屏
 class TabErrorBoundary extends React.Component {
   constructor(props) {

@@ -4,7 +4,20 @@ import { regeocode, geocode, getIPLocation } from '../services/amapService';
 
 const appConfig = window.APP_CONFIG || {};
 const AMAP_KEY = import.meta.env.VITE_AMAP_KEY || appConfig.AMAP_KEY || '';
+const AMAP_SECURITY_CODE = import.meta.env.VITE_AMAP_SECURITY_CODE || appConfig.AMAP_SECURITY_CODE || '';
 const GLOBAL_TIMEOUT = 15000;
+
+// 高德 JS API 安全密钥（安全密钥 Jscode）：必须在加载 <script src="webapi.amap.com/maps?..."> 之前设置，
+// 否则后续接口会返回 INVALID_USER_SCODE 权限错误。
+// 参考：https://lbs.amap.com/api/javascript-api/guide/abc/prepare
+function ensureAmapSecurityConfig() {
+  if (!AMAP_SECURITY_CODE) return;
+  if (window._AMapSecurityConfig) {
+    if (!window._AMapSecurityConfig.securityJsCode) window._AMapSecurityConfig.securityJsCode = AMAP_SECURITY_CODE;
+    return;
+  }
+  window._AMapSecurityConfig = { securityJsCode: AMAP_SECURITY_CODE };
+}
 
 const ERROR_MESSAGES = {
   1: '定位权限被拒绝，请检查浏览器设置',
@@ -113,6 +126,9 @@ export function useLocation() {
       }, 8000);
 
       const scriptUrl = `https://webapi.amap.com/maps?v=2.0&key=${AMAP_KEY}&plugin=AMap.Geolocation`;
+
+      // 安全密钥必须在 script 加载前注入（同域名白名单联动，二者任一没配对都会被 10044/INVALID_USER_SCODE 拒）
+      ensureAmapSecurityConfig();
 
       if (window.AMap) {
         addDebug('高德地图已加载，开始定位');

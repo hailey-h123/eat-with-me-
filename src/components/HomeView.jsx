@@ -63,6 +63,48 @@ const GENERIC_CUISINES = new Set([
   '饮品店', '茶艺馆', '酒吧', '冷饮店', '糕饼店', '面包店', '烘焙甜品',
 ]);
 
+// Detect if running on a real mobile device (not just narrow window)
+const isRealMobileDevice = () => {
+  if (typeof navigator === 'undefined') return false;
+  const ua = navigator.userAgent;
+  // Check for mobile OS indicators
+  if (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|Silk/i.test(ua)) {
+    // iPad can sometimes report as desktop in some modes
+    // Also check screen size as a secondary signal
+    if (typeof window !== 'undefined' && window.innerWidth <= 1024) {
+      return true;
+    }
+    // iPhone/Android are always mobile regardless
+    if (/iPhone|iPod|Android/i.test(ua)) return true;
+  }
+  return false;
+};
+
+// viewport scale: 0 at mobile, 1 at desktop
+// For real mobile devices, force aggressive scaling
+const calcVScale = () => {
+  if (typeof window === 'undefined') return 1;
+
+  // If it's a real mobile device, force low scale for smaller UI
+  if (isRealMobileDevice()) {
+    // Use matchMedia to check actual CSS viewport
+    const isNarrow = window.matchMedia('(max-width: 520px)').matches;
+    if (isNarrow) {
+      // True small screen (phone)
+      return 0.35;
+    }
+    // Tablet or large phone
+    return 0.55;
+  }
+
+  // Desktop / responsive window mode
+  const w = window.innerWidth;
+  return Math.max(0.2, Math.min(1, (w - 320) / 480));
+};
+
+// Linear interpolate between min and max based on vscale
+const lerp = (min, max, scale) => min + (max - min) * scale;
+
 export default function HomeView({
   onSelectMood,
   onSelectExplore,
@@ -76,6 +118,29 @@ export default function HomeView({
   const config = getTimeConfig()[timeSlot] || getTimeConfig().lunch;
 
   const [avatar] = useState(() => getAvatar());
+
+  const [vscale, setVscale] = useState(() => {
+    if (typeof window === 'undefined') return 1;
+    const w = window.innerWidth;
+    const s = calcVScale();
+    console.log('[HomeView] calcVScale:', { width: w, vscale: s, ua: navigator.userAgent.slice(0, 60) });
+    return s;
+  });
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const onResize = () => {
+      const w = window.innerWidth;
+      const s = calcVScale();
+      console.log('[HomeView] resize:', { width: w, vscale: s });
+      setVscale(s);
+    };
+    window.addEventListener('resize', onResize);
+    window.addEventListener('orientationchange', onResize);
+    return () => {
+      window.removeEventListener('resize', onResize);
+      window.removeEventListener('orientationchange', onResize);
+    };
+  }, []);
 
   // 附近 feed
   const [feedPool, setFeedPool] = useState([]);
@@ -102,17 +167,6 @@ export default function HomeView({
   }, [location?.lat, location?.lng, timeSlot]);
 
   const baseFeedSize = IS_MOCK_MODE ? MOCK_FEED_SIZE : FEED_PAGE_SIZE;
-  // 手机端一屏塞不下太多，默认 2 条；桌面端保持原来的 3~5 条
-  const [isNarrow, setIsNarrow] = useState(() => {
-    if (typeof window === 'undefined') return false;
-    return window.innerWidth < 640;
-  });
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const onResize = () => setIsNarrow(window.innerWidth < 640);
-    window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
-  }, []);
   const feedSize = baseFeedSize;
   const feedItems = feedPool.length > 0
     ? Array.from({ length: Math.min(feedSize, feedPool.length) }, (_, i) => feedPool[(feedOffset + i) % feedPool.length])
@@ -201,199 +255,244 @@ export default function HomeView({
     { key: 'fortune', emoji: '🔮', label: '今日运势', desc: '抽卡决定吃什么', onClick: onFortunePick, color: '#7c5cff' },
   ];
 
+  // Scale helper values
+  const heroPadding = lerp(10, 24, vscale);
+  const mascotSize = lerp(52, 84, vscale);
+  const bubbleFontSize = lerp(9, 12, vscale);
+  const mainTitleSize = lerp(22, 40, vscale);
+  const subTitleSize = lerp(11, 16, vscale);
+  const avatarSize = lerp(28, 40, vscale);
+  const gridIconSize = lerp(28, 44, vscale);
+  const gridTitleSize = lerp(9, 13, vscale);
+  const gridDescSize = lerp(7, 10, vscale);
+  const gridPadding = lerp(5, 14, vscale);
+
+  // Feed-specific scaling: DRAMATICALLY smaller for mobile
+  // Mobile: feedScale=0.20 → imgSize=16px, padding=4.4px (much smaller)
+  // Desktop: feedScale=1.0 → imgSize=48px, padding=14px
+  const feedScale = isRealMobileDevice() ? 0.20 : Math.pow(vscale, 1.5);
+  const feedLerp = (min, max) => lerp(min, max, feedScale);
+  const feedCardPadding = feedLerp(2, 14);
+  const feedImgSize = feedLerp(8, 48);
+  const feedNameSize = feedLerp(7, 14);
+  const feedMetaSize = feedLerp(5, 11);
+  const headerIconSize = lerp(10, 16, vscale);
+  const feedGap = feedLerp(2, 12);
+  const feedTagPaddingY = feedLerp(1, 2);
+  const feedTagPaddingX = feedLerp(2, 7);
+  const feedChevronSize = feedLerp(5, 12);
+  const feedStarSize = feedLerp(4, 10);
+  const feedRefreshIcon = feedLerp(7, 14);
+  const feedRefreshFont = feedLerp(7, 12);
+  const feedTitleFont = feedLerp(9, 14);
+  const feedTitleMb = feedLerp(2, 12);
+  const feedMetaIcon = feedLerp(5, 10);
+  const feedTagFont = feedLerp(5, 10);
+  const feedDemoFont = feedLerp(4, 11);
+  const feedDemoMargin = feedLerp(0, 8);
+
   return (
-    <div className={`relative h-full max-w-2xl mx-auto px-3 sm:px-6 pt-1 sm:pt-4 pb-2 flex flex-col min-h-0 ${isNarrow ? '' : ''}`}>
+    <div
+      className="relative h-full max-w-2xl mx-auto flex flex-col min-h-0"
+      style={{ paddingLeft: `${lerp(10, 24, vscale)}px`, paddingRight: `${lerp(10, 24, vscale)}px`, paddingTop: `${lerp(4, 16, vscale)}px`, paddingBottom: `${lerp(4, 16, vscale)}px` }}
+    >
+      {/* DEBUG: remove after diagnosis */}
+      <div style={{ position: 'fixed', top: 0, left: 0, right: 0, background: '#FF0000', color: 'white', zIndex: 99999, fontSize: '14px', padding: '4px 8px', fontWeight: 'bold' }}>
+        vscale={vscale.toFixed(3)} width={typeof window !== 'undefined' ? window.innerWidth : 'ssr'}
+      </div>
+      {/* END DEBUG */}
 
-      {/* ===== Hero 问候卡：吉祥物 + 头像入口 + 今天怎么吃主标题 ===== */}
+      {/* ===== Hero 问候卡：始终使用 fancy-card 保留黑色描边 ===== */}
       <div
-        className={`relative overflow-hidden mb-2 flex-shrink-0 ${isNarrow ? 'p-3' : 'p-5 sm:p-6 fancy-card'}`}
-        style={config.heroStyle}
+        className="relative overflow-hidden mb-2 flex-shrink-0 fancy-card"
+        style={{ ...config.heroStyle, padding: `${heroPadding}px` }}
       >
-        {!isNarrow && (
-          <>
-            <FoodDecor type="sparkle" size={14} className="pointer-events-none absolute top-3 left-4 opacity-60 float-animation" style={{ animationDelay: '0.5s' }} />
-            <FoodDecor type="heart" size={12} className="pointer-events-none absolute opacity-60 float-animation text-peach top-4 right-[60px]" style={{ animationDelay: '1.2s' }} />
-            <FoodDecor type="egg" size={14} className="pointer-events-none absolute bottom-3 right-4 opacity-40 float-animation" style={{ animationDelay: '0.4s' }} />
-          </>
-        )}
+        {/* 装饰元素：始终保留，等比缩放 */}
+        <FoodDecor type="sparkle" size={lerp(8, 14, vscale)} className="pointer-events-none absolute float-animation opacity-60" style={{ top: `${lerp(6, 12, vscale)}px`, left: `${lerp(10, 16, vscale)}px`, animationDelay: '0.5s' }} />
+        <FoodDecor type="heart" size={lerp(7, 12, vscale)} className="pointer-events-none absolute float-animation opacity-60 text-peach" style={{ top: `${lerp(8, 16, vscale)}px`, right: `${lerp(60, 80, vscale)}px`, animationDelay: '1.2s' }} />
+        <FoodDecor type="egg" size={lerp(8, 14, vscale)} className="pointer-events-none absolute float-animation opacity-40" style={{ bottom: `${lerp(6, 12, vscale)}px`, right: `${lerp(10, 16, vscale)}px`, animationDelay: '0.4s' }} />
 
-        {/* 头像入口：Hero卡内部右上角 */}
+        {/* 头像入口 */}
         <button
           type="button"
           onClick={onOpenProfile}
           aria-label="进入我的主页"
-          className={`absolute z-10 rounded-full bg-white border-2 flex items-center justify-center hover:scale-110 transition-transform shadow-[2px_2px_0_var(--color-ink)] ${isNarrow ? 'top-2 right-2 w-8 h-8 text-base' : 'top-3.5 right-3.5 sm:top-4 sm:right-4 w-10 h-10 text-xl'}`}
-          style={{ borderColor: 'var(--color-ink)' }}
+          className="absolute z-10 rounded-full bg-white border-2 flex items-center justify-center hover:scale-110 transition-transform shadow-[2px_2px_0_var(--color-ink)]"
+          style={{ borderColor: 'var(--color-ink)', top: `${lerp(6, 12, vscale)}px`, right: `${lerp(6, 12, vscale)}px`, width: `${avatarSize}px`, height: `${avatarSize}px`, fontSize: `${lerp(14, 18, vscale)}px` }}
         >
           {avatar}
         </button>
 
-        <div className={`relative flex flex-col items-center text-center ${isNarrow ? '' : 'pt-2'}`}>
-          <div className={`relative ${isNarrow ? 'mb-1' : 'mb-2'}`}>
-            <Mascot mood={config.mood} size={isNarrow ? 72 : 84} />
+        <div className="relative flex flex-col items-center text-center" style={{ paddingTop: `${lerp(4, 8, vscale)}px` }}>
+          <div className="relative" style={{ marginBottom: `${lerp(4, 8, vscale)}px` }}>
+            <Mascot mood={config.mood} size={mascotSize} />
             <div
-              className={`absolute bg-white border-2 border-ink rounded-2xl shadow-[3px_3px_0_var(--color-ink)] ${isNarrow ? '-top-1 -right-7 px-2 py-1' : '-top-2 -right-10 px-3 py-1.5'}`}
-              style={{ borderColor: 'var(--color-ink)' }}
+              className="absolute bg-white border-2 border-ink rounded-2xl shadow-[3px_3px_0_var(--color-ink)]"
+              style={{ borderColor: 'var(--color-ink)', top: `${lerp(-2, -4, vscale)}px`, right: `${lerp(-28, -40, vscale)}px`, padding: `${lerp(3, 5, vscale)}px ${lerp(6, 10, vscale)}px` }}
             >
-              <span className={`${isNarrow ? 'text-[10px]' : 'text-xs'} font-bold text-text`} style={{ fontFamily: 'var(--font-display)' }}>{config.bubble}</span>
-              <div className={`absolute bg-white border-r-2 border-b-2 rotate-45 ${isNarrow ? '-bottom-0.5 left-4 w-2.5 h-2.5' : '-bottom-1.5 left-5 w-3 h-3'}`} style={{ borderColor: 'var(--color-ink)' }} />
+              <span className="font-bold text-text" style={{ fontFamily: 'var(--font-display)', fontSize: `${bubbleFontSize}px` }}>{config.bubble}</span>
+              <div className="absolute bg-white border-r-2 border-b-2 rotate-45" style={{ borderColor: 'var(--color-ink)', bottom: `${lerp(-2, -4, vscale)}px`, left: `${lerp(8, 14, vscale)}px`, width: `${lerp(8, 12, vscale)}px`, height: `${lerp(8, 12, vscale)}px` }} />
             </div>
           </div>
 
-          {/* 主标题：今天怎么吃？ */}
           <h1
-            className={`font-extrabold leading-none ${isNarrow ? 'text-[24px] mt-1' : 'mb-1 text-[34px] sm:text-[40px]'}`}
-            style={{ fontFamily: 'var(--font-display)', color: 'var(--color-primary)' }}
+            className="font-extrabold leading-none"
+            style={{ fontFamily: 'var(--font-display)', color: 'var(--color-primary)', fontSize: `${mainTitleSize}px`, marginTop: `${lerp(4, 8, vscale)}px`, marginBottom: `${lerp(2, 4, vscale)}px` }}
           >
             今天怎么吃？
           </h1>
-          {/* 副标题：动态问候语 */}
-          <p className={`text-text-secondary font-bold ${isNarrow ? 'text-[11px] mt-0.5' : 'text-sm sm:text-base'}`} style={{ fontFamily: 'var(--font-display)' }}>
+          <p className="text-text-secondary font-bold" style={{ fontFamily: 'var(--font-display)', fontSize: `${subTitleSize}px`, marginTop: `${lerp(2, 4, vscale)}px` }}>
             {config.greeting}
           </p>
         </div>
       </div>
 
-      {/* ===== 快捷操作 4 列横向卡片（风格和 SoloInput 分类页一致，尺寸适配一行4个） ===== */}
-      <div className={`grid grid-cols-4 gap-1.5 mb-2 sm:mb-6 flex-shrink-0`}>
+      {/* ===== 4 宫格快捷入口 ===== */}
+      <div className="grid grid-cols-4 gap-1.5 flex-shrink-0" style={{ marginBottom: `${lerp(8, 24, vscale)}px` }}>
         {quickActions.map((action, i) => (
-          <button key={action.key} type="button" onClick={action.onClick}
-            className={`outline-card text-center flex flex-col items-center gap-1 sm:gap-2 slide-up hover:-translate-y-0.5 transition-transform ${isNarrow ? 'px-1 py-1.5' : 'p-3.5'}`}
-            style={{ animationDelay: `${i * 60}ms`, animationFillMode: 'both' }}>
+          <button
+            key={action.key}
+            type="button"
+            onClick={action.onClick}
+            className="outline-card text-center flex flex-col items-center slide-up hover:-translate-y-0.5 transition-transform"
+            style={{ animationDelay: `${i * 60}ms`, animationFillMode: 'both', padding: `${gridPadding}px`, gap: `${lerp(4, 8, vscale)}px` }}
+          >
             <div
-              className={`relative rounded-2xl border-2 border-ink flex items-center justify-center shadow-[2.5px_2.5px_0_var(--color-ink)] ${isNarrow ? 'w-8 h-8' : 'w-11 h-11'}`}
-              style={{ borderColor: 'var(--color-ink)', background: action.color }}
+              className="relative rounded-2xl border-2 border-ink flex items-center justify-center shadow-[2.5px_2.5px_0_var(--color-ink)] flex-shrink-0"
+              style={{ borderColor: 'var(--color-ink)', background: action.color, width: `${gridIconSize}px`, height: `${gridIconSize}px` }}
             >
-              <EmojiToIcon emoji={action.emoji} size={isNarrow ? 16 : 22} className="text-white" />
+              <EmojiToIcon emoji={action.emoji} size={lerp(16, 22, vscale)} className="text-white" />
             </div>
-            <span className={`font-extrabold text-text leading-tight ${isNarrow ? 'text-[10px]' : 'text-xs'}`} style={{ fontFamily: 'var(--font-display)' }}>{action.label}</span>
-            {!isNarrow && (
-              <span className="text-[10px] text-text-muted text-center leading-tight">{action.desc}</span>
-            )}
+            <span className="font-extrabold text-text leading-tight" style={{ fontFamily: 'var(--font-display)', fontSize: `${gridTitleSize}px` }}>{action.label}</span>
+            <span className="text-text-muted text-center leading-tight" style={{ fontSize: `${gridDescSize}px`, display: vscale > 0.15 ? 'block' : 'none' }}>{action.desc}</span>
           </button>
         ))}
       </div>
 
-      {/* ===== 附近餐厅 feed — 移动端占满剩余高度，内滚 ===== */}
+      {/* ===== 附近餐厅 feed ===== */}
       <section className="flex-1 min-h-0 flex flex-col">
-        <div className={`flex items-center justify-between flex-shrink-0 ${isNarrow ? 'mb-1.5' : 'mb-3'}`}>
-          <h3 className={`font-extrabold text-text flex items-center gap-1.5 ${isNarrow ? 'text-xs' : 'text-sm'}`} style={{ fontFamily: 'var(--font-display)' }}>
-            <IconMapPin className={`text-primary ${isNarrow ? 'w-3.5 h-3.5' : 'w-4 h-4'}`} /> 附近餐厅推荐
+        {/* FORCE DEBUG: show current feedScale */}
+        <div style={{ background: 'yellow', color: 'black', fontSize: '12px', padding: '4px', marginBottom: '8px', fontWeight: 'bold' }}>
+          DEBUG feedScale = {feedScale.toFixed(3)} | vscale = {vscale.toFixed(3)} | imgSize = {feedImgSize.toFixed(1)}px
+        </div>
+        <div className="flex items-center justify-between flex-shrink-0" style={{ marginBottom: `${feedTitleMb}px` }}>
+          <h3 className="font-extrabold text-text flex items-center gap-1.5" style={{ fontFamily: 'var(--font-display)', fontSize: `${feedTitleFont}px` }}>
+            <IconMapPin className="text-primary" style={{ width: `${headerIconSize}px`, height: `${headerIconSize}px` }} /> 附近餐厅推荐
           </h3>
           {feedPool.length > feedSize && (
             <button
               type="button"
               onClick={handleFeedRefresh}
-              className={`font-bold text-primary flex items-center gap-1 hover:gap-1.5 transition-all ${isNarrow ? 'text-[10px]' : 'text-xs'}`}
-              style={{ fontFamily: 'var(--font-display)' }}
+              className="font-bold text-primary flex items-center gap-1 hover:gap-1.5 transition-all"
+              style={{ fontFamily: 'var(--font-display)', fontSize: `${feedRefreshFont}px` }}
             >
-              <IconRefreshCw className={`${isNarrow ? 'w-3 h-3' : 'w-3.5 h-3.5'}`} /> 换一批
+              <IconRefreshCw style={{ width: `${feedRefreshIcon}px`, height: `${feedRefreshIcon}px` }} /> 换一批
             </button>
           )}
         </div>
 
-        <div className="flex-1 min-h-0 overflow-y-auto pr-0.5 pb-2">
-        {feedLoading && feedItems.length === 0 ? (
-          <div className={`space-y-2 sm:space-y-3.5`}>
-            {Array.from({ length: feedSize }, (_, i) => (
-              <div key={i} className={`flat-card animate-pulse ${isNarrow ? 'p-2' : 'p-3.5'}`}>
-                <div className={`flex items-center ${isNarrow ? 'gap-2' : 'gap-3'}`}>
-                  <div className={`rounded-xl bg-bg-soft ${isNarrow ? 'w-9 h-9' : 'w-12 h-12'}`} />
-                  <div className={`flex-1 ${isNarrow ? 'space-y-1' : 'space-y-2'}`}>
-                    <div className={`rounded-full bg-bg-soft ${isNarrow ? 'w-2/3 h-3' : 'w-2/3 h-4'}`} />
-                    <div className={`rounded-full bg-bg-soft ${isNarrow ? 'w-1/2 h-2' : 'w-1/2 h-3'}`} />
+        <div className="flex-1 min-h-0 overflow-y-auto pr-0.5" style={{ paddingBottom: `${feedLerp(2, 8)}px` }}>
+          {feedLoading && feedItems.length === 0 ? (
+            <div className="space-y-2" style={{ gap: `${feedGap}px` }}>
+              {Array.from({ length: feedSize }, (_, i) => (
+                <div key={i} className="flat-card animate-pulse" style={{ padding: `${feedCardPadding}px` }}>
+                  <div className="flex items-center" style={{ gap: `${feedGap}px` }}>
+                    <div className="rounded-xl bg-bg-soft" style={{ width: `${feedImgSize}px`, height: `${feedImgSize}px` }} />
+                    <div className="flex-1" style={{ gap: `${feedLerp(2, 5)}px` }}>
+                      <div className="rounded-full bg-bg-soft" style={{ width: '66%', height: `${feedLerp(8, 14)}px` }} />
+                      <div className="rounded-full bg-bg-soft" style={{ width: '50%', height: `${feedLerp(5, 9)}px` }} />
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        ) : feedItems.length === 0 ? (
-          <div className={`flat-card text-center text-text-muted ${isNarrow ? 'p-3 text-[11px]' : 'p-6 text-sm'}`}>
-            {isQuotaExceeded() ? '今日高德查询额度已用完，明日自动恢复' : '附近暂无推荐，试试重新定位'}
-          </div>
-        ) : (
-          <>
-            <div className={`space-y-2 sm:space-y-3.5`}>
-              {feedItems.map(r => {
-                const tags = getRestaurantTags(r);
-                const cuisine = getCuisineLabel(r);
-                return (
-                  <button
-                    key={r.id}
-                    type="button"
-                    onClick={() => onQuickPick(r)}
-                    className={`w-full flat-card text-left flex items-center animate-slide-up ${isNarrow ? 'p-2 gap-2' : 'p-3.5 gap-3'}`}
-                  >
-                    {r.photos?.[0]?.url ? (
-                      <img src={r.photos[0].url} alt={r.name} className={`rounded-xl object-cover border-2 flex-shrink-0 ${isNarrow ? 'w-9 h-9' : 'w-12 h-12'}`} style={{ borderColor: 'var(--color-ink)' }} loading="lazy" />
-                    ) : (
-                      <div className={`rounded-xl bg-bg-soft border-2 flex items-center justify-center flex-shrink-0 ${isNarrow ? 'w-9 h-9' : 'w-12 h-12'}`} style={{ borderColor: 'var(--color-ink)' }}>
-                        <IconMapPin className={`text-text-muted ${isNarrow ? 'w-4 h-4' : 'w-5 h-5'}`} />
-                      </div>
-                    )}
-                    <div className="flex-1 min-w-0">
-                      {/* 店名独占一行 */}
-                      <div className="flex items-center gap-1.5">
-                        <p className={`font-extrabold text-text truncate ${isNarrow ? 'text-[12px]' : 'text-sm'}`} style={{ fontFamily: 'var(--font-display)' }}>{r.name}</p>
-                      </div>
-                      {/* 一横行：评分 · 时间 · 人均 · 菜系 · 3个tag */}
-                      <div className={`mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-text-muted leading-tight ${isNarrow ? 'text-[10px]' : 'text-[11px]'}`}>
-                        {r.rating > 0 && (
-                          <span className="inline-flex items-center gap-0.5 text-accent-dark font-semibold flex-shrink-0">
-                            <IconStar className={`inline align-text-bottom ${isNarrow ? 'w-2 h-2' : 'w-2.5 h-2.5'}`} filled />
-                            {r.rating.toFixed ? r.rating.toFixed(1) : r.rating}
-                          </span>
-                        )}
-                        <span className="inline-flex items-center gap-0.5 flex-shrink-0">
-                          <IconWalking className={isNarrow ? 'w-2 h-2' : 'w-2.5 h-2.5'} />
-                          {r.distance || '?'}分
-                        </span>
-                        {r.price > 0 && (
-                          <span className="font-medium flex-shrink-0">¥{r.price}/人</span>
-                        )}
-                        {(() => {
-                          const showCuisine = cuisine && !GENERIC_CUISINES.has(cuisine);
-                          return (
-                            <>
-                              {showCuisine && (
-                                <>
-                                  <span className="text-text-muted/60 flex-shrink-0">·</span>
-                                  <span className="font-medium flex-shrink-0">{cuisine}</span>
-                                </>
-                              )}
-                              {tags.length > 0 && (
-                                <>
-                                  {showCuisine && <span className="text-text-muted/60 flex-shrink-0">·</span>}
-                                  <span className="inline-flex items-center gap-1 flex-wrap min-w-0 ml-1">
-                                    {tags.map((t, i) => (
-                                      <span
-                                        key={i}
-                                        title={t}
-                                        className={`inline-flex items-center rounded-full bg-primary/10 border border-ink/10 text-text/80 font-normal flex-shrink-0 whitespace-nowrap ${isNarrow ? 'text-[9px] px-1.5 py-px' : 'text-[10px] px-2 py-0.5'}`}
-                                      >
-                                        {t}
-                                      </span>
-                                    ))}
-                                  </span>
-                                </>
-                              )}
-                            </>
-                          );
-                        })()}
-                      </div>
-                    </div>
-                    <IconChevronRight className={`text-text-muted flex-shrink-0 ${isNarrow ? 'w-3 h-3' : 'w-4 h-4'}`} />
-                  </button>
-                );
-              })}
+              ))}
             </div>
-            {IS_MOCK_MODE && (
-              <p className={`text-text-muted text-center mt-2 sm:mt-3 ${isNarrow ? 'text-[9px]' : 'text-[11px]'}`}>
-                演示数据，接入高德 API 后才是你附近的真实餐厅
-              </p>
-            )}
-          </>
-        )}
+          ) : feedItems.length === 0 ? (
+            <div className="flat-card text-center text-text-muted" style={{ padding: `${feedLerp(8, 18)}px`, fontSize: `${feedLerp(9, 13)}px` }}>
+              {isQuotaExceeded() ? '今日高德查询额度已用完，明日自动恢复' : '附近暂无推荐，试试重新定位'}
+            </div>
+          ) : (
+            <>
+              <div className="space-y-2" style={{ gap: `${feedGap}px` }}>
+                {feedItems.map(r => {
+                  const tags = getRestaurantTags(r);
+                  const cuisine = getCuisineLabel(r);
+                  return (
+                    <button
+                      key={r.id}
+                      type="button"
+                      onClick={() => onQuickPick(r)}
+                      className="w-full flat-card text-left flex items-center animate-slide-up"
+                      style={{ padding: `${feedCardPadding}px`, gap: `${feedGap}px` }}
+                    >
+                      {r.photos?.[0]?.url ? (
+                        <img src={r.photos[0].url} alt={r.name} className="rounded-xl object-cover border-2 flex-shrink-0" style={{ width: `${feedImgSize}px`, height: `${feedImgSize}px`, borderColor: 'var(--color-ink)' }} loading="lazy" />
+                      ) : (
+                        <div className="rounded-xl bg-bg-soft border-2 flex items-center justify-center flex-shrink-0" style={{ width: `${feedImgSize}px`, height: `${feedImgSize}px`, borderColor: 'var(--color-ink)' }}>
+                          <IconMapPin className="text-text-muted" style={{ width: `${feedLerp(12, 18)}px`, height: `${feedLerp(12, 18)}px` }} />
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <p className="font-extrabold text-text truncate" style={{ fontFamily: 'var(--font-display)', fontSize: `${feedNameSize}px` }}>{r.name}</p>
+                        </div>
+                        <div className="mt-0.5 flex flex-wrap items-center gap-x-1 gap-y-0.5 text-text-muted leading-tight" style={{ fontSize: `${feedMetaSize}px` }}>
+                          {r.rating > 0 && (
+                            <span className="inline-flex items-center gap-0.5 text-accent-dark font-semibold flex-shrink-0">
+                              <IconStar className="inline align-text-bottom" style={{ width: `${feedStarSize}px`, height: `${feedStarSize}px` }} filled />
+                              {r.rating.toFixed ? r.rating.toFixed(1) : r.rating}
+                            </span>
+                          )}
+                          <span className="inline-flex items-center gap-0.5 flex-shrink-0">
+                            <IconWalking style={{ width: `${feedMetaIcon}px`, height: `${feedMetaIcon}px` }} />
+                            {r.distance || '?'}分
+                          </span>
+                          {r.price > 0 && (
+                            <span className="font-medium flex-shrink-0">¥{r.price}/人</span>
+                          )}
+                          {(() => {
+                            const showCuisine = cuisine && !GENERIC_CUISINES.has(cuisine);
+                            return (
+                              <>
+                                {showCuisine && (
+                                  <>
+                                    <span className="text-text-muted/60 flex-shrink-0">·</span>
+                                    <span className="font-medium flex-shrink-0">{cuisine}</span>
+                                  </>
+                                )}
+                                {tags.length > 0 && (
+                                  <>
+                                    {showCuisine && <span className="text-text-muted/60 flex-shrink-0">·</span>}
+                                    <span className="inline-flex items-center gap-1 flex-wrap min-w-0 ml-1">
+                                      {tags.map((t, i) => (
+                                        <span
+                                          key={i}
+                                          title={t}
+                                          className="inline-flex items-center rounded-full bg-primary/10 border border-ink/10 text-text/80 font-normal flex-shrink-0 whitespace-nowrap"
+                                          style={{ fontSize: `${feedTagFont}px`, padding: `${feedTagPaddingY}px ${feedTagPaddingX}px` }}
+                                        >
+                                          {t}
+                                        </span>
+                                      ))}
+                                    </span>
+                                  </>
+                                )}
+                              </>
+                            );
+                          })()}
+                        </div>
+                      </div>
+                      <IconChevronRight className="text-text-muted flex-shrink-0" style={{ width: `${feedChevronSize}px`, height: `${feedChevronSize}px` }} />
+                    </button>
+                  );
+                })}
+              </div>
+              {IS_MOCK_MODE && (
+                <p className="text-text-muted text-center" style={{ marginTop: `${feedDemoMargin}px`, fontSize: `${feedDemoFont}px` }}>
+                  演示数据，接入高德 API 后才是你附近的真实餐厅
+                </p>
+              )}
+            </>
+          )}
         </div>
       </section>
     </div>

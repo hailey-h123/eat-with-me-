@@ -33,6 +33,9 @@ dist-ssr
 debug_fonts.js
 debug_render.mjs
 debug_service.mjs
+debug_hotpot_grill.mjs
 browser_*.mjs
 verify_*.png
 view_*.png
+test_feed_scale.js
+test_feed_scale.mjs

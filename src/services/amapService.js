@@ -10,6 +10,8 @@ const _envWeb = import.meta.env.VITE_AMAP_WEB_KEY || '';
 const _envJs = import.meta.env.VITE_AMAP_KEY || '';
 const WEB_KEY = validKey(_envWeb) ? _envWeb : (appConfig.AMAP_WEB_KEY || '');
 const JS_KEY = validKey(_envJs) ? _envJs : (appConfig.AMAP_KEY || '');
+// 高德 Web 服务安全密钥（配合 Web 服务 Key 使用；开启后每个 REST 请求必须带 scode 参数，否则 10044）
+const WEB_SECURITY_CODE = import.meta.env.VITE_AMAP_WEB_SECURITY_CODE || appConfig.AMAP_WEB_SECURITY_CODE || import.meta.env.VITE_AMAP_SECURITY_CODE || appConfig.AMAP_SECURITY_CODE || '';
 export const IS_MOCK_MODE = !WEB_KEY;
 
 let jsonpCounter = 0;
@@ -108,6 +110,10 @@ function jsonp(url, params) {
     const callbackName = `amap_jsonp_${Date.now()}_${jsonpCounter++}`;
     const allParams = new URLSearchParams(params);
     allParams.append('callback', callbackName);
+    // 开启安全密钥后，高德 Web 服务每个请求都必须带 scode，否则返回 10044
+    if (WEB_SECURITY_CODE && !allParams.has('scode')) {
+      allParams.append('scode', WEB_SECURITY_CODE);
+    }
 
     const script = document.createElement('script');
     script.src = `${url}?${allParams.toString()}`;
