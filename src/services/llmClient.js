@@ -3,10 +3,10 @@
  * 参考 ChoppedEats: LLM 输出搜索关键词而非固定标签，让 LLM 做语义理解，
  * 关键词交给 Amap API 搜索，结果交给 scoringService 评分排序。
  */
-const API_KEY = import.meta.env.VITE_LLM_API_KEY || '';
-const API_BASE = import.meta.env.VITE_LLM_API_BASE || 'https://api.deepseek.com';
-const MODEL = import.meta.env.VITE_LLM_MODEL || 'deepseek-chat';
-const ENABLED = !!API_KEY;
+// 后端代理地址：前端不带 Key 调这里，Key 只存在 Cloudflare Worker 的环境变量 Secret 里。
+// 留空 = LLM 禁用，自动回退到规则引擎。
+const PROXY_URL = import.meta.env.VITE_LLM_PROXY_URL || '';
+const ENABLED = !!PROXY_URL;
 
 const SYSTEM_PROMPT = `你是餐厅推荐系统的意图解析器。用户会用中英文描述想吃什么，你需要输出两个东西：
 1. searchKeywords — 用来调地图API搜餐厅的关键词（高德地图POI搜索，输入什么就返回什么）
@@ -63,25 +63,19 @@ export async function parseWithLLM(text) {
   if (!ENABLED || !text || !text.trim()) return null;
 
   try {
-    const res = await fetch(`${API_BASE}/v1/chat/completions`, {
+    const res = await fetch(`${PROXY_URL}/llm`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${API_KEY}`,
       },
       body: JSON.stringify({
-        model: MODEL,
-        messages: [
-          { role: 'system', content: SYSTEM_PROMPT },
-          { role: 'user', content: `"${text}"` },
-        ],
-        temperature: 0.1,
-        max_tokens: 300,
+        text,
+        system: SYSTEM_PROMPT,
       }),
     });
 
     if (!res.ok) {
-      console.warn('[llmClient] API error:', res.status);
+      console.warn('[llmClient] proxy error:', res.status);
       return null;
     }
 

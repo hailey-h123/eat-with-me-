@@ -1,20 +1,9 @@
 import { mockRestaurants } from '../data/mockRestaurants';
 
-// 优先读取环境变量，其次读取 public/config.js 中的默认配置
-// 🔧 校验 key 格式：高德 API Key 是 32 位 hex 字符串，防止占位符被当真实 key 使用
-const HEX32 = /^[a-f0-9]{32}$/i;
-function validKey(v) { return typeof v === 'string' && HEX32.test(v); }
-
-const appConfig = window.APP_CONFIG || {};
-const _envWeb = import.meta.env.VITE_AMAP_WEB_KEY || '';
-const _envJs = import.meta.env.VITE_AMAP_KEY || '';
-const WEB_KEY = validKey(_envWeb) ? _envWeb : (appConfig.AMAP_WEB_KEY || '');
-const JS_KEY = validKey(_envJs) ? _envJs : (appConfig.AMAP_KEY || '');
-// 高德 Web 服务安全密钥（配合 Web 服务 Key 使用；开启后每个 REST 请求必须带 scode 参数，否则 10044）
-const WEB_SECURITY_CODE = import.meta.env.VITE_AMAP_WEB_SECURITY_CODE || appConfig.AMAP_WEB_SECURITY_CODE || import.meta.env.VITE_AMAP_SECURITY_CODE || appConfig.AMAP_SECURITY_CODE || '';
-export const IS_MOCK_MODE = !WEB_KEY;
-
-let jsonpCounter = 0;
+// 后端代理地址：前端不带 Key 调这里，Key 只存在 Cloudflare Worker 的环境变量 Secret 里。
+// 留空 = mock 演示模式。Web 服务 Key + 安全密钥都不再进前端。
+const AMAP_PROXY_URL = import.meta.env.VITE_AMAP_PROXY_URL || '';
+export const IS_MOCK_MODE = !AMAP_PROXY_URL;
 
 // 补齐 mock 餐厅的 featureTags：features 数组中不是菜系/大类描述的才作为特色标签展示
 // mockRestaurants 里 features = ['不辣','轻食可选','有饮品']，应该直接展示成特色 pill
@@ -105,55 +94,33 @@ export function haversineDistance(lng1, lat1, lng2, lat2) {
   return Math.round(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
 }
 
-function jsonp(url, params) {
-  return new Promise((resolve, reject) => {
-    const callbackName = `amap_jsonp_${Date.now()}_${jsonpCounter++}`;
-    const allParams = new URLSearchParams(params);
-    allParams.append('callback', callbackName);
-    // 开启安全密钥后，高德 Web 服务每个请求都必须带 scode，否则返回 10044
-    if (WEB_SECURITY_CODE && !allParams.has('scode')) {
-      allParams.append('scode', WEB_SECURITY_CODE);
+// 通过后端代理调高德 REST API：从完整 url 提取 path，POST 给 Worker，由 Worker 服务端注入 key/scode。
+// 保留高德原始错误语义（status !== '1' 抛错，带 infocode），供上层重试/回退逻辑复用。
+function requestViaProxy(url, params) {
+  const path = url.replace(/^https:\/\/restapi\.amap\.com/, '');
+  return fetch(`${AMAP_PROXY_URL}/amap`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path, params }),
+  }).then(async (res) => {
+    if (!res.ok) {
+      const err = new Error(`代理请求失败 (HTTP ${res.status})`);
+      err.infocode = 'PROXY_ERROR';
+      throw err;
     }
-
-    const script = document.createElement('script');
-    script.src = `${url}?${allParams.toString()}`;
-
-    const timer = setTimeout(() => {
-      cleanup();
-      reject(new Error('请求超时'));
-    }, 10000);
-
-    const cleanup = () => {
-      clearTimeout(timer);
-      delete window[callbackName];
-      if (script.parentNode) {
-        script.parentNode.removeChild(script);
-      }
-    };
-
-    window[callbackName] = (data) => {
-      cleanup();
-      // 🔧 修复：高德 status !== '1' 都视为错误，不做静默吞掉
-      // infocode 参考：10021=QPS超限（可重试）；10003=域名不对；10004=key无效；其他=参数/服务错误
-      if (data.status !== '1') {
-        const infocode = data.infocode || 'UNKNOWN';
-        const info = data.info || 'API返回错误';
-        const err = new Error(`${info} (infocode=${infocode})`);
-        err.infocode = infocode;
-        err.info = info;
-        err.data = data;
-        reject(err);
-        return;
-      }
-      resolve(data);
-    };
-
-    script.onerror = () => {
-      cleanup();
-      reject(new Error('网络请求失败'));
-    };
-
-    document.head.appendChild(script);
+    const data = await res.json();
+    // 🔧 修复：高德 status !== '1' 都视为错误，不做静默吞掉
+    // infocode 参考：10021=QPS超限（可重试）；10003=域名不对；10004=key无效；其他=参数/服务错误
+    if (data.status !== '1') {
+      const infocode = data.infocode || 'UNKNOWN';
+      const info = data.info || 'API返回错误';
+      const err = new Error(`${info} (infocode=${infocode})`);
+      err.infocode = infocode;
+      err.info = info;
+      err.data = data;
+      throw err;
+    }
+    return data;
   });
 }
 
@@ -184,7 +151,7 @@ async function callAmapWithRetry(url, params, maxRetries = 3) {
   let lastError = null;
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
-      return await jsonp(url, params);
+      return await requestViaProxy(url, params);
     } catch (err) {
       lastError = err;
       if (err.infocode === '10044') {
@@ -208,8 +175,8 @@ async function callAmapWithRetry(url, params, maxRetries = 3) {
 }
 
 export async function searchPOI(keyword, location, radius = 3000, minRadius = 0, maxRadius = 0, pageNum = 1, pageSize = 25, maxTerms = 3) {
-  // Mock 模式：没有 API Key 时使用本地数据
-  if (!WEB_KEY) {
+  // Mock 模式：没有代理地址时使用本地数据
+  if (IS_MOCK_MODE) {
     return mockSearch(keyword, location, radius);
   }
 
@@ -239,7 +206,6 @@ export async function searchPOI(keyword, location, radius = 3000, minRadius = 0,
 async function searchPOIOnce(keyword, location, radius = 3000, minRadius = 0, maxRadius = 0, pageNum = 1, pageSize = 25) {
   try {
     const data = await callAmapWithRetry('https://restapi.amap.com/v5/place/around', {
-      key: WEB_KEY,
       keywords: keyword,
       location: `${location.lng},${location.lat}`,
       radius: radius.toString(),
@@ -288,13 +254,12 @@ export async function searchPOIByCategory(categories, location, radius = 5000, p
   const categoryStr = Array.isArray(categories) ? categories.join('|') : categories;
 
   // Mock 模式：直接用通用餐厅搜索返回
-  if (!WEB_KEY) {
+  if (IS_MOCK_MODE) {
     return mockSearch('餐厅', location, radius);
   }
 
   try {
     const data = await callAmapWithRetry('https://restapi.amap.com/v5/place/around', {
-      key: WEB_KEY,
       types: categoryStr,
       location: `${location.lng},${location.lat}`,
       radius: radius.toString(),
@@ -340,65 +305,62 @@ export async function searchPOIByDistanceRanges(keyword, location, ranges) {
 }
 
 export async function geocode(address) {
-  // 按优先级尝试所有可用 Key：WEB_KEY → JS_KEY → mock
-  const keys = [...new Set([WEB_KEY, JS_KEY].filter(Boolean))];
   let lastErr = null;
+
+  // Mock 模式
+  if (IS_MOCK_MODE) {
+    return mockGeocode(address);
+  }
 
   // 🔧 修复1：优先用 POI text 搜索（对简称/地标名支持比地理编码 API 好得多）
   // 真实测试：'中关村' → 地理编码API命中宁夏中卫的村庄，POI搜索命中北京中关村
-  for (const key of keys) {
-    try {
-      const data = await callAmapWithRetry('https://restapi.amap.com/v3/place/text', {
-        key,
-        keywords: address,
-        page_size: '3',
-      });
+  try {
+    const data = await callAmapWithRetry('https://restapi.amap.com/v3/place/text', {
+      keywords: address,
+      page_size: '3',
+    });
 
-      if (data.pois && data.pois.length > 0) {
-        const poi = data.pois[0];
-        if (poi.location) {
-          const [lng, lat] = poi.location.split(',');
-          return {
-            lng: parseFloat(lng),
-            lat: parseFloat(lat),
-            name: poi.name || address,
-          };
-        }
+    if (data.pois && data.pois.length > 0) {
+      const poi = data.pois[0];
+      if (poi.location) {
+        const [lng, lat] = poi.location.split(',');
+        return {
+          lng: parseFloat(lng),
+          lat: parseFloat(lat),
+          name: poi.name || address,
+        };
       }
-    } catch (error) {
-      lastErr = error;
-      // 当前 key 失败，尝试下一个
     }
+  } catch (error) {
+    lastErr = error;
   }
 
   // 🔧 修复2：POI 搜索无结果时，再尝试地理编码 API
-  for (const key of keys) {
-    try {
-      const data = await callAmapWithRetry('https://restapi.amap.com/v3/geocode/geo', {
-        key,
-        address,
-      });
+  try {
+    const data = await callAmapWithRetry('https://restapi.amap.com/v3/geocode/geo', {
+      address,
+    });
 
-      if (data.geocodes && data.geocodes.length > 0) {
-        // 过滤掉 level='村庄' 的误匹配（典型的就是三里屯匹配到宁夏的村庄）
-        const validGeocodes = data.geocodes.filter(g => g.level !== '村庄' && g.level !== '兴趣点');
-        const pick = validGeocodes.length > 0 ? validGeocodes[0] : data.geocodes[0];
-        const location = pick.location.split(',');
-        return {
-          lng: parseFloat(location[0]),
-          lat: parseFloat(location[1]),
-          name: pick.formatted_address || address,
-        };
-      }
-    } catch (error) {
-      lastErr = error;
-      // 当前 key 失败，尝试下一个
+    if (data.geocodes && data.geocodes.length > 0) {
+      // 过滤掉 level='村庄' 的误匹配（典型的就是三里屯匹配到宁夏的村庄）
+      const validGeocodes = data.geocodes.filter(g => g.level !== '村庄' && g.level !== '兴趣点');
+      const pick = validGeocodes.length > 0 ? validGeocodes[0] : data.geocodes[0];
+      const location = pick.location.split(',');
+      return {
+        lng: parseFloat(location[0]),
+        lat: parseFloat(location[1]),
+        name: pick.formatted_address || address,
+      };
     }
+  } catch (error) {
+    lastErr = error;
   }
 
-  // 3. 所有 Key 都失败时，mock 模式兜底
-  if (IS_MOCK_MODE || keys.length === 0) {
-    return mockGeocode(address);
+  // 3. 都失败时，mock 模式兜底
+  if (lastErr?.infocode === '10021') {
+    const fallback = mockGeocode(address);
+    fallback._throttled = true;
+    return fallback;
   }
 
   // 🔧 修复3：错误分类透出给上层
@@ -406,24 +368,17 @@ export async function geocode(address) {
   const err = new Error(lastErr?.message || '无法获取该位置的坐标');
   err.infocode = lastErr?.infocode;
   err.cause = lastErr;
-  // 10021/QPS超限不抛硬错，返回 mock 结果让用户继续用（兜底用原位置）
-  if (lastErr?.infocode === '10021') {
-    const fallback = mockGeocode(address);
-    fallback._throttled = true;
-    return fallback;
-  }
   throw err;
 }
 
 export async function regeocode(lng, lat) {
   // Mock 模式
-  if (!WEB_KEY) {
+  if (IS_MOCK_MODE) {
     return '北京市朝阳区望京SOHO';
   }
 
   try {
     const data = await callAmapWithRetry('https://restapi.amap.com/v3/geocode/regeo', {
-      key: WEB_KEY,
       location: `${lng},${lat}`,
     });
 
@@ -574,7 +529,7 @@ function convertPOIToRestaurant(poi) {
 
 export async function getIPLocation() {
   // Mock 模式
-  if (!WEB_KEY) {
+  if (IS_MOCK_MODE) {
     return {
       city: '北京市',
       province: '北京市',
@@ -583,9 +538,7 @@ export async function getIPLocation() {
   }
 
   try {
-    const data = await callAmapWithRetry('https://restapi.amap.com/v3/ip', {
-      key: WEB_KEY,
-    });
+    const data = await callAmapWithRetry('https://restapi.amap.com/v3/ip', {});
 
     if (data.city) {
       const result = {
