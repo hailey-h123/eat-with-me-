@@ -17,6 +17,8 @@
 
 const ALLOWED_ORIGINS = [
   'https://hailey-h123.github.io',
+  // Cloudflare 上托管的同项目前端（Workers 静态部署）
+  'https://eat-with-me.15122319805.workers.dev',
   'http://localhost:5173',
   'http://localhost:5174',
   'http://localhost:5175',

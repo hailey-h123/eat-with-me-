@@ -121,19 +121,11 @@ export default function HomeView({
 
   const [vscale, setVscale] = useState(() => {
     if (typeof window === 'undefined') return 1;
-    const w = window.innerWidth;
-    const s = calcVScale();
-    console.log('[HomeView] calcVScale:', { width: w, vscale: s, ua: navigator.userAgent.slice(0, 60) });
-    return s;
+    return calcVScale();
   });
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const onResize = () => {
-      const w = window.innerWidth;
-      const s = calcVScale();
-      console.log('[HomeView] resize:', { width: w, vscale: s });
-      setVscale(s);
-    };
+    const onResize = () => setVscale(calcVScale());
     window.addEventListener('resize', onResize);
     window.addEventListener('orientationchange', onResize);
     return () => {
@@ -296,12 +288,6 @@ export default function HomeView({
       className="relative h-full max-w-2xl mx-auto flex flex-col min-h-0"
       style={{ paddingLeft: `${lerp(10, 24, vscale)}px`, paddingRight: `${lerp(10, 24, vscale)}px`, paddingTop: `${lerp(4, 16, vscale)}px`, paddingBottom: `${lerp(4, 16, vscale)}px` }}
     >
-      {/* DEBUG: remove after diagnosis */}
-      <div style={{ position: 'fixed', top: 0, left: 0, right: 0, background: '#FF0000', color: 'white', zIndex: 99999, fontSize: '14px', padding: '4px 8px', fontWeight: 'bold' }}>
-        vscale={vscale.toFixed(3)} width={typeof window !== 'undefined' ? window.innerWidth : 'ssr'}
-      </div>
-      {/* END DEBUG */}
-
       {/* ===== Hero 问候卡：始终使用 fancy-card 保留黑色描边 ===== */}
       <div
         className="relative overflow-hidden mb-2 flex-shrink-0 fancy-card"
@@ -371,10 +357,6 @@ export default function HomeView({
 
       {/* ===== 附近餐厅 feed ===== */}
       <section className="flex-1 min-h-0 flex flex-col">
-        {/* FORCE DEBUG: show current feedScale */}
-        <div style={{ background: 'yellow', color: 'black', fontSize: '12px', padding: '4px', marginBottom: '8px', fontWeight: 'bold' }}>
-          DEBUG feedScale = {feedScale.toFixed(3)} | vscale = {vscale.toFixed(3)} | imgSize = {feedImgSize.toFixed(1)}px
-        </div>
         <div className="flex items-center justify-between flex-shrink-0" style={{ marginBottom: `${feedTitleMb}px` }}>
           <h3 className="font-extrabold text-text flex items-center gap-1.5" style={{ fontFamily: 'var(--font-display)', fontSize: `${feedTitleFont}px` }}>
             <IconMapPin className="text-primary" style={{ width: `${headerIconSize}px`, height: `${headerIconSize}px` }} /> 附近餐厅推荐
